@@ -1,48 +1,54 @@
 import AppKit
 import Carbon.HIToolbox
 
-/// 默认 Shift + Command + A
+/// Registers a global hotkey. Reads key + modifiers from SettingsStore.
 final class HotkeyManager {
     static let shared = HotkeyManager()
 
-    private var hotKeyRef: EventHotKeyRef?
+    private var hotKeyRef:       EventHotKeyRef?
     private var eventHandlerRef: EventHandlerRef?
     private let hotKeyID: UInt32 = 1
 
     func start() {
-        if hotKeyRef != nil { return }
         installHandlerIfNeeded()
-        registerDefaultHotKey()
+        registerHotKey()
     }
 
-    deinit {
-        if let hotKeyRef {
-            UnregisterEventHotKey(hotKeyRef)
-        }
+    /// Unregister old shortcut and register the new one from SettingsStore.
+    func restart() {
+        unregisterHotKey()
+        registerHotKey()
     }
 
-    private func registerDefaultHotKey() {
-        var id = EventHotKeyID(
-            signature: Self.fourCharCode(from: "SSHK"),
-            id: hotKeyID
-        )
-        let modifiers = UInt32(shiftKey) | UInt32(cmdKey)
+    deinit { unregisterHotKey() }
+
+    // MARK: – Private
+
+    private func registerHotKey() {
+        guard hotKeyRef == nil else { return }
+        let settings  = SettingsStore.shared
+        var id        = EventHotKeyID(signature: Self.fourCharCode(from: "SSHK"), id: hotKeyID)
+        let keyCode   = UInt32(settings.hotkeyKeyCode)
+        let modifiers = UInt32(settings.hotkeyModifiers)
+
         let status = RegisterEventHotKey(
-            UInt32(kVK_ANSI_A),
-            modifiers,
-            id,
-            GetApplicationEventTarget(),
-            0,
-            &hotKeyRef
+            keyCode, modifiers, id,
+            GetApplicationEventTarget(), 0, &hotKeyRef
         )
-        if status != noErr {
-            NSLog("RegisterEventHotKey failed with status: \(status)")
+        if status != noErr { NSLog("RegisterEventHotKey failed: \(status)") }
+    }
+
+    private func unregisterHotKey() {
+        if let ref = hotKeyRef {
+            UnregisterEventHotKey(ref)
+            hotKeyRef = nil
         }
     }
 
     private func installHandlerIfNeeded() {
         guard eventHandlerRef == nil else { return }
-        var eventType = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
+        var eventType = EventTypeSpec(eventClass: OSType(kEventClassKeyboard),
+                                      eventKind: UInt32(kEventHotKeyPressed))
         let userData = Unmanaged.passUnretained(self).toOpaque()
         let callback: EventHandlerUPP = { _, eventRef, userData in
             guard let eventRef, let userData else { return noErr }
@@ -51,16 +57,9 @@ final class HotkeyManager {
             return noErr
         }
         let status = InstallEventHandler(
-            GetApplicationEventTarget(),
-            callback,
-            1,
-            &eventType,
-            userData,
-            &eventHandlerRef
+            GetApplicationEventTarget(), callback, 1, &eventType, userData, &eventHandlerRef
         )
-        if status != noErr {
-            NSLog("InstallEventHandler failed with status: \(status)")
-        }
+        if status != noErr { NSLog("InstallEventHandler failed: \(status)") }
     }
 
     private func handleHotKeyEvent(_ eventRef: EventRef) {
@@ -75,7 +74,6 @@ final class HotkeyManager {
             &incoming
         )
         guard status == noErr, incoming.id == hotKeyID else { return }
-
         DispatchQueue.main.async {
             CaptureSessionController.shared.activateFromHotkey()
         }
