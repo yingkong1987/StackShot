@@ -11,7 +11,6 @@ final class CaptureSessionController {
     private var currentHoveredWindow: WindowUnderMouseInfo?
     private var hoverTimer: Timer?
     private var globalClickMonitor: Any?
-    private var localClickMonitor: Any?
 
     private init() {}
 
@@ -61,13 +60,6 @@ final class CaptureSessionController {
                 self?.handleMouseDown(event)
             }
         }
-
-        if localClickMonitor == nil {
-            localClickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown]) { [weak self] event in
-                self?.handleMouseDown(event)
-                return event
-            }
-        }
     }
 
     private func endHoverTracking() {
@@ -77,10 +69,6 @@ final class CaptureSessionController {
         if let globalClickMonitor {
             NSEvent.removeMonitor(globalClickMonitor)
             self.globalClickMonitor = nil
-        }
-        if let localClickMonitor {
-            NSEvent.removeMonitor(localClickMonitor)
-            self.localClickMonitor = nil
         }
     }
 
@@ -153,21 +141,13 @@ final class CaptureSessionController {
         if CGPreflightScreenCaptureAccess() {
             return true
         }
-        
-        // 仅触发系统授权引导，不在这里进行可能阻塞交互的等待。
-        _ = CGRequestScreenCaptureAccess()
-        NSApp.activate(ignoringOtherApps: true)
-        let alert = NSAlert()
-        alert.messageText = "需要屏幕录制权限"
-        alert.informativeText = "请在「系统设置 → 隐私与安全性 → 屏幕录制」中允许 StackShot，然后重新尝试。"
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "打开系统设置")
-        alert.addButton(withTitle: "稍后")
-        let response = alert.runModal()
-        if response == .alertFirstButtonReturn,
-           let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
+
+        // 避免在当前环境调用 CGRequestScreenCaptureAccess 引发崩溃，
+        // 仅进行预检查并跳转系统设置，由用户手动授权。
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
             NSWorkspace.shared.open(url)
         }
+        NSSound.beep()
         return false
     }
 
