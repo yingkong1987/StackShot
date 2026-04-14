@@ -13,14 +13,13 @@ final class MenuBarController: NSObject, NSWindowDelegate {
         guard !didSetup else { return }
         didSetup = true
 
+        applyRoundedAppIcon()
         NSApp.setActivationPolicy(.accessory)
 
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = item.button {
             if let logo = NSImage(named: "AppLogo") {
-                logo.size = NSSize(width: 18, height: 18)
-                logo.isTemplate = false
-                button.image = logo
+                button.image = roundedImage(from: logo, size: NSSize(width: 18, height: 18), cornerRadius: 4.5)
             } else {
                 button.image = NSImage(systemSymbolName: "camera.viewfinder", accessibilityDescription: "StackShot")
             }
@@ -59,5 +58,27 @@ final class MenuBarController: NSObject, NSWindowDelegate {
     @objc
     private func quitApp() {
         NSApp.terminate(nil)
+    }
+
+    private func applyRoundedAppIcon() {
+        guard let logo = NSImage(named: "AppLogo") else { return }
+        if let rounded = roundedImage(from: logo, size: NSSize(width: 512, height: 512), cornerRadius: 104) {
+            NSApp.applicationIconImage = rounded
+        }
+    }
+
+    private func roundedImage(from source: NSImage, size: NSSize, cornerRadius: CGFloat) -> NSImage? {
+        let image = NSImage(size: size)
+        image.lockFocus()
+        NSGraphicsContext.current?.imageInterpolation = .high
+
+        let rect = NSRect(origin: .zero, size: size)
+        let path = NSBezierPath(roundedRect: rect, xRadius: cornerRadius, yRadius: cornerRadius)
+        path.addClip()
+        source.draw(in: rect, from: .zero, operation: .copy, fraction: 1.0)
+
+        image.unlockFocus()
+        image.isTemplate = false
+        return image
     }
 }
