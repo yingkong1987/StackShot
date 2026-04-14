@@ -17,6 +17,7 @@
 		02E87FFC300641C8A715FFEF517 /* RegionSelectionOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02E87FFC300641C8A715FFEF50D /* RegionSelectionOverlay.swift */; };
 		02E87FFC300641C8A715FFEF518 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 02E87FFC300641C8A715FFEF50E /* Assets.xcassets */; };
 		02E87FFC300641C8A715FFEF524 /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02E87FFC300641C8A715FFEF525 /* MenuBarController.swift */; };
+		02E87FFC300641C8A715FFEF526 /* LaunchAtLoginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02E87FFC300641C8A715FFEF527 /* LaunchAtLoginManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -31,6 +32,7 @@
 		02E87FFC300641C8A715FFEF50E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		02E87FFC300641C8A715FFEF50F /* StackShot.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StackShot.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		02E87FFC300641C8A715FFEF525 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
+		02E87FFC300641C8A715FFEF527 /* LaunchAtLoginManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -64,6 +66,7 @@
 				02E87FFC300641C8A715FFEF50C /* FloatingToolbarPanel.swift */,
 				02E87FFC300641C8A715FFEF50D /* RegionSelectionOverlay.swift */,
 				02E87FFC300641C8A715FFEF525 /* MenuBarController.swift */,
+				02E87FFC300641C8A715FFEF527 /* LaunchAtLoginManager.swift */,
 				02E87FFC300641C8A715FFEF50E /* Assets.xcassets */,
 			);
 			path = StackShot;
@@ -151,6 +154,7 @@
 				02E87FFC300641C8A715FFEF516 /* FloatingToolbarPanel.swift in Sources */,
 				02E87FFC300641C8A715FFEF517 /* RegionSelectionOverlay.swift in Sources */,
 				02E87FFC300641C8A715FFEF524 /* MenuBarController.swift in Sources */,
+				02E87FFC300641C8A715FFEF526 /* LaunchAtLoginManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -192,6 +196,7 @@
 		02E87FFC300641C8A715FFEF522 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = StackShot/StackShot.entitlements;
 				CODE_SIGN_STYLE = Automatic;
@@ -217,6 +222,7 @@
 		02E87FFC300641C8A715FFEF523 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = StackShot/StackShot.entitlements;
 				CODE_SIGN_STYLE = Automatic;

@@ -1,14 +1,35 @@
 import SwiftUI
 
 struct ContentView: View {
+    @EnvironmentObject private var launchAtLoginManager: LaunchAtLoginManager
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("StackShot")
-                .font(.title2.weight(.semibold))
+            HStack(spacing: 10) {
+                Image("AppLogo")
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: 28, height: 28)
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                Text("StackShot")
+                    .font(.title2.weight(.semibold))
+            }
             Text("使用 Shift + Command + A 激活：自动选中指针下的窗口并高亮，随后可用工具条进行区域选取或打开表情面板。")
                 .font(.body)
                 .foregroundStyle(.secondary)
             Divider()
+            Toggle("开机启动", isOn: Binding(
+                get: { launchAtLoginManager.isEnabled },
+                set: { launchAtLoginManager.setEnabled($0) }
+            ))
+            .toggleStyle(.switch)
+
+            if let msg = launchAtLoginManager.lastErrorMessage {
+                Text(msg)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
             VStack(alignment: .leading, spacing: 8) {
                 Label("首次截图前需授权：系统设置 → 隐私与安全性 → 屏幕录制，允许 StackShot。", systemImage: "rectangle.dashed.badge.record")
                 Label("若权限未生效，请完全退出并重新打开 StackShot。", systemImage: "arrow.clockwise.circle")

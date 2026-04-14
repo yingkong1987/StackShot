@@ -17,7 +17,13 @@ final class MenuBarController: NSObject, NSWindowDelegate {
 
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = item.button {
-            button.image = NSImage(systemSymbolName: "camera.viewfinder", accessibilityDescription: "StackShot")
+            if let logo = NSImage(named: "AppLogo") {
+                logo.size = NSSize(width: 18, height: 18)
+                logo.isTemplate = false
+                button.image = logo
+            } else {
+                button.image = NSImage(systemSymbolName: "camera.viewfinder", accessibilityDescription: "StackShot")
+            }
             button.toolTip = "StackShot"
         }
 
