@@ -1,0 +1,264 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		02E87FFC300641C8A715FFEF510 /* StackShotApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02E87FFC300641C8A715FFEF506 /* StackShotApp.swift */; };
+		02E87FFC300641C8A715FFEF511 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02E87FFC300641C8A715FFEF507 /* ContentView.swift */; };
+		02E87FFC300641C8A715FFEF512 /* HotkeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02E87FFC300641C8A715FFEF508 /* HotkeyManager.swift */; };
+		02E87FFC300641C8A715FFEF513 /* WindowUnderMouseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02E87FFC300641C8A715FFEF509 /* WindowUnderMouseService.swift */; };
+		02E87FFC300641C8A715FFEF514 /* CaptureSessionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02E87FFC300641C8A715FFEF50A /* CaptureSessionController.swift */; };
+		02E87FFC300641C8A715FFEF515 /* HighlightBorderWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02E87FFC300641C8A715FFEF50B /* HighlightBorderWindow.swift */; };
+		02E87FFC300641C8A715FFEF516 /* FloatingToolbarPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02E87FFC300641C8A715FFEF50C /* FloatingToolbarPanel.swift */; };
+		02E87FFC300641C8A715FFEF517 /* RegionSelectionOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02E87FFC300641C8A715FFEF50D /* RegionSelectionOverlay.swift */; };
+		02E87FFC300641C8A715FFEF518 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 02E87FFC300641C8A715FFEF50E /* Assets.xcassets */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		02E87FFC300641C8A715FFEF506 /* StackShotApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackShotApp.swift; sourceTree = "<group>"; };
+		02E87FFC300641C8A715FFEF507 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		02E87FFC300641C8A715FFEF508 /* HotkeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyManager.swift; sourceTree = "<group>"; };
+		02E87FFC300641C8A715FFEF509 /* WindowUnderMouseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowUnderMouseService.swift; sourceTree = "<group>"; };
+		02E87FFC300641C8A715FFEF50A /* CaptureSessionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureSessionController.swift; sourceTree = "<group>"; };
+		02E87FFC300641C8A715FFEF50B /* HighlightBorderWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HighlightBorderWindow.swift; sourceTree = "<group>"; };
+		02E87FFC300641C8A715FFEF50C /* FloatingToolbarPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingToolbarPanel.swift; sourceTree = "<group>"; };
+		02E87FFC300641C8A715FFEF50D /* RegionSelectionOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegionSelectionOverlay.swift; sourceTree = "<group>"; };
+		02E87FFC300641C8A715FFEF50E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		02E87FFC300641C8A715FFEF50F /* StackShot.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StackShot.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		02E87FFC300641C8A715FFEF519 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		02E87FFC300641C8A715FFEF503 = {
+			isa = PBXGroup;
+			children = (
+				02E87FFC300641C8A715FFEF504 /* StackShot */,
+				02E87FFC300641C8A715FFEF505 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		02E87FFC300641C8A715FFEF504 /* StackShot */ = {
+			isa = PBXGroup;
+			children = (
+				02E87FFC300641C8A715FFEF506 /* StackShotApp.swift */,
+				02E87FFC300641C8A715FFEF507 /* ContentView.swift */,
+				02E87FFC300641C8A715FFEF508 /* HotkeyManager.swift */,
+				02E87FFC300641C8A715FFEF509 /* WindowUnderMouseService.swift */,
+				02E87FFC300641C8A715FFEF50A /* CaptureSessionController.swift */,
+				02E87FFC300641C8A715FFEF50B /* HighlightBorderWindow.swift */,
+				02E87FFC300641C8A715FFEF50C /* FloatingToolbarPanel.swift */,
+				02E87FFC300641C8A715FFEF50D /* RegionSelectionOverlay.swift */,
+				02E87FFC300641C8A715FFEF50E /* Assets.xcassets */,
+			);
+			path = StackShot;
+			sourceTree = "<group>";
+		};
+		02E87FFC300641C8A715FFEF505 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				02E87FFC300641C8A715FFEF50F /* StackShot.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		02E87FFC300641C8A715FFEF502 /* StackShot */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 02E87FFC300641C8A715FFEF51F /* Build configuration list for PBXNativeTarget "StackShot" */;
+			buildPhases = (
+				02E87FFC300641C8A715FFEF51C /* Sources */,
+				02E87FFC300641C8A715FFEF519 /* Frameworks */,
+				02E87FFC300641C8A715FFEF51D /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = StackShot;
+			productName = StackShot;
+			productReference = 02E87FFC300641C8A715FFEF50F /* StackShot.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		02E87FFC300641C8A715FFEF501 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1630;
+				LastUpgradeCheck = 1630;
+			};
+			buildConfigurationList = 02E87FFC300641C8A715FFEF51E /* Build configuration list for PBXProject "StackShot" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = "zh-Hans";
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+				"zh-Hans",
+			);
+			mainGroup = 02E87FFC300641C8A715FFEF503;
+			productRefGroup = 02E87FFC300641C8A715FFEF505 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				02E87FFC300641C8A715FFEF502 /* StackShot */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		02E87FFC300641C8A715FFEF51D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				02E87FFC300641C8A715FFEF518 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		02E87FFC300641C8A715FFEF51C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				02E87FFC300641C8A715FFEF510 /* StackShotApp.swift in Sources */,
+				02E87FFC300641C8A715FFEF511 /* ContentView.swift in Sources */,
+				02E87FFC300641C8A715FFEF512 /* HotkeyManager.swift in Sources */,
+				02E87FFC300641C8A715FFEF513 /* WindowUnderMouseService.swift in Sources */,
+				02E87FFC300641C8A715FFEF514 /* CaptureSessionController.swift in Sources */,
+				02E87FFC300641C8A715FFEF515 /* HighlightBorderWindow.swift in Sources */,
+				02E87FFC300641C8A715FFEF516 /* FloatingToolbarPanel.swift in Sources */,
+				02E87FFC300641C8A715FFEF517 /* RegionSelectionOverlay.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		02E87FFC300641C8A715FFEF520 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ENABLE_MODULES = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		02E87FFC300641C8A715FFEF521 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ENABLE_MODULES = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		02E87FFC300641C8A715FFEF522 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = StackShot/StackShot.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "";
+				ENABLE_PREVIEWS = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = StackShot;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSScreenCaptureUsageDescription = "StackShot 需要截取所选屏幕区域以复制到剪贴板。";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.stackshot.StackShot;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		02E87FFC300641C8A715FFEF523 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = StackShot/StackShot.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "";
+				ENABLE_PREVIEWS = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = StackShot;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSScreenCaptureUsageDescription = "StackShot 需要截取所选屏幕区域以复制到剪贴板。";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.stackshot.StackShot;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		02E87FFC300641C8A715FFEF51E /* Build configuration list for PBXProject "StackShot" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				02E87FFC300641C8A715FFEF520 /* Debug */,
+				02E87FFC300641C8A715FFEF521 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		02E87FFC300641C8A715FFEF51F /* Build configuration list for PBXNativeTarget "StackShot" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				02E87FFC300641C8A715FFEF522 /* Debug */,
+				02E87FFC300641C8A715FFEF523 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 02E87FFC300641C8A715FFEF501 /* Project object */;
+}
