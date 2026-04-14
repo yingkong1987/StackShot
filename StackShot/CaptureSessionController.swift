@@ -242,6 +242,10 @@ final class CaptureSessionController {
     }
 
     private func ensureScreenCapturePermission() -> Bool {
+        #if DEBUG
+        // 开发调试阶段默认放行，避免频繁弹权限引导打断流程。
+        return true
+        #else
         if CGPreflightScreenCaptureAccess() { return true }
 
         // CGRequestScreenCaptureAccess() registers the app in
@@ -269,6 +273,7 @@ final class CaptureSessionController {
         }
 
         return false
+        #endif
     }
 
     private static func applyCircularMask(to image: NSImage) -> NSImage? {
