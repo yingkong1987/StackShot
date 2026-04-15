@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 
 enum L10n {
     /// App Store Connect (2026-03 更新后)支持的 50 种本地化语言代码。
@@ -100,6 +101,10 @@ enum L10n {
         }
     }
 
+    static func languagePickerWidth() -> CGFloat {
+        languagePickerWidthCache
+    }
+
     private static func resolvedLocaleCode() -> String {
         if let override = UserDefaults.standard.string(forKey: languageOverrideKey),
            !override.isEmpty,
@@ -117,6 +122,19 @@ enum L10n {
         "sk": "sk", "sl": "sl", "es": "es-ES", "sv": "sv", "ta": "ta", "te": "te", "th": "th", "tr": "tr",
         "uk": "uk", "ur": "ur", "vi": "vi",
     ]
+
+    private static let languagePickerWidthCache: CGFloat = {
+        let font = NSFont.systemFont(ofSize: 13)
+        let attributes: [NSAttributedString.Key: Any] = [.font: font]
+        let maxTextWidth = supportedAppStoreLocales
+            .map { code in displayLanguageName(for: code) as NSString }
+            .map { $0.size(withAttributes: attributes).width }
+            .max() ?? 160
+
+        // Add control paddings and indicator space.
+        let suggested = ceil(maxTextWidth) + 44
+        return min(max(170, suggested), 280)
+    }()
 
     /// Language picker labels use concise, familiar naming.
     private static let shortLanguageDisplayName: [String: String] = [

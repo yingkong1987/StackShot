@@ -22,8 +22,8 @@ final class CaptureSessionController {
         annotationEditor = nil
         dismissHoverUI()
         NSApp.activate(ignoringOtherApps: true)
-        beginHoverTracking()
-        refreshHoveredWindow(force: true)
+        // 产品流程：先框选截图区域，完成后再进入编辑工具栏。
+        captureAndOpenEditor(initialTool: .rectangle)
     }
 
     // MARK: – Hover tracking

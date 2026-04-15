@@ -34,7 +34,8 @@ struct ContentView: View {
                                     .font(.system(size: 13))
                                 Spacer(minLength: 8)
                                 KeyboardShortcuts.Recorder(for: .stackShotCapture, onChange: applyHotkeyRecorderChange)
-                                    .frame(maxWidth: 280)
+                                    .frame(width: 230, alignment: .trailing)
+                                    .frame(maxWidth: .infinity, alignment: .trailing)
                             }
 
                             HStack(spacing: 10) {
@@ -190,6 +191,7 @@ private struct ToggleRow: View {
 
 private struct LanguageQuickSwitchRow: View {
     @Binding var selectedLanguageCode: String
+    private let pickerWidth = max(160, L10n.languagePickerWidth() - 10)
 
     var body: some View {
         HStack(spacing: 12) {
@@ -198,16 +200,20 @@ private struct LanguageQuickSwitchRow: View {
             Spacer(minLength: 8)
             Picker("", selection: $selectedLanguageCode) {
                 ForEach(L10n.pickerOrderedLocaleCodes(), id: \.self) { code in
-                    Text(L10n.displayLanguageName(for: code))
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                        .tag(code)
+                    HStack {
+                        Spacer(minLength: 0)
+                        Text(L10n.displayLanguageName(for: code))
+                            .multilineTextAlignment(.center)
+                        Spacer(minLength: 0)
+                    }
+                    .tag(code)
                 }
             }
             .pickerStyle(.menu)
             .labelsHidden()
-            .controlSize(.small)
-            .multilineTextAlignment(.trailing)
-            .frame(width: 210, alignment: .trailing)
+            .controlSize(.regular)
+            .multilineTextAlignment(.center)
+            .frame(width: pickerWidth, height: 28, alignment: .center)
         }
         .padding(.horizontal, 16)
         .frame(height: 44)

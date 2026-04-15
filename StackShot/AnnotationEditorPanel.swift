@@ -6,13 +6,35 @@ import Combine
 // MARK: – Editor state (shared between SwiftUI toolbar and AppKit canvas)
 
 final class AnnotationEditorState: ObservableObject {
-    @Published var selectedTool: AnnotationTool = .rectangle
-    @Published private var toolStyles: [AnnotationTool: AnnotationToolStyle] = [
-        .rectangle: .default(for: .rectangle),
-        .circle: .default(for: .circle),
-        .arrow: .default(for: .arrow),
-        .pen: .default(for: .pen)
+    static let colorPalette: [NSColor] = [
+        .systemRed,
+        .systemOrange,
+        .systemYellow,
+        .systemGreen,
+        .systemMint,
+        .systemTeal,
+        .systemBlue,
+        .systemIndigo,
+        .systemPurple,
+        .systemPink,
+        .white,
+        .black
     ]
+
+    @Published var selectedTool: AnnotationTool = .rectangle
+    @Published private var toolStyles: [AnnotationTool: AnnotationToolStyle] = [:]
+
+    private let styleStorage = UserDefaults.standard
+    private enum StyleStore {
+        static let keyPrefix = "annotation.toolStyle."
+    }
+
+    init() {
+        let persistedTools: [AnnotationTool] = [.rectangle, .circle, .arrow, .pen]
+        for tool in persistedTools {
+            toolStyles[tool] = loadStyle(for: tool) ?? .default(for: tool)
+        }
+    }
 
     func style(for tool: AnnotationTool) -> AnnotationToolStyle {
         toolStyles[tool] ?? .default(for: tool)
@@ -22,16 +44,86 @@ final class AnnotationEditorState: ObservableObject {
         var style = style(for: tool)
         transform(&style)
         toolStyles[tool] = style
+        saveStyle(style, for: tool)
+    }
+
+    private func loadStyle(for tool: AnnotationTool) -> AnnotationToolStyle? {
+        guard let stored = styleStorage.dictionary(forKey: storageKey(for: tool)) else {
+            return nil
+        }
+
+        let defaultStyle = AnnotationToolStyle.default(for: tool)
+        let lineWidth = stored["lineWidth"] as? CGFloat
+            ?? (stored["lineWidth"] as? Double).map { CGFloat($0) }
+            ?? defaultStyle.lineWidth
+        let colorIndex = stored["colorIndex"] as? Int ?? 0
+        let palette = Self.colorPalette
+        let resolvedIndex = max(0, min(colorIndex, palette.count - 1))
+        let color = palette[resolvedIndex]
+
+        return AnnotationToolStyle(
+            lineWidth: lineWidth,
+            isFilled: defaultStyle.isFilled,
+            color: color
+        )
+    }
+
+    private func saveStyle(_ style: AnnotationToolStyle, for tool: AnnotationTool) {
+        let nearestColorIndex = Self.colorPalette.enumerated().min {
+            colorDistance(style.color, $0.element) < colorDistance(style.color, $1.element)
+        }?.offset ?? 0
+
+        styleStorage.set(
+            ["lineWidth": Double(style.lineWidth), "colorIndex": nearestColorIndex],
+            forKey: storageKey(for: tool)
+        )
+    }
+
+    private func storageKey(for tool: AnnotationTool) -> String {
+        StyleStore.keyPrefix + tool.storageKey
+    }
+
+    private func colorDistance(_ lhs: NSColor, _ rhs: NSColor) -> CGFloat {
+        guard
+            let lc = lhs.usingColorSpace(.deviceRGB),
+            let rc = rhs.usingColorSpace(.deviceRGB)
+        else {
+            return .greatestFiniteMagnitude
+        }
+
+        let dr = lc.redComponent - rc.redComponent
+        let dg = lc.greenComponent - rc.greenComponent
+        let db = lc.blueComponent - rc.blueComponent
+        let da = lc.alphaComponent - rc.alphaComponent
+        return dr * dr + dg * dg + db * db + da * da
+    }
+}
+
+private extension AnnotationTool {
+    var storageKey: String {
+        switch self {
+        case .rectangle: return "rectangle"
+        case .circle: return "circle"
+        case .arrow: return "arrow"
+        case .pen: return "pen"
+        case .emoji: return "emoji"
+        case .mosaic: return "mosaic"
+        case .text: return "text"
+        case .ocr: return "ocr"
+        case .ocrTranslate: return "ocrTranslate"
+        case .crop: return "crop"
+        }
     }
 }
 
 // MARK: – Annotation editor window
 
-final class AnnotationEditorPanel: NSPanel {
+final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
 
     private let canvas: AnnotationCanvasView
     private let state  = AnnotationEditorState()
     private var cancellables: Set<AnyCancellable> = []
+    private var toolbarPanel: AnnotationToolbarFloatingPanel?
 
     /// Called when the user confirms or shares; passes the final annotated image.
     var onConfirm: ((NSImage) -> Void)?
@@ -41,20 +133,19 @@ final class AnnotationEditorPanel: NSPanel {
     // MARK: Init
 
     init(screenshot: NSImage, initialTool: AnnotationTool = .rectangle) {
-        let toolbarH: CGFloat = 126
         let minWidth: CGFloat = 700          // enough for all toolbar buttons
 
         // Fit inside 85 % of the main display's visible frame
         let screen   = NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1440, height: 900)
         let maxW     = screen.width  * 0.85
-        let maxH     = (screen.height - toolbarH) * 0.85
+        let maxH     = screen.height * 0.85
         let rawSize  = screenshot.size
         let fitScale = min(1, maxW / rawSize.width, maxH / rawSize.height)
 
         let canvasW  = max(rawSize.width  * fitScale, minWidth)
         let canvasH  = rawSize.height * fitScale
         let winW     = canvasW
-        let winH     = canvasH + toolbarH
+        let winH     = canvasH
 
         // Centre on screen
         let origin = CGPoint(
@@ -63,7 +154,7 @@ final class AnnotationEditorPanel: NSPanel {
         )
 
         self.canvas = AnnotationCanvasView(
-            frame: CGRect(x: 0, y: toolbarH, width: canvasW, height: canvasH),
+            frame: CGRect(x: 0, y: 0, width: canvasW, height: canvasH),
             screenshot: screenshot
         )
 
@@ -84,8 +175,9 @@ final class AnnotationEditorPanel: NSPanel {
         hasShadow          = true
         title              = "编辑截图"
         minSize            = NSSize(width: minWidth, height: 200)
+        delegate           = self
 
-        setupContent(toolbarH: toolbarH, canvasW: canvasW, canvasH: canvasH)
+        setupContent(canvasW: canvasW, canvasH: canvasH)
 
         // Apply initial tool (e.g. pre-selected from the hover toolbar)
         state.selectedTool = initialTool
@@ -116,43 +208,28 @@ final class AnnotationEditorPanel: NSPanel {
 
         // Crop callback: resize the window
         canvas.onCropCompleted = { [weak self] newSize in
-            self?.resizeAfterCrop(newSize: newSize, toolbarH: toolbarH)
+            self?.resizeAfterCrop(newSize: newSize)
         }
+
+        showFloatingToolbar()
     }
 
     // MARK: Layout
 
-    private func setupContent(toolbarH: CGFloat, canvasW: CGFloat, canvasH: CGFloat) {
-        let container = NSView(frame: CGRect(x: 0, y: 0, width: canvasW, height: canvasH + toolbarH))
+    private func setupContent(canvasW: CGFloat, canvasH: CGFloat) {
+        let container = NSView(frame: CGRect(x: 0, y: 0, width: canvasW, height: canvasH))
         container.autoresizingMask = [.width, .height]
         contentView = container
 
         // Canvas
         canvas.autoresizingMask = [.width, .height]
         container.addSubview(canvas)
-
-        // Toolbar (SwiftUI)
-        let toolbarView = AnnotationToolbarView(
-            state: state,
-            onUndo:         { [weak self] in self?.canvas.undo() },
-            onSave:         { [weak self] in self?.saveToFile() },
-            onPin:          { [weak self] in self?.pinToScreen() },
-            onShare:        { [weak self] in self?.shareImage() },
-            onCancel:       { [weak self] in self?.cancelEditor() },
-            onConfirm:      { [weak self] in self?.confirmEditor() },
-            onOCR:          { [weak self] in self?.performOCR(translate: false) },
-            onOCRTranslate: { [weak self] in self?.performOCR(translate: true) }
-        )
-        let host = NSHostingView(rootView: toolbarView)
-        host.frame = CGRect(x: 0, y: 0, width: canvasW, height: toolbarH)
-        host.autoresizingMask = [.width]
-        container.addSubview(host)
     }
 
-    private func resizeAfterCrop(newSize: NSSize, toolbarH: CGFloat) {
+    private func resizeAfterCrop(newSize: NSSize) {
         let minWidth: CGFloat = 700
         let newW = max(newSize.width, minWidth)
-        let newH = newSize.height + toolbarH
+        let newH = newSize.height
         let current = frame
         let newFrame = CGRect(
             x: current.midX - newW / 2,
@@ -174,6 +251,40 @@ final class AnnotationEditorPanel: NSPanel {
     private func cancelEditor() {
         onCancel?()
         close()
+    }
+
+    override func close() {
+        toolbarPanel?.close()
+        toolbarPanel = nil
+        super.close()
+    }
+
+    func windowDidMove(_ notification: Notification) {
+        toolbarPanel?.refreshAnchorFrame(editorFrame: frame)
+    }
+
+    func windowDidResize(_ notification: Notification) {
+        toolbarPanel?.refreshAnchorFrame(editorFrame: frame)
+    }
+
+    private func showFloatingToolbar() {
+        guard toolbarPanel == nil else { return }
+
+        let toolbarView = AnnotationToolbarView(
+            state: state,
+            onUndo:         { [weak self] in self?.canvas.undo() },
+            onSave:         { [weak self] in self?.saveToFile() },
+            onPin:          { [weak self] in self?.pinToScreen() },
+            onShare:        { [weak self] in self?.shareImage() },
+            onCancel:       { [weak self] in self?.cancelEditor() },
+            onConfirm:      { [weak self] in self?.confirmEditor() },
+            onOCR:          { [weak self] in self?.performOCR(translate: false) },
+            onOCRTranslate: { [weak self] in self?.performOCR(translate: true) }
+        )
+
+        let panel = AnnotationToolbarFloatingPanel(editorFrame: frame, rootView: toolbarView)
+        panel.orderFrontRegardless()
+        toolbarPanel = panel
     }
 
     private func shareImage() {
@@ -323,6 +434,100 @@ final class PinWindowStore {
     }
 }
 
+// MARK: – Floating toolbar outside editor
+
+private final class AnnotationToolbarFloatingPanel: NSPanel {
+    private static let toolbarSize = CGSize(width: 760, height: 126)
+    private static let margin: CGFloat = 10
+
+    private var hasUserMoved = false
+
+    init<Content: View>(editorFrame: CGRect, rootView: Content) {
+        let frame = Self.anchoredFrame(editorFrame: editorFrame)
+        super.init(
+            contentRect: frame,
+            styleMask: [.nonactivatingPanel, .borderless, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+
+        isFloatingPanel = true
+        level = .floating
+        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        isOpaque = false
+        backgroundColor = .clear
+        hasShadow = true
+        hidesOnDeactivate = false
+
+        let host = DraggableToolbarHostingView(rootView: rootView) { [weak self] in
+            self?.hasUserMoved = true
+        }
+        host.frame = CGRect(origin: .zero, size: frame.size)
+        host.autoresizingMask = [.width, .height]
+        contentView = host
+    }
+
+    func refreshAnchorFrame(editorFrame: CGRect) {
+        guard !hasUserMoved else { return }
+        let frame = Self.anchoredFrame(editorFrame: editorFrame)
+        setFrame(frame, display: true, animate: false)
+    }
+
+    private static func anchoredFrame(editorFrame: CGRect) -> CGRect {
+        let screen = NSScreen.screens.first(where: { $0.frame.contains(CGPoint(x: editorFrame.midX, y: editorFrame.midY)) })
+            ?? NSScreen.main
+        let visible = screen?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1440, height: 900)
+
+        let width = min(toolbarSize.width, visible.width - margin * 2)
+        let height = toolbarSize.height
+        let spaceAbove = visible.maxY - editorFrame.maxY
+        let spaceBelow = editorFrame.minY - visible.minY
+
+        let placeAbove = spaceAbove >= height + margin || spaceAbove >= spaceBelow
+        let rawY = placeAbove ? (editorFrame.maxY + margin) : (editorFrame.minY - height - margin)
+
+        let minX = visible.minX + margin
+        let maxX = visible.maxX - margin - width
+        let x = min(max(editorFrame.midX - width / 2, minX), maxX)
+
+        let minY = visible.minY + margin
+        let maxY = visible.maxY - margin - height
+        let y = min(max(rawY, minY), maxY)
+
+        return CGRect(x: x, y: y, width: width, height: height)
+    }
+}
+
+private final class DraggableToolbarHostingView<Content: View>: NSHostingView<Content> {
+    private let dragRegionHeight: CGFloat = 16
+    var onBeginDrag: () -> Void = {}
+
+    init(rootView: Content, onBeginDrag: @escaping () -> Void) {
+        self.onBeginDrag = onBeginDrag
+        super.init(rootView: rootView)
+    }
+
+    @MainActor @preconcurrency required init(rootView: Content) {
+        super.init(rootView: rootView)
+    }
+
+    @MainActor @preconcurrency required dynamic init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        let localPoint = convert(event.locationInWindow, from: nil)
+        let isInDragRegion = localPoint.y >= (bounds.height - dragRegionHeight)
+        guard isInDragRegion || hitTest(localPoint) === self else {
+            super.mouseDown(with: event)
+            return
+        }
+
+        onBeginDrag()
+        window?.performDrag(with: event)
+    }
+}
+
 // MARK: – SwiftUI Annotation Toolbar
 
 private struct AnnotationToolbarView: View {
@@ -338,23 +543,16 @@ private struct AnnotationToolbarView: View {
     @State private var styleBubbleTool: AnnotationTool?
 
     private let configurableTools: Set<AnnotationTool> = [.rectangle, .circle, .arrow, .pen]
-    private let commonColors: [NSColor] = [
-        .systemRed,
-        .systemOrange,
-        .systemYellow,
-        .systemGreen,
-        .systemMint,
-        .systemTeal,
-        .systemBlue,
-        .systemIndigo,
-        .systemPurple,
-        .systemPink,
-        .white,
-        .black
-    ]
+    private let commonColors = AnnotationEditorState.colorPalette
 
     var body: some View {
         VStack(spacing: 8) {
+            Capsule()
+                .fill(Color.primary.opacity(0.26))
+                .frame(width: 46, height: 4)
+                .padding(.top, 2)
+                .help("拖动工具栏")
+
             if let tool = styleBubbleTool, configurableTools.contains(tool) {
                 AnnotationStylePopover(
                     style: Binding(
