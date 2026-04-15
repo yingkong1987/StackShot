@@ -16,7 +16,7 @@ struct StackShotApp: App {
                     HotkeyManager.shared.start()
                 }
         }
-        .defaultSize(width: 420, height: 260)
+        .defaultSize(width: 460, height: 340)
         .windowResizability(.contentSize)
     }
 }

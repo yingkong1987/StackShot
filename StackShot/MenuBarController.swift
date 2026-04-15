@@ -14,7 +14,7 @@ final class MenuBarController: NSObject, NSWindowDelegate {
         didSetup = true
 
         applyRoundedAppIcon()
-        NSApp.setActivationPolicy(.accessory)
+        SettingsStore.shared.applyDockPolicy()
 
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = item.button {

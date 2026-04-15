@@ -5,7 +5,7 @@ enum RegionSelectionShape {
     case circle
 }
 
-/// 全屏半透明遮罩 + 拖拽选取；Esc 取消。
+/// 全屏半透明遮罩 + 拖拽选取；Esc/右键取消。
 final class RegionSelectionOverlay: NSWindow {
     init(
         shape: RegionSelectionShape,
@@ -78,6 +78,18 @@ private final class SelectionOverlayView: NSView {
         startPoint = p
         currentPoint = p
         needsDisplay = true
+    }
+
+    override func rightMouseDown(with event: NSEvent) {
+        onAbort()
+    }
+
+    override func otherMouseDown(with event: NSEvent) {
+        if event.buttonNumber != 0 {
+            onAbort()
+        } else {
+            super.otherMouseDown(with: event)
+        }
     }
 
     override func mouseDragged(with event: NSEvent) {

@@ -3,7 +3,7 @@ import CoreGraphics
 
 struct WindowUnderMouseInfo: Equatable {
     let windowID: CGWindowID
-    /// Quartz 全局坐标（左下角为原点），与 `NSScreen` / `NSWindow` 一致
+    /// AppKit 全局坐标（左下角为原点），与 `NSScreen` / `NSWindow` 一致
     let bounds: CGRect
     let title: String?
 }
@@ -21,11 +21,17 @@ enum WindowUnderMouseService {
         for entry in list {
             guard let pid = entry[kCGWindowOwnerPID as String] as? pid_t,
                   pid != myPID,
+                  (entry[kCGWindowIsOnscreen as String] as? Int) == 1,
                   let layer = entry[kCGWindowLayer as String] as? Int,
                   layer == 0,
+                  let alpha = entry[kCGWindowAlpha as String] as? Double,
+                  alpha > 0.01,
                   let idNum = entry[kCGWindowNumber as String] as? NSNumber,
                   let boundsDict = entry[kCGWindowBounds as String] as? [String: Any],
-                  let rect = cgRect(fromPlist: boundsDict) else { continue }
+                  let quartzRect = cgRect(fromPlist: boundsDict) else { continue }
+
+            // CGWindow 返回的 Y 轴坐标是基于 Quartz 顶部原点，需要转换到 AppKit 全局坐标系。
+            let rect = appKitRect(fromQuartzRect: quartzRect)
 
             if rect.width < 8 || rect.height < 8 { continue }
             if !rect.contains(mouse) { continue }
@@ -38,21 +44,20 @@ enum WindowUnderMouseService {
     }
 
     private static func cgRect(fromPlist dict: [String: Any]) -> CGRect? {
-        guard let x = doubleValue(dict["X"]),
-              let y = doubleValue(dict["Y"]),
-              let w = doubleValue(dict["Width"]),
-              let h = doubleValue(dict["Height"]) else { return nil }
-        return CGRect(x: x, y: y, width: w, height: h)
+        CGRect(dictionaryRepresentation: dict as CFDictionary)
     }
 
-    private static func doubleValue(_ any: Any?) -> CGFloat? {
-        switch any {
-        case let n as NSNumber:
-            return CGFloat(truncating: n)
-        case let d as Double:
-            return CGFloat(d)
-        default:
-            return nil
+    private static func appKitRect(fromQuartzRect rect: CGRect) -> CGRect {
+        let desktopBounds = NSScreen.screens.reduce(CGRect.null) { partial, screen in
+            partial.union(screen.frame)
         }
+        guard desktopBounds.isNull == false else { return rect }
+
+        return CGRect(
+            x: rect.origin.x,
+            y: desktopBounds.maxY - rect.origin.y - rect.height,
+            width: rect.width,
+            height: rect.height
+        )
     }
 }
