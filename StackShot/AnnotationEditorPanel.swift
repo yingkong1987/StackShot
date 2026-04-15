@@ -7,6 +7,22 @@ import Combine
 
 final class AnnotationEditorState: ObservableObject {
     @Published var selectedTool: AnnotationTool = .rectangle
+    @Published private var toolStyles: [AnnotationTool: AnnotationToolStyle] = [
+        .rectangle: .default(for: .rectangle),
+        .circle: .default(for: .circle),
+        .arrow: .default(for: .arrow),
+        .pen: .default(for: .pen)
+    ]
+
+    func style(for tool: AnnotationTool) -> AnnotationToolStyle {
+        toolStyles[tool] ?? .default(for: tool)
+    }
+
+    func updateStyle(for tool: AnnotationTool, _ transform: (inout AnnotationToolStyle) -> Void) {
+        var style = style(for: tool)
+        transform(&style)
+        toolStyles[tool] = style
+    }
 }
 
 // MARK: – Annotation editor window
@@ -25,7 +41,7 @@ final class AnnotationEditorPanel: NSPanel {
     // MARK: Init
 
     init(screenshot: NSImage, initialTool: AnnotationTool = .rectangle) {
-        let toolbarH: CGFloat = 52
+        let toolbarH: CGFloat = 126
         let minWidth: CGFloat = 700          // enough for all toolbar buttons
 
         // Fit inside 85 % of the main display's visible frame
@@ -73,6 +89,9 @@ final class AnnotationEditorPanel: NSPanel {
 
         // Apply initial tool (e.g. pre-selected from the hover toolbar)
         state.selectedTool = initialTool
+        canvas.styleProvider = { [weak state] tool in
+            state?.style(for: tool) ?? .default(for: tool)
+        }
 
         // For OCR tools triggered from the hover toolbar, fire OCR automatically
         // after the window has appeared (short delay lets the window settle).
@@ -86,6 +105,12 @@ final class AnnotationEditorPanel: NSPanel {
         state.$selectedTool
             .sink { [weak self] tool in
                 self?.canvas.currentTool = tool
+            }
+            .store(in: &cancellables)
+
+        state.objectWillChange
+            .sink { [weak self] _ in
+                self?.canvas.needsDisplay = true
             }
             .store(in: &cancellables)
 
@@ -310,59 +335,103 @@ private struct AnnotationToolbarView: View {
     var onConfirm:      () -> Void
     var onOCR:          () -> Void
     var onOCRTranslate: () -> Void
+    @State private var styleBubbleTool: AnnotationTool?
+
+    private let configurableTools: Set<AnnotationTool> = [.rectangle, .circle, .arrow, .pen]
+    private let commonColors: [NSColor] = [
+        .systemRed,
+        .systemOrange,
+        .systemYellow,
+        .systemGreen,
+        .systemMint,
+        .systemTeal,
+        .systemBlue,
+        .systemIndigo,
+        .systemPurple,
+        .systemPink,
+        .white,
+        .black
+    ]
 
     var body: some View {
-        HStack(spacing: 5) {
-            // ── Group 1: Drawing tools ──────────────────────────────────────
-            drawTool(.rectangle,   "square",                    "矩形标注")
-            drawTool(.circle,      "circle",                    "圆形标注")
-            drawTool(.emoji,       "face.smiling",              "表情与符号")
-            drawTool(.arrow,       "arrow.up.right",            "箭头")
-            drawTool(.pen,         "pencil",                    "画笔")
-            drawTool(.mosaic,      "squareshape.split.3x3",     "马赛克")
-            drawTool(.text,        "character.textbox",         "文字")
-
-            toolSeparator()
-
-            // ── Group 2: Processing tools ───────────────────────────────────
-            drawTool(.ocrTranslate, "translate",                "OCR 翻译")
-            drawTool(.ocr,          "doc.text.magnifyingglass", "识别文字")
-            drawTool(.crop,         "crop",                     "裁剪")
-
-            toolSeparator()
-
-            // ── Group 3: Action buttons ─────────────────────────────────────
-            actionButton("arrow.uturn.left",           "撤销",    action: onUndo)
-            actionButton("square.and.arrow.down",      "保存",    action: onSave)
-            actionButton("pin",                        "钉图",    action: onPin)
-            actionButton("arrowshape.turn.up.right",   "分享",    action: onShare)
-
-            // Cancel (red) and Confirm (green) with explicit colours
-            Button(action: onCancel) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.red)
-                    .frame(width: 28, height: 28)
+        VStack(spacing: 8) {
+            if let tool = styleBubbleTool, configurableTools.contains(tool) {
+                AnnotationStylePopover(
+                    style: Binding(
+                        get: { state.style(for: tool) },
+                        set: { newStyle in
+                            state.updateStyle(for: tool) { style in
+                                style = newStyle
+                            }
+                        }
+                    ),
+                    palette: commonColors
+                )
+                .background(
+                    RoundedRectangle(cornerRadius: 11, style: .continuous)
+                        .fill(.ultraThinMaterial)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 11, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.24), lineWidth: 0.8)
+                )
             }
-            .buttonStyle(.plain)
-            .background(Color.red.opacity(0.12), in: Circle())
-            .help("取消")
 
-            Button(action: onConfirm) {
-                Image(systemName: "checkmark")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.green)
-                    .frame(width: 28, height: 28)
+            HStack(spacing: 7) {
+                // ── Group 1: Drawing tools ──────────────────────────────────────
+                drawTool(.rectangle,   "square",                    "矩形标注")
+                drawTool(.circle,      "circle",                    "圆形标注")
+                drawTool(.emoji,       "face.smiling",              "表情与符号")
+                drawTool(.arrow,       "arrow.up.right",            "箭头")
+                drawTool(.pen,         "pencil",                    "画笔")
+                drawTool(.mosaic,      "squareshape.split.3x3",     "马赛克")
+                drawTool(.text,        "character.textbox",         "文字")
+
+                toolSeparator()
+
+                // ── Group 2: Processing tools ───────────────────────────────────
+                drawTool(.ocrTranslate, "translate",                "OCR 翻译")
+                drawTool(.ocr,          "doc.text.magnifyingglass", "识别文字")
+                drawTool(.crop,         "crop",                     "裁剪")
+
+                toolSeparator()
+
+                // ── Group 3: Action buttons ─────────────────────────────────────
+                actionButton("arrow.uturn.left",           "撤销",    action: onUndo)
+                actionButton("square.and.arrow.down",      "保存",    action: onSave)
+                actionButton("pin",                        "钉图",    action: onPin)
+                actionButton("arrowshape.turn.up.right",   "分享",    action: onShare)
+
+                // Cancel (red) and Confirm (green) with explicit colours
+                Button(action: onCancel) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.red)
+                        .frame(width: 36, height: 36)
+                }
+                .buttonStyle(.plain)
+                .background(Color.red.opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .help("取消")
+
+                Button(action: onConfirm) {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.green)
+                        .frame(width: 36, height: 36)
+                }
+                .buttonStyle(.plain)
+                .background(Color.green.opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .help("确认并复制")
             }
-            .buttonStyle(.plain)
-            .background(Color.green.opacity(0.12), in: Circle())
-            .help("确认并复制")
         }
-        .padding(.horizontal, 12)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.ultraThinMaterial)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        .background(
+            AnnotationLiquidToolbarBackground(cornerRadius: 16)
+        )
         .overlay(alignment: .top) {
-            Divider().opacity(0.4)
+            Divider().opacity(0.25)
         }
     }
 
@@ -371,24 +440,28 @@ private struct AnnotationToolbarView: View {
     @ViewBuilder
     private func drawTool(_ tool: AnnotationTool, _ icon: String, _ tip: String) -> some View {
         let selected = state.selectedTool == tool
+        let supportsStyle = configurableTools.contains(tool)
         Button {
             if tool == .ocr {
                 state.selectedTool = tool
+                styleBubbleTool = nil
                 onOCR()
             } else if tool == .ocrTranslate {
                 state.selectedTool = tool
+                styleBubbleTool = nil
                 onOCRTranslate()
             } else {
                 state.selectedTool = tool
+                styleBubbleTool = supportsStyle ? tool : nil
             }
         } label: {
             Image(systemName: icon)
-                .font(.system(size: 14, weight: .medium))
-                .frame(width: 28, height: 28)
+                .font(.system(size: 16, weight: .medium))
+                .frame(width: 36, height: 36)
         }
         .buttonStyle(.plain)
-        .background(selected ? Color.accentColor.opacity(0.25) : Color.primary.opacity(0.07),
-                    in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .background(selected ? Color.accentColor.opacity(0.28) : Color.primary.opacity(0.08),
+                    in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         .help(tip)
     }
 
@@ -396,17 +469,128 @@ private struct AnnotationToolbarView: View {
     private func actionButton(_ icon: String, _ tip: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
-                .font(.system(size: 14, weight: .medium))
-                .frame(width: 28, height: 28)
+                .font(.system(size: 16, weight: .medium))
+                .frame(width: 36, height: 36)
         }
         .buttonStyle(.plain)
-        .background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         .help(tip)
     }
 
     private func toolSeparator() -> some View {
         Divider()
-            .frame(width: 1, height: 22)
+            .frame(width: 1, height: 28)
             .padding(.horizontal, 3)
+    }
+}
+
+private struct AnnotationLiquidToolbarBackground: View {
+    let cornerRadius: CGFloat
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .fill(.ultraThinMaterial)
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.24),
+                                Color.white.opacity(0.08),
+                                Color.black.opacity(0.05)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .blendMode(.softLight)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.26), lineWidth: 0.8)
+            )
+            .shadow(color: .black.opacity(0.20), radius: 12, y: 6)
+    }
+}
+
+private struct AnnotationStylePopover: View {
+    @Binding var style: AnnotationToolStyle
+    let palette: [NSColor]
+
+    private let minLineWidth: CGFloat = 1
+    private let maxLineWidth: CGFloat = 14
+    private let presetLineWidths: [CGFloat] = [2, 4, 6, 8]
+    private let columns = Array(repeating: GridItem(.fixed(22), spacing: 8), count: 6)
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "line.diagonal")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                Slider(
+                    value: Binding(
+                        get: { Double(style.lineWidth) },
+                        set: { style.lineWidth = CGFloat($0) }
+                    ),
+                    in: Double(minLineWidth)...Double(maxLineWidth)
+                )
+                .frame(width: 120)
+            }
+
+            HStack(spacing: 8) {
+                ForEach(presetLineWidths, id: \.self) { width in
+                    Button {
+                        style.lineWidth = width
+                    } label: {
+                        Circle()
+                            .fill(Color.primary)
+                            .frame(width: width + 4, height: width + 4)
+                            .frame(width: 24, height: 24)
+                            .opacity(abs(style.lineWidth - width) < 0.6 ? 1 : 0.35)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            LazyVGrid(columns: columns, spacing: 8) {
+                ForEach(Array(palette.enumerated()), id: \.offset) { _, nsColor in
+                    let selected = sameColor(style.color, nsColor)
+                    Button {
+                        style.color = nsColor
+                    } label: {
+                        ZStack {
+                            Circle()
+                                .fill(Color(nsColor: nsColor))
+                            if selected {
+                                Circle()
+                                    .strokeBorder(Color.primary.opacity(0.85), lineWidth: 2)
+                            } else {
+                                Circle()
+                                    .strokeBorder(Color.primary.opacity(0.2), lineWidth: 0.8)
+                            }
+                        }
+                        .frame(width: 18, height: 18)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding(12)
+        .frame(width: 210)
+    }
+
+    private func sameColor(_ lhs: NSColor, _ rhs: NSColor) -> Bool {
+        guard
+            let lc = lhs.usingColorSpace(.deviceRGB),
+            let rc = rhs.usingColorSpace(.deviceRGB)
+        else {
+            return false
+        }
+
+        return abs(lc.redComponent - rc.redComponent) < 0.01 &&
+            abs(lc.greenComponent - rc.greenComponent) < 0.01 &&
+            abs(lc.blueComponent - rc.blueComponent) < 0.01 &&
+            abs(lc.alphaComponent - rc.alphaComponent) < 0.01
     }
 }

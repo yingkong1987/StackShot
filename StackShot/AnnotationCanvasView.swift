@@ -13,8 +13,7 @@ final class AnnotationCanvasView: NSView {
         didSet { needsDisplay = true }
     }
     var currentTool: AnnotationTool = .rectangle
-    var strokeColor: NSColor   = .systemRed
-    var strokeWidth: CGFloat   = 3
+    var styleProvider: ((AnnotationTool) -> AnnotationToolStyle)?
 
     /// Called when a crop operation completes – supplies the new logical size.
     var onCropCompleted: ((NSSize) -> Void)?
@@ -26,6 +25,9 @@ final class AnnotationCanvasView: NSView {
     private var penPoints:   [CGPoint] = []
 
     private weak var activeTextField: TextInputField?
+    private var currentStyle: AnnotationToolStyle {
+        styleProvider?(currentTool) ?? .default(for: currentTool)
+    }
 
     // MARK: – Init
 
@@ -83,22 +85,27 @@ final class AnnotationCanvasView: NSView {
             guard let s = dragStart else { return }
             let r = normalizedRect(from: s, to: p)
             guard r.width > 2, r.height > 2 else { return }
-            annotations.append(.rectangle(rect: r, color: strokeColor, lineWidth: strokeWidth))
+            let style = currentStyle
+            annotations.append(.rectangle(rect: r, color: style.color, lineWidth: style.lineWidth, isFilled: style.isFilled))
 
         case .circle:
             guard let s = dragStart else { return }
             let r = normalizedRect(from: s, to: p)
             guard r.width > 2, r.height > 2 else { return }
-            annotations.append(.circle(rect: r, color: strokeColor, lineWidth: strokeWidth))
+            let style = currentStyle
+            annotations.append(.circle(rect: r, color: style.color, lineWidth: style.lineWidth, isFilled: style.isFilled))
 
         case .arrow:
             guard let s = dragStart else { return }
             guard hypot(p.x - s.x, p.y - s.y) > 4 else { return }
-            annotations.append(.arrow(from: s, to: p, color: strokeColor, lineWidth: strokeWidth))
+            let style = currentStyle
+            annotations.append(.arrow(from: s, to: p, color: style.color, lineWidth: style.lineWidth, isFilled: style.isFilled))
 
         case .pen:
             guard penPoints.count > 1 else { return }
-            annotations.append(.pen(points: penPoints, color: strokeColor, lineWidth: strokeWidth))
+            let style = currentStyle
+            let color = style.isFilled ? style.color : style.color.withAlphaComponent(0.35)
+            annotations.append(.pen(points: penPoints, color: color, lineWidth: style.lineWidth))
 
         case .mosaic:
             guard let s = dragStart else { return }
@@ -149,20 +156,28 @@ final class AnnotationCanvasView: NSView {
 
     private func drawAnnotation(_ item: AnnotationItem) {
         switch item {
-        case let .rectangle(r, c, lw):
+        case let .rectangle(r, c, lw, isFilled):
             let path = NSBezierPath(rect: r)
             path.lineWidth = lw
+            if isFilled {
+                c.withAlphaComponent(0.22).setFill()
+                path.fill()
+            }
             c.setStroke()
             path.stroke()
 
-        case let .circle(r, c, lw):
+        case let .circle(r, c, lw, isFilled):
             let path = NSBezierPath(ovalIn: r)
             path.lineWidth = lw
+            if isFilled {
+                c.withAlphaComponent(0.22).setFill()
+                path.fill()
+            }
             c.setStroke()
             path.stroke()
 
-        case let .arrow(from, to, c, lw):
-            drawArrow(from: from, to: to, color: c, lineWidth: lw)
+        case let .arrow(from, to, c, lw, isFilled):
+            drawArrow(from: from, to: to, color: c, lineWidth: lw, isFilled: isFilled)
 
         case let .pen(pts, c, lw):
             guard pts.count > 1 else { return }
@@ -184,7 +199,7 @@ final class AnnotationCanvasView: NSView {
         }
     }
 
-    private func drawArrow(from: CGPoint, to: CGPoint, color: NSColor, lineWidth: CGFloat) {
+    private func drawArrow(from: CGPoint, to: CGPoint, color: NSColor, lineWidth: CGFloat, isFilled: Bool) {
         let path  = NSBezierPath()
         path.move(to: from)
         path.line(to: to)
@@ -197,11 +212,27 @@ final class AnnotationCanvasView: NSView {
         let p1 = CGPoint(x: to.x - len * cos(angle - spread), y: to.y - len * sin(angle - spread))
         let p2 = CGPoint(x: to.x - len * cos(angle + spread), y: to.y - len * sin(angle + spread))
 
-        path.move(to: to); path.line(to: p1)
-        path.move(to: to); path.line(to: p2)
-
         color.setStroke()
         path.stroke()
+
+        if isFilled {
+            let head = NSBezierPath()
+            head.move(to: to)
+            head.line(to: p1)
+            head.line(to: p2)
+            head.close()
+            color.setFill()
+            head.fill()
+        } else {
+            let head = NSBezierPath()
+            head.move(to: to)
+            head.line(to: p1)
+            head.move(to: to)
+            head.line(to: p2)
+            head.lineWidth = lineWidth
+            color.setStroke()
+            head.stroke()
+        }
     }
 
     private func drawMosaic(in rect: CGRect) {
@@ -250,13 +281,15 @@ final class AnnotationCanvasView: NSView {
     private func drawInProgress() {
         // Pen path
         if currentTool == .pen, penPoints.count > 1 {
+            let style = currentStyle
             let path = NSBezierPath()
             path.move(to: penPoints[0])
             penPoints.dropFirst().forEach { path.line(to: $0) }
-            path.lineWidth     = strokeWidth
+            path.lineWidth     = style.lineWidth
             path.lineCapStyle  = .round
             path.lineJoinStyle = .round
-            strokeColor.setStroke()
+            let previewColor = style.isFilled ? style.color : style.color.withAlphaComponent(0.35)
+            previewColor.setStroke()
             path.stroke()
             return
         }
@@ -265,19 +298,30 @@ final class AnnotationCanvasView: NSView {
 
         switch currentTool {
         case .rectangle:
+            let style = currentStyle
             let path = NSBezierPath(rect: normalizedRect(from: s, to: c))
-            path.lineWidth = strokeWidth
-            strokeColor.setStroke()
+            path.lineWidth = style.lineWidth
+            if style.isFilled {
+                style.color.withAlphaComponent(0.22).setFill()
+                path.fill()
+            }
+            style.color.setStroke()
             path.stroke()
 
         case .circle:
+            let style = currentStyle
             let path = NSBezierPath(ovalIn: normalizedRect(from: s, to: c))
-            path.lineWidth = strokeWidth
-            strokeColor.setStroke()
+            path.lineWidth = style.lineWidth
+            if style.isFilled {
+                style.color.withAlphaComponent(0.22).setFill()
+                path.fill()
+            }
+            style.color.setStroke()
             path.stroke()
 
         case .arrow:
-            drawArrow(from: s, to: c, color: strokeColor, lineWidth: strokeWidth)
+            let style = currentStyle
+            drawArrow(from: s, to: c, color: style.color, lineWidth: style.lineWidth, isFilled: style.isFilled)
 
         case .mosaic:
             let r = normalizedRect(from: s, to: c)
@@ -366,7 +410,7 @@ final class AnnotationCanvasView: NSView {
         )
         tf.isBezeled           = false
         tf.drawsBackground     = false
-        tf.textColor           = strokeColor
+        tf.textColor           = currentStyle.color
         tf.font                = NSFont.systemFont(ofSize: 18, weight: .semibold)
         tf.placeholderString   = "输入文字…"
         tf.onCommit = { [weak self, weak tf] text in
@@ -380,7 +424,7 @@ final class AnnotationCanvasView: NSView {
                 origin: origin,
                 content: text,
                 font: tf.font ?? NSFont.systemFont(ofSize: 18),
-                color: tf.textColor ?? self.strokeColor
+                color: tf.textColor ?? self.currentStyle.color
             ))
             tf.removeFromSuperview()
             self.activeTextField = nil

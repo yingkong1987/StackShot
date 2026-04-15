@@ -1,12 +1,9 @@
 import SwiftUI
-import Carbon.HIToolbox
+import KeyboardShortcuts
 
 struct ContentView: View {
     @EnvironmentObject private var launchAtLoginManager: LaunchAtLoginManager
     @ObservedObject private var settings = SettingsStore.shared
-    @State private var isRecordingHotkey = false
-    @State private var hotkeyRecordHint: String?
-    @State private var localKeyMonitor: Any?
     @State private var selectedLanguageCode = L10n.currentSelectionCode()
     @State private var languageRenderCode = L10n.currentSelectionCode()
 
@@ -31,44 +28,26 @@ struct ContentView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     SettingsSectionHeader(text: L10n.tr("section.hotkey"))
                     SettingsCard {
-                        HStack(spacing: 12) {
-                            Text(L10n.tr("hotkey.current"))
-                                .font(.system(size: 13))
-                            Spacer(minLength: 8)
-                            Text(settings.shortcutDisplayString)
-                                .font(.system(size: 13, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.horizontal, 16)
-                        .frame(height: 44)
-
-                        SettingsCardSeparator()
-
                         VStack(alignment: .leading, spacing: 10) {
-                            HStack(spacing: 10) {
-                                Button(isRecordingHotkey ? L10n.tr("hotkey.recording_button") : L10n.tr("hotkey.change_button")) {
-                                    beginHotkeyRecording()
-                                }
-                                .buttonStyle(.borderedProminent)
+                            HStack(alignment: .center, spacing: 12) {
+                                Text(L10n.tr("hotkey.current"))
+                                    .font(.system(size: 13))
+                                Spacer(minLength: 8)
+                                KeyboardShortcuts.Recorder(for: .stackShotCapture, onChange: applyHotkeyRecorderChange)
+                                    .frame(maxWidth: 280)
+                            }
 
+                            HStack(spacing: 10) {
                                 Button(L10n.tr("hotkey.reset_button")) {
-                                    stopHotkeyRecording()
                                     settings.resetHotkeyToDefault()
-                                    hotkeyRecordHint = nil
+                                    KeyboardShortcuts.setShortcut(settings.asKeyboardShortcut, for: .stackShotCapture)
                                 }
                                 .buttonStyle(.bordered)
-                                .disabled(isRecordingHotkey)
                             }
 
-                            if let hotkeyRecordHint {
-                                Text(hotkeyRecordHint)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            } else {
-                                Text(L10n.tr("hotkey.recording_hint"))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
+                            Text(L10n.tr("hotkey.recording_hint"))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
                         .padding(16)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -124,8 +103,8 @@ struct ContentView: View {
             let applied = L10n.currentSelectionCode()
             selectedLanguageCode = applied
             languageRenderCode = applied
+            syncHotkeyRecorderFromSettings()
         }
-        .onDisappear { stopHotkeyRecording() }
         .onChange(of: selectedLanguageCode) { newValue in
             L10n.updateSelectionCode(newValue)
             let applied = L10n.currentSelectionCode()
@@ -140,57 +119,20 @@ struct ContentView: View {
         )
     }
 
-    private func beginHotkeyRecording() {
-        guard !isRecordingHotkey else { return }
-        isRecordingHotkey = true
-        hotkeyRecordHint = L10n.tr("hotkey.recording_prompt")
-
-        localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            if event.keyCode == UInt16(kVK_Escape) {
-                stopHotkeyRecording()
-                hotkeyRecordHint = L10n.tr("hotkey.recording_cancelled")
-                return nil
-            }
-
-            let trimmedFlags = event.modifierFlags.intersection([.command, .option, .control, .shift])
-            let carbonModifiers = SettingsStore.carbonModifiers(from: trimmedFlags)
-            let keyCode = Int(event.keyCode)
-
-            if carbonModifiers == 0 {
-                hotkeyRecordHint = L10n.tr("hotkey.require_modifier")
-                NSSound.beep()
-                return nil
-            }
-            if Self.isModifierKeyCode(keyCode) {
-                hotkeyRecordHint = L10n.tr("hotkey.require_normal_key")
-                NSSound.beep()
-                return nil
-            }
-
-            settings.updateHotkey(keyCode: keyCode, carbonModifiers: carbonModifiers)
-            hotkeyRecordHint = String(format: L10n.tr("hotkey.updated_format"), settings.shortcutDisplayString)
-            stopHotkeyRecording()
-            return nil
+    private func syncHotkeyRecorderFromSettings() {
+        let fromSettings = settings.asKeyboardShortcut
+        if KeyboardShortcuts.getShortcut(for: .stackShotCapture) != fromSettings {
+            KeyboardShortcuts.setShortcut(fromSettings, for: .stackShotCapture)
         }
     }
 
-    private func stopHotkeyRecording() {
-        isRecordingHotkey = false
-        if let localKeyMonitor {
-            NSEvent.removeMonitor(localKeyMonitor)
-            self.localKeyMonitor = nil
+    private func applyHotkeyRecorderChange(_ shortcut: KeyboardShortcuts.Shortcut?) {
+        if let shortcut {
+            settings.updateHotkey(keyCode: shortcut.carbonKeyCode, carbonModifiers: shortcut.carbonModifiers)
+        } else {
+            settings.resetHotkeyToDefault()
+            KeyboardShortcuts.setShortcut(settings.asKeyboardShortcut, for: .stackShotCapture)
         }
-    }
-
-    private static func isModifierKeyCode(_ keyCode: Int) -> Bool {
-        let modifierCodes: Set<Int> = [
-            Int(kVK_Command), Int(kVK_RightCommand),
-            Int(kVK_Shift), Int(kVK_RightShift),
-            Int(kVK_Option), Int(kVK_RightOption),
-            Int(kVK_Control), Int(kVK_RightControl),
-            Int(kVK_Function), Int(kVK_CapsLock)
-        ]
-        return modifierCodes.contains(keyCode)
     }
 }
 
@@ -256,11 +198,16 @@ private struct LanguageQuickSwitchRow: View {
             Spacer(minLength: 8)
             Picker("", selection: $selectedLanguageCode) {
                 ForEach(L10n.pickerOrderedLocaleCodes(), id: \.self) { code in
-                    Text(L10n.displayLanguageName(for: code)).tag(code)
+                    Text(L10n.displayLanguageName(for: code))
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .tag(code)
                 }
             }
+            .pickerStyle(.menu)
             .labelsHidden()
-            .frame(width: 280)
+            .controlSize(.small)
+            .multilineTextAlignment(.trailing)
+            .frame(width: 210, alignment: .trailing)
         }
         .padding(.horizontal, 16)
         .frame(height: 44)
