@@ -91,7 +91,7 @@ final class CaptureSessionController {
             // Group 1 – capture / draw
             onRect:         { [weak self] in self?.startSelection(.rectangle) },
             onCircle:       { [weak self] in self?.startSelection(.circle) },
-            onEmoji:        { [weak self] in NSApp.orderFrontCharacterPalette(nil) },
+            onEmoji:        { NSApp.orderFrontCharacterPalette(nil) },
             onArrow:        { [weak self] in self?.captureAndOpenEditor(initialTool: .arrow) },
             onPen:          { [weak self] in self?.captureAndOpenEditor(initialTool: .pen) },
             onMosaic:       { [weak self] in self?.captureAndOpenEditor(initialTool: .mosaic) },

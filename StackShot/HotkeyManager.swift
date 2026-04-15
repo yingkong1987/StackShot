@@ -27,7 +27,7 @@ final class HotkeyManager {
     private func registerHotKey() {
         guard hotKeyRef == nil else { return }
         let settings  = SettingsStore.shared
-        var id        = EventHotKeyID(signature: Self.fourCharCode(from: "SSHK"), id: hotKeyID)
+        let id        = EventHotKeyID(signature: Self.fourCharCode(from: "SSHK"), id: hotKeyID)
         let keyCode   = UInt32(settings.hotkeyKeyCode)
         let modifiers = UInt32(settings.hotkeyModifiers)
 

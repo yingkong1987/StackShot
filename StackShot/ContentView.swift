@@ -7,91 +7,132 @@ struct ContentView: View {
     @State private var isRecordingHotkey = false
     @State private var hotkeyRecordHint: String?
     @State private var localKeyMonitor: Any?
+    @State private var selectedLanguageCode = L10n.currentSelectionCode()
+    @State private var languageRenderCode = L10n.currentSelectionCode()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 10) {
-                    Image("AppLogo")
-                        .resizable()
-                        .interpolation(.high)
-                        .frame(width: 28, height: 28)
-                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                    Text("StackShot")
-                        .font(.title2.weight(.semibold))
-                }
-                Text("截图工具设置")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
-            GroupBox("快捷键") {
-                VStack(alignment: .leading, spacing: 10) {
-                    LabeledContent("当前快捷键") {
-                        Text(settings.shortcutDisplayString)
-                            .font(.system(.body, design: .monospaced))
-                    }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 22) {
+                VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 10) {
-                        Button(isRecordingHotkey ? "按下新组合键..." : "修改快捷键") {
-                            beginHotkeyRecording()
-                        }
-                        .buttonStyle(.borderedProminent)
-
-                        Button("恢复默认") {
-                            stopHotkeyRecording()
-                            settings.resetHotkeyToDefault()
-                            hotkeyRecordHint = nil
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(isRecordingHotkey)
+                        Image("AppLogo")
+                            .resizable()
+                            .interpolation(.high)
+                            .frame(width: 28, height: 28)
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        Text(L10n.tr("app.name"))
+                            .font(.system(size: 24, weight: .semibold))
                     }
-
-                    if let hotkeyRecordHint {
-                        Text(hotkeyRecordHint)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Text("录制时请至少包含一个修饰键（⌘/⌥/⌃/⇧），按 Esc 取消。")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                    Text(L10n.tr("settings.subtitle"))
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
 
-            GroupBox("通用") {
                 VStack(alignment: .leading, spacing: 10) {
-                    Toggle("开机启动", isOn: Binding(
-                        get: { launchAtLoginManager.isEnabled },
-                        set: { launchAtLoginManager.setEnabled($0) }
-                    ))
-                    .toggleStyle(.switch)
+                    SettingsSectionHeader(text: L10n.tr("section.hotkey"))
+                    SettingsCard {
+                        HStack(spacing: 12) {
+                            Text(L10n.tr("hotkey.current"))
+                                .font(.system(size: 13))
+                            Spacer(minLength: 8)
+                            Text(settings.shortcutDisplayString)
+                                .font(.system(size: 13, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 16)
+                        .frame(height: 44)
 
-                    Toggle("在 Dock 显示", isOn: $settings.showInDock)
-                        .toggleStyle(.switch)
+                        SettingsCardSeparator()
+
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack(spacing: 10) {
+                                Button(isRecordingHotkey ? L10n.tr("hotkey.recording_button") : L10n.tr("hotkey.change_button")) {
+                                    beginHotkeyRecording()
+                                }
+                                .buttonStyle(.borderedProminent)
+
+                                Button(L10n.tr("hotkey.reset_button")) {
+                                    stopHotkeyRecording()
+                                    settings.resetHotkeyToDefault()
+                                    hotkeyRecordHint = nil
+                                }
+                                .buttonStyle(.bordered)
+                                .disabled(isRecordingHotkey)
+                            }
+
+                            if let hotkeyRecordHint {
+                                Text(hotkeyRecordHint)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Text(L10n.tr("hotkey.recording_hint"))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(16)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
 
-            if let msg = launchAtLoginManager.lastErrorMessage {
-                Text(msg)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-            }
+                VStack(alignment: .leading, spacing: 10) {
+                    SettingsSectionHeader(text: L10n.tr("section.general"))
+                    SettingsCard {
+                        ToggleRow(title: L10n.tr("general.launch_at_login"), isOn: Binding(
+                            get: { launchAtLoginManager.isEnabled },
+                            set: { launchAtLoginManager.setEnabled($0) }
+                        ))
 
-            GroupBox("权限与提示") {
-                VStack(alignment: .leading, spacing: 8) {
-                    Label("首次截图前需授权：系统设置 → 隐私与安全性 → 屏幕录制，允许 StackShot。", systemImage: "rectangle.dashed.badge.record")
-                    Label("若权限未生效，请完全退出并重新打开 StackShot。", systemImage: "arrow.clockwise.circle")
+                        SettingsCardSeparator()
+
+                        ToggleRow(title: L10n.tr("general.show_in_dock"), isOn: $settings.showInDock)
+
+                        SettingsCardSeparator()
+
+                        LanguageQuickSwitchRow(selectedLanguageCode: $selectedLanguageCode)
+                    }
                 }
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
+
+                if let msg = launchAtLoginManager.lastErrorMessage {
+                    Text(msg)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    SettingsSectionHeader(text: L10n.tr("section.permissions"))
+                    SettingsCard {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label(L10n.tr("permissions.screen_recording"), systemImage: "rectangle.dashed.badge.record")
+                            Label(L10n.tr("permissions.restart_hint"), systemImage: "arrow.clockwise.circle")
+                        }
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(16)
+                    }
+                }
             }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 24)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(18)
+        .id(languageRenderCode)
         .frame(minWidth: 460, minHeight: 340, alignment: .topLeading)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .onAppear {
+            let applied = L10n.currentSelectionCode()
+            selectedLanguageCode = applied
+            languageRenderCode = applied
+        }
         .onDisappear { stopHotkeyRecording() }
+        .onChange(of: selectedLanguageCode) { newValue in
+            L10n.updateSelectionCode(newValue)
+            let applied = L10n.currentSelectionCode()
+            selectedLanguageCode = applied
+            languageRenderCode = applied
+            MenuBarController.shared.refreshLocalizedUI()
+        }
         .background(
             WindowAccessor { window in
                 MenuBarController.shared.attachMainWindow(window)
@@ -102,12 +143,12 @@ struct ContentView: View {
     private func beginHotkeyRecording() {
         guard !isRecordingHotkey else { return }
         isRecordingHotkey = true
-        hotkeyRecordHint = "请按下新的快捷键组合..."
+        hotkeyRecordHint = L10n.tr("hotkey.recording_prompt")
 
         localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             if event.keyCode == UInt16(kVK_Escape) {
                 stopHotkeyRecording()
-                hotkeyRecordHint = "已取消快捷键录制。"
+                hotkeyRecordHint = L10n.tr("hotkey.recording_cancelled")
                 return nil
             }
 
@@ -116,18 +157,18 @@ struct ContentView: View {
             let keyCode = Int(event.keyCode)
 
             if carbonModifiers == 0 {
-                hotkeyRecordHint = "快捷键必须包含修饰键（⌘/⌥/⌃/⇧）。"
+                hotkeyRecordHint = L10n.tr("hotkey.require_modifier")
                 NSSound.beep()
                 return nil
             }
             if Self.isModifierKeyCode(keyCode) {
-                hotkeyRecordHint = "请配合一个普通按键使用。"
+                hotkeyRecordHint = L10n.tr("hotkey.require_normal_key")
                 NSSound.beep()
                 return nil
             }
 
             settings.updateHotkey(keyCode: keyCode, carbonModifiers: carbonModifiers)
-            hotkeyRecordHint = "已更新为 \(settings.shortcutDisplayString)"
+            hotkeyRecordHint = String(format: L10n.tr("hotkey.updated_format"), settings.shortcutDisplayString)
             stopHotkeyRecording()
             return nil
         }
@@ -150,6 +191,79 @@ struct ContentView: View {
             Int(kVK_Function), Int(kVK_CapsLock)
         ]
         return modifierCodes.contains(keyCode)
+    }
+}
+
+private struct SettingsSectionHeader: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 12, weight: .bold))
+            .foregroundStyle(.secondary)
+    }
+}
+
+private struct SettingsCard<Content: View>: View {
+    let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            content
+        }
+        .background(Color(nsColor: NSColor(white: 1.0, alpha: 0.05)))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+}
+
+private struct SettingsCardSeparator: View {
+    var body: some View {
+        Divider()
+            .padding(.leading, 16)
+    }
+}
+
+private struct ToggleRow: View {
+    let title: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(title)
+                .font(.system(size: 13))
+
+            Spacer(minLength: 8)
+
+            Toggle("", isOn: $isOn)
+                .labelsHidden()
+        }
+        .padding(.horizontal, 16)
+        .frame(height: 44)
+    }
+}
+
+private struct LanguageQuickSwitchRow: View {
+    @Binding var selectedLanguageCode: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(L10n.languageSettingTitle())
+                .font(.system(size: 13))
+            Spacer(minLength: 8)
+            Picker("", selection: $selectedLanguageCode) {
+                ForEach(L10n.pickerOrderedLocaleCodes(), id: \.self) { code in
+                    Text(L10n.displayLanguageName(for: code)).tag(code)
+                }
+            }
+            .labelsHidden()
+            .frame(width: 280)
+        }
+        .padding(.horizontal, 16)
+        .frame(height: 44)
     }
 }
 

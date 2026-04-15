@@ -11,12 +11,7 @@ final class LaunchAtLoginManager: ObservableObject {
     }
 
     func refresh() {
-        do {
-            isEnabled = SMAppService.mainApp.status == .enabled
-        } catch {
-            isEnabled = false
-            lastErrorMessage = "无法读取开机启动状态：\(error.localizedDescription)"
-        }
+        isEnabled = SMAppService.mainApp.status == .enabled
     }
 
     func setEnabled(_ enabled: Bool) {
