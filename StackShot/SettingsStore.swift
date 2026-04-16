@@ -40,7 +40,6 @@ final class SettingsStore: ObservableObject {
     func updateHotkey(keyCode: Int, carbonModifiers: Int) {
         hotkeyKeyCode   = keyCode
         hotkeyModifiers = carbonModifiers
-        HotkeyManager.shared.restart()
     }
 
     func resetHotkeyToDefault() {

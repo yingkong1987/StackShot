@@ -1,4 +1,5 @@
 import SwiftUI
+import KeyboardShortcuts
 
 @main
 struct StackShotApp: App {
@@ -13,7 +14,11 @@ struct StackShotApp: App {
                     guard !didSetup else { return }
                     didSetup = true
                     MenuBarController.shared.setup()
-                    HotkeyManager.shared.start()
+                    KeyboardShortcuts.onKeyDown(for: .stackShotCapture) {
+                        DispatchQueue.main.async {
+                            CaptureSessionController.shared.activateFromHotkey()
+                        }
+                    }
                 }
         }
         .defaultSize(width: 460, height: 600)

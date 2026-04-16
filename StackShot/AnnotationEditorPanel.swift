@@ -2,6 +2,8 @@ import AppKit
 import SwiftUI
 import Vision
 import Combine
+import ImageIO
+import UniformTypeIdentifiers
 
 private enum AnnotationEditorMetrics {
     static let toolbarButtonSize: CGFloat = 36
@@ -235,7 +237,7 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
         // NSPanel 默认在失焦时可能自动隐藏，这会导致“截图后编辑窗口不见了”的感知。
         hidesOnDeactivate = false
         isFloatingPanel = false
-        title = "编辑截图"
+        title = EditorL10n.tr(.editorWindowTitle)
         isMovable = true
         isMovableByWindowBackground = false
         minSize = NSSize(width: 80, height: 60)
@@ -275,7 +277,6 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
             self?.resizeAfterCrop(newSize: newSize)
         }
 
-        showFloatingToolbar()
     }
 
     // MARK: Layout
@@ -319,6 +320,7 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
     }
 
     override func close() {
+        hideFloatingToolbar()
         emojiPopover?.performClose(nil)
         emojiPopover = nil
         toolbarPanel?.close()
@@ -363,7 +365,11 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
     }
 
     private func showFloatingToolbar() {
-        guard toolbarPanel == nil else { return }
+        if let panel = toolbarPanel {
+            panel.refreshAnchorFrame(editorFrame: frame)
+            panel.orderFrontRegardless()
+            return
+        }
 
         let toolbarView = AnnotationToolbarView(
             state: state,
@@ -383,6 +389,51 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
         toolbarPanel = panel
     }
 
+    private func hideFloatingToolbar() {
+        emojiPopover?.performClose(nil)
+        emojiPopover = nil
+        toolbarPanel?.orderOut(nil)
+    }
+
+    private func syncFloatingToolbarVisibility() {
+        guard isVisible, !isMiniaturized, occlusionState.contains(.visible) else {
+            hideFloatingToolbar()
+            return
+        }
+        showFloatingToolbar()
+    }
+
+    override func orderOut(_ sender: Any?) {
+        hideFloatingToolbar()
+        super.orderOut(sender)
+    }
+
+    func windowDidBecomeKey(_ notification: Notification) {
+        syncFloatingToolbarVisibility()
+    }
+
+    func windowDidResignKey(_ notification: Notification) {
+        if !NSApp.isActive {
+            hideFloatingToolbar()
+        }
+    }
+
+    func windowDidMiniaturize(_ notification: Notification) {
+        hideFloatingToolbar()
+    }
+
+    func windowDidDeminiaturize(_ notification: Notification) {
+        syncFloatingToolbarVisibility()
+    }
+
+    func windowDidChangeOcclusionState(_ notification: Notification) {
+        syncFloatingToolbarVisibility()
+    }
+
+    func windowDidBecomeMain(_ notification: Notification) {
+        syncFloatingToolbarVisibility()
+    }
+
     private func shareImage() {
         let image = canvas.renderToImage()
         guard let cv = contentView else {
@@ -398,14 +449,32 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
     private func saveToFile() {
         let image = canvas.renderToImage()
         let panel = NSSavePanel()
-        panel.allowedContentTypes = [.png]
-        panel.nameFieldStringValue = "StackShot_\(Int(Date().timeIntervalSince1970))"
-        panel.beginSheetModal(for: self) { result in
-            guard result == .OK, let url = panel.url else { return }
-            guard let tiff = image.tiffRepresentation,
-                  let bitmap = NSBitmapImageRep(data: tiff),
-                  let png = bitmap.representation(using: .png, properties: [:]) else { return }
-            try? png.write(to: url)
+        let writableTypes = Self.writableImageTypes()
+        let defaultType = writableTypes.contains(.png) ? UTType.png : (writableTypes.first ?? .png)
+
+        panel.canCreateDirectories = true
+        panel.isExtensionHidden = false
+        panel.allowsOtherFileTypes = false
+        let resolvedTypes = writableTypes.isEmpty ? [.png] : writableTypes
+        panel.allowedContentTypes = resolvedTypes
+        panel.nameFieldStringValue = Self.defaultExportFileName(for: defaultType)
+        panel.setValue(
+            resolvedTypes.compactMap(\.preferredFilenameExtension),
+            forKey: "allowedFileTypes"
+        )
+
+        panel.begin { [weak self] result in
+            guard result == .OK, let self, let rawURL = panel.url else { return }
+            do {
+                let targetType = self.exportUTType(from: rawURL, fallback: defaultType)
+                let finalURL = self.normalizedExportURL(rawURL, for: targetType)
+                try self.writeImage(image, to: finalURL, type: targetType)
+            } catch {
+                self.showAlert(
+                    title: EditorL10n.tr(.saveFailedTitle),
+                    message: "\(EditorL10n.tr(.saveFailedMessagePrefix))\n\(error.localizedDescription)"
+                )
+            }
         }
     }
 
@@ -445,18 +514,21 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
 
     private func copyOCRText(_ text: String) {
         guard !text.isEmpty else {
-            showAlert(title: "未识别到文字", message: "图片中没有可识别的文字。")
+            showAlert(title: EditorL10n.tr(.ocrEmptyTitle), message: EditorL10n.tr(.ocrEmptyMessage))
             return
         }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
         NSSound.beep()
-        showAlert(title: "文字识别完成", message: "已识别 \(text.count) 个字符并复制到剪贴板。")
+        showAlert(
+            title: EditorL10n.tr(.ocrDoneTitle),
+            message: String(format: EditorL10n.tr(.ocrDoneMessageFormat), text.count)
+        )
     }
 
     private func openTranslation(text: String) {
         guard !text.isEmpty else {
-            showAlert(title: "未识别到文字", message: "图片中没有可翻译的文字。")
+            showAlert(title: EditorL10n.tr(.ocrEmptyTitle), message: EditorL10n.tr(.ocrTranslatableEmptyMessage))
             return
         }
         // Copy text and open the system Translate app
@@ -475,15 +547,230 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
         NSSound.beep()
     }
 
+    private static func writableImageTypes() -> [UTType] {
+        let ids = (CGImageDestinationCopyTypeIdentifiers() as? [String]) ?? []
+        let types = ids.compactMap { UTType($0) }
+            .filter { $0.conforms(to: .image) }
+        return types.sorted { lhs, rhs in
+            (lhs.localizedDescription ?? lhs.identifier) < (rhs.localizedDescription ?? rhs.identifier)
+        }
+    }
+
+    private static func defaultExportFileName(for type: UTType) -> String {
+        let timestamp = exportFileNameFormatter.string(from: Date())
+        let baseName = "StackShot_\(timestamp)"
+        return exportFileName(baseName: baseName, for: type)
+    }
+
+    private static func exportFileName(baseName: String, for type: UTType) -> String {
+        let ext = type.preferredFilenameExtension ?? "png"
+        return "\(baseName).\(ext)"
+    }
+
+    private static let exportFileNameFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy-MM-dd_HHmm"
+        return formatter
+    }()
+
+    private func exportUTType(from url: URL, fallback: UTType) -> UTType {
+        if
+            let ext = url.pathExtension.nilIfEmpty,
+            let byExtension = UTType(filenameExtension: ext),
+            byExtension.conforms(to: .image)
+        {
+            return byExtension
+        }
+        return fallback
+    }
+
+    private func normalizedExportURL(_ url: URL, for type: UTType) -> URL {
+        guard url.pathExtension.isEmpty,
+              let ext = type.preferredFilenameExtension else {
+            return url
+        }
+        return url.appendingPathExtension(ext)
+    }
+
+    private func writeImage(_ image: NSImage, to url: URL, type: UTType) throws {
+        guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            throw NSError(domain: "StackShot.Export", code: 1, userInfo: [NSLocalizedDescriptionKey: EditorL10n.tr(.exportReadImageDataFailed)])
+        }
+        guard let destination = CGImageDestinationCreateWithURL(url as CFURL, type.identifier as CFString, 1, nil) else {
+            throw NSError(domain: "StackShot.Export", code: 2, userInfo: [NSLocalizedDescriptionKey: EditorL10n.tr(.exportUnsupportedType)])
+        }
+
+        let options: CFDictionary?
+        if type.conforms(to: .jpeg) || type.conforms(to: .heic) || type.conforms(to: .heif) {
+            options = [kCGImageDestinationLossyCompressionQuality: 0.92] as CFDictionary
+        } else {
+            options = nil
+        }
+
+        CGImageDestinationAddImage(destination, cgImage, options)
+        guard CGImageDestinationFinalize(destination) else {
+            throw NSError(domain: "StackShot.Export", code: 3, userInfo: [NSLocalizedDescriptionKey: EditorL10n.tr(.exportWriteFailed)])
+        }
+    }
+
     private func showAlert(title: String, message: String) {
         let alert = NSAlert()
         alert.messageText     = title
         alert.informativeText = message
         alert.alertStyle      = .informational
-        alert.addButton(withTitle: "好")
+        alert.addButton(withTitle: EditorL10n.tr(.okButton))
         alert.beginSheetModal(for: self)
     }
 
+}
+
+private enum EditorL10nKey {
+    case editorWindowTitle
+    case saveFailedTitle
+    case saveFailedMessagePrefix
+    case ocrEmptyTitle
+    case ocrEmptyMessage
+    case ocrDoneTitle
+    case ocrDoneMessageFormat
+    case ocrTranslatableEmptyMessage
+    case exportReadImageDataFailed
+    case exportUnsupportedType
+    case exportWriteFailed
+    case okButton
+    case toolRectangle
+    case toolCircle
+    case toolEmoji
+    case toolArrow
+    case toolPen
+    case toolMosaic
+    case toolText
+    case toolOCRTranslate
+    case toolOCR
+    case toolCrop
+    case actionUndo
+    case actionSave
+    case actionPin
+    case actionShare
+    case actionCancel
+    case actionConfirmCopy
+    case emojiPickerTitle
+}
+
+private enum EditorL10n {
+    static func tr(_ key: EditorL10nKey) -> String {
+        let locale = L10n.currentSelectionCode()
+        if locale == "zh-Hant" {
+            return zhHant[key] ?? en[key] ?? ""
+        }
+        if locale == "zh-Hans" {
+            return zhHans[key] ?? en[key] ?? ""
+        }
+        return en[key] ?? ""
+    }
+
+    private static let zhHans: [EditorL10nKey: String] = [
+        .editorWindowTitle: "编辑截图",
+        .saveFailedTitle: "保存失败",
+        .saveFailedMessagePrefix: "无法保存图片，请重试。",
+        .ocrEmptyTitle: "未识别到文字",
+        .ocrEmptyMessage: "图片中没有可识别的文字。",
+        .ocrDoneTitle: "文字识别完成",
+        .ocrDoneMessageFormat: "已识别 %d 个字符并复制到剪贴板。",
+        .ocrTranslatableEmptyMessage: "图片中没有可翻译的文字。",
+        .exportReadImageDataFailed: "无法读取图像数据。",
+        .exportUnsupportedType: "不支持该文件格式。",
+        .exportWriteFailed: "系统写入文件失败。",
+        .okButton: "好",
+        .toolRectangle: "矩形标注",
+        .toolCircle: "圆形标注",
+        .toolEmoji: "表情与符号",
+        .toolArrow: "箭头",
+        .toolPen: "画笔",
+        .toolMosaic: "马赛克",
+        .toolText: "文字",
+        .toolOCRTranslate: "OCR 翻译",
+        .toolOCR: "识别文字",
+        .toolCrop: "裁剪",
+        .actionUndo: "撤销",
+        .actionSave: "保存",
+        .actionPin: "钉图",
+        .actionShare: "分享",
+        .actionCancel: "取消",
+        .actionConfirmCopy: "确认并复制",
+        .emojiPickerTitle: "Emoji"
+    ]
+
+    private static let zhHant: [EditorL10nKey: String] = [
+        .editorWindowTitle: "編輯截圖",
+        .saveFailedTitle: "儲存失敗",
+        .saveFailedMessagePrefix: "無法儲存圖片，請再試一次。",
+        .ocrEmptyTitle: "未辨識到文字",
+        .ocrEmptyMessage: "圖片中沒有可辨識的文字。",
+        .ocrDoneTitle: "文字辨識完成",
+        .ocrDoneMessageFormat: "已辨識 %d 個字元並複製到剪貼簿。",
+        .ocrTranslatableEmptyMessage: "圖片中沒有可翻譯的文字。",
+        .exportReadImageDataFailed: "無法讀取圖像資料。",
+        .exportUnsupportedType: "不支援此檔案格式。",
+        .exportWriteFailed: "系統寫入檔案失敗。",
+        .okButton: "好",
+        .toolRectangle: "矩形標註",
+        .toolCircle: "圓形標註",
+        .toolEmoji: "表情與符號",
+        .toolArrow: "箭頭",
+        .toolPen: "畫筆",
+        .toolMosaic: "馬賽克",
+        .toolText: "文字",
+        .toolOCRTranslate: "OCR 翻譯",
+        .toolOCR: "辨識文字",
+        .toolCrop: "裁剪",
+        .actionUndo: "復原",
+        .actionSave: "儲存",
+        .actionPin: "釘圖",
+        .actionShare: "分享",
+        .actionCancel: "取消",
+        .actionConfirmCopy: "確認並複製",
+        .emojiPickerTitle: "Emoji"
+    ]
+
+    private static let en: [EditorL10nKey: String] = [
+        .editorWindowTitle: "Edit Screenshot",
+        .saveFailedTitle: "Save Failed",
+        .saveFailedMessagePrefix: "Unable to save the image. Please try again.",
+        .ocrEmptyTitle: "No Text Detected",
+        .ocrEmptyMessage: "No recognizable text was found in the image.",
+        .ocrDoneTitle: "Text Recognition Complete",
+        .ocrDoneMessageFormat: "Recognized %d characters and copied them to the clipboard.",
+        .ocrTranslatableEmptyMessage: "No translatable text was found in the image.",
+        .exportReadImageDataFailed: "Unable to read image data.",
+        .exportUnsupportedType: "This file type is not supported.",
+        .exportWriteFailed: "The system failed to write the file.",
+        .okButton: "OK",
+        .toolRectangle: "Rectangle",
+        .toolCircle: "Circle",
+        .toolEmoji: "Emoji & Symbols",
+        .toolArrow: "Arrow",
+        .toolPen: "Pen",
+        .toolMosaic: "Mosaic",
+        .toolText: "Text",
+        .toolOCRTranslate: "OCR Translate",
+        .toolOCR: "Recognize Text",
+        .toolCrop: "Crop",
+        .actionUndo: "Undo",
+        .actionSave: "Save",
+        .actionPin: "Pin",
+        .actionShare: "Share",
+        .actionCancel: "Cancel",
+        .actionConfirmCopy: "Confirm & Copy",
+        .emojiPickerTitle: "Emoji"
+    ]
+}
+
+private extension String {
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
+    }
 }
 
 // MARK: – Pin window store (keeps floating screenshots alive)
@@ -1049,35 +1336,35 @@ private struct AnnotationToolbarView: View {
     private func renderToken(_ token: ToolbarToken) -> some View {
         switch token {
         case .rectangle:
-            drawTool(.rectangle, "square", "矩形标注")
+            drawTool(.rectangle, "square", EditorL10n.tr(.toolRectangle))
         case .circle:
-            drawTool(.circle, "circle", "圆形标注")
+            drawTool(.circle, "circle", EditorL10n.tr(.toolCircle))
         case .emoji:
-            EmojiToolbarButton(state: state, help: "表情与符号", onClick: onEmoji)
+            EmojiToolbarButton(state: state, help: EditorL10n.tr(.toolEmoji), onClick: onEmoji)
                 .frame(width: AnnotationEditorMetrics.toolbarButtonSize,
                        height: AnnotationEditorMetrics.toolbarButtonSize)
         case .arrow:
-            drawTool(.arrow, "arrow.up.right", "箭头")
+            drawTool(.arrow, "arrow.up.right", EditorL10n.tr(.toolArrow))
         case .pen:
-            drawTool(.pen, "pencil", "画笔")
+            drawTool(.pen, "pencil", EditorL10n.tr(.toolPen))
         case .mosaic:
-            drawTool(.mosaic, "squareshape.split.3x3", "马赛克")
+            drawTool(.mosaic, "squareshape.split.3x3", EditorL10n.tr(.toolMosaic))
         case .text:
-            drawTool(.text, "character.textbox", "文字")
+            drawTool(.text, "character.textbox", EditorL10n.tr(.toolText))
         case .ocrTranslate:
-            drawTool(.ocrTranslate, "translate", "OCR 翻译")
+            drawTool(.ocrTranslate, "translate", EditorL10n.tr(.toolOCRTranslate))
         case .ocr:
-            drawTool(.ocr, "doc.text.magnifyingglass", "识别文字")
+            drawTool(.ocr, "doc.text.magnifyingglass", EditorL10n.tr(.toolOCR))
         case .crop:
-            drawTool(.crop, "crop", "裁剪")
+            drawTool(.crop, "crop", EditorL10n.tr(.toolCrop))
         case .undo:
-            actionButton("arrow.uturn.left", "撤销", action: onUndo)
+            actionButton("arrow.uturn.left", EditorL10n.tr(.actionUndo), action: onUndo)
         case .save:
-            actionButton("square.and.arrow.down", "保存", action: onSave)
+            actionButton("square.and.arrow.down", EditorL10n.tr(.actionSave), action: onSave)
         case .pin:
-            actionButton("pin", "钉图", action: onPin)
+            actionButton("pin", EditorL10n.tr(.actionPin), action: onPin)
         case .share:
-            actionButton("arrowshape.turn.up.right", "分享", action: onShare)
+            actionButton("arrowshape.turn.up.right", EditorL10n.tr(.actionShare), action: onShare)
         case .cancel:
             cancelButton
         case .confirm:
@@ -1135,7 +1422,7 @@ private struct AnnotationToolbarView: View {
     private var cancelButton: some View {
         ToolbarActionButton(
             systemName: "xmark",
-            help: "取消",
+            help: EditorL10n.tr(.actionCancel),
             tintColor: .systemRed,
             backgroundColor: .systemRed.withAlphaComponent(0.14),
             onClick: onCancel
@@ -1147,7 +1434,7 @@ private struct AnnotationToolbarView: View {
     private var confirmButton: some View {
         ToolbarActionButton(
             systemName: "checkmark",
-            help: "确认并复制",
+            help: EditorL10n.tr(.actionConfirmCopy),
             tintColor: .systemGreen,
             backgroundColor: .systemGreen.withAlphaComponent(0.14),
             onClick: onConfirm
@@ -1179,7 +1466,7 @@ private struct EmojiPickerView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Emoji")
+            Text(EditorL10n.tr(.emojiPickerTitle))
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.secondary)
 

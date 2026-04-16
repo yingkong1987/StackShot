@@ -289,6 +289,7 @@ final class AnnotationCanvasView: NSView {
             path.setLineDash(dash, count: dash.count, phase: 0)
             path.stroke()
 
+            drawEmojiRotateHandle(for: highlightRect)
             drawEmojiControls(for: highlightRect)
         }
     }
@@ -653,7 +654,7 @@ final class AnnotationCanvasView: NSView {
             case .deleteButton:
                 deleteSelectedEmoji()
                 return true
-            case .cornerHandle:
+            case .rotateHandle:
                 activeEmojiIndex = selectedEmojiIndex
                 emojiGestureMode = .rotate
                 emojiGestureStartPoint = point
@@ -784,14 +785,10 @@ final class AnnotationCanvasView: NSView {
         for action in EmojiControlAction.allCases {
             let rect = emojiControlRect(for: action, selectionRect: selectionRect)
             let bg = NSBezierPath(roundedRect: rect, xRadius: 9, yRadius: 9)
-            let fillColor: NSColor = action == .deleteButton
-                ? NSColor.systemRed.withAlphaComponent(0.92)
-                : NSColor.windowBackgroundColor.withAlphaComponent(0.92)
+            let fillColor: NSColor = NSColor(calibratedWhite: 1.0, alpha: 0.94)
             fillColor.setFill()
             bg.fill()
-            let strokeColor: NSColor = action == .deleteButton
-                ? NSColor.systemRed.withAlphaComponent(0.55)
-                : NSColor.controlAccentColor.withAlphaComponent(0.35)
+            let strokeColor: NSColor = NSColor(calibratedWhite: 0.72, alpha: 0.9)
             strokeColor.setStroke()
             bg.lineWidth = 1
             bg.stroke()
@@ -799,12 +796,20 @@ final class AnnotationCanvasView: NSView {
             if let image = NSImage(systemSymbolName: action.systemName, accessibilityDescription: nil)?
                 .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 14, weight: .semibold)) {
                 let imageRect = CGRect(x: rect.midX - 8, y: rect.midY - 8, width: 16, height: 16)
-                if action == .deleteButton {
-                    NSColor.white.set()
-                }
+                NSColor(calibratedWhite: 0.12, alpha: 1).set()
                 image.draw(in: imageRect)
             }
         }
+    }
+
+    private func drawEmojiRotateHandle(for selectionRect: CGRect) {
+        let handleRect = emojiRotateHandleRect(selectionRect: selectionRect)
+        let path = NSBezierPath(ovalIn: handleRect)
+        NSColor(calibratedWhite: 1.0, alpha: 0.96).setFill()
+        path.fill()
+        NSColor.controlAccentColor.withAlphaComponent(0.75).setStroke()
+        path.lineWidth = 1.2
+        path.stroke()
     }
 
     private func emojiControlRect(for action: EmojiControlAction, selectionRect: CGRect) -> CGRect {
@@ -838,26 +843,7 @@ final class AnnotationCanvasView: NSView {
 
     private func emojiControlHitTest(_ point: CGPoint, sticker: EmojiSticker) -> EmojiHitZone {
         let selectionRect = emojiSelectionRect(for: sticker)
-        let cornerSize: CGFloat = 18
         let edgeInset: CGFloat = 20
-
-        let corners = [
-            CGRect(x: selectionRect.minX - cornerSize / 2, y: selectionRect.maxY - cornerSize / 2, width: cornerSize, height: cornerSize),
-            CGRect(x: selectionRect.maxX - cornerSize / 2, y: selectionRect.maxY - cornerSize / 2, width: cornerSize, height: cornerSize),
-            CGRect(x: selectionRect.minX - cornerSize / 2, y: selectionRect.minY - cornerSize / 2, width: cornerSize, height: cornerSize),
-            CGRect(x: selectionRect.maxX - cornerSize / 2, y: selectionRect.minY - cornerSize / 2, width: cornerSize, height: cornerSize)
-        ]
-        if corners.contains(where: { $0.contains(point) }) {
-            return .cornerHandle
-        }
-
-        let topEdge = CGRect(x: selectionRect.minX + edgeInset, y: selectionRect.maxY - 6, width: selectionRect.width - edgeInset * 2, height: 12)
-        let bottomEdge = CGRect(x: selectionRect.minX + edgeInset, y: selectionRect.minY - 6, width: selectionRect.width - edgeInset * 2, height: 12)
-        let leftEdge = CGRect(x: selectionRect.minX - 6, y: selectionRect.minY + edgeInset, width: 12, height: selectionRect.height - edgeInset * 2)
-        let rightEdge = CGRect(x: selectionRect.maxX - 6, y: selectionRect.minY + edgeInset, width: 12, height: selectionRect.height - edgeInset * 2)
-        if [topEdge, bottomEdge, leftEdge, rightEdge].contains(where: { $0.contains(point) }) {
-            return .edgeHandle
-        }
 
         for action in EmojiControlAction.allCases {
             if emojiControlRect(for: action, selectionRect: selectionRect).contains(point) {
@@ -870,11 +856,33 @@ final class AnnotationCanvasView: NSView {
             }
         }
 
+        if emojiRotateHandleRect(selectionRect: selectionRect).contains(point) {
+            return .rotateHandle
+        }
+
+        let topEdge = CGRect(x: selectionRect.minX + edgeInset, y: selectionRect.maxY - 6, width: selectionRect.width - edgeInset * 2, height: 12)
+        let bottomEdge = CGRect(x: selectionRect.minX + edgeInset, y: selectionRect.minY - 6, width: selectionRect.width - edgeInset * 2, height: 12)
+        let leftEdge = CGRect(x: selectionRect.minX - 6, y: selectionRect.minY + edgeInset, width: 12, height: selectionRect.height - edgeInset * 2)
+        let rightEdge = CGRect(x: selectionRect.maxX - 6, y: selectionRect.minY + edgeInset, width: 12, height: selectionRect.height - edgeInset * 2)
+        if [topEdge, bottomEdge, leftEdge, rightEdge].contains(where: { $0.contains(point) }) {
+            return .edgeHandle
+        }
+
         if selectionRect.contains(point) {
             return .body
         }
 
         return .none
+    }
+
+    private func emojiRotateHandleRect(selectionRect: CGRect) -> CGRect {
+        let size: CGFloat = 18
+        return CGRect(
+            x: selectionRect.maxX - size / 2,
+            y: selectionRect.minY - size / 2,
+            width: size,
+            height: size
+        )
     }
 
     private func updateEmojiCursor(at point: CGPoint) {
@@ -886,7 +894,7 @@ final class AnnotationCanvasView: NSView {
         }
 
         switch emojiControlHitTest(point, sticker: sticker) {
-        case .cornerHandle:
+        case .rotateHandle:
             NSCursor.emojiRotate.set()
         case .edgeHandle:
             NSCursor.resizeLeftRight.set()
@@ -915,7 +923,7 @@ private enum EmojiGestureMode {
 private enum EmojiHitZone {
     case none
     case body
-    case cornerHandle
+    case rotateHandle
     case edgeHandle
     case rotateLeftButton
     case rotateRightButton
@@ -950,9 +958,21 @@ private extension NSCursor {
         image.lockFocus()
         NSColor.clear.setFill()
         NSBezierPath(rect: NSRect(origin: .zero, size: size)).fill()
-        let symbolRect = NSRect(x: 3, y: 3, width: 18, height: 18)
-        if let symbol = NSImage(systemSymbolName: "rotate.right.fill", accessibilityDescription: nil)?
-            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 16, weight: .bold)) {
+        let buttonRect = NSRect(x: 2.5, y: 2.5, width: 19, height: 19)
+        let buttonPath = NSBezierPath(ovalIn: buttonRect)
+        NSColor(calibratedWhite: 1.0, alpha: 0.96).setFill()
+        buttonPath.fill()
+        NSColor(calibratedWhite: 0.72, alpha: 0.9).setStroke()
+        buttonPath.lineWidth = 1
+        buttonPath.stroke()
+
+        let symbolRect = NSRect(x: 4, y: 4, width: 16, height: 16)
+        let symbolName = NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: nil) != nil
+            ? "arrow.triangle.2.circlepath"
+            : "rotate.right"
+        if let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
+            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 13, weight: .medium)) {
+            NSColor(calibratedWhite: 0.12, alpha: 1).set()
             symbol.draw(in: symbolRect)
         }
         image.unlockFocus()

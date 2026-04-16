@@ -15,7 +15,7 @@ extension KeyboardShortcuts.Name {
 }
 
 extension SettingsStore {
-    /// 与全局 `RegisterEventHotkey`（`HotkeyManager`）共用同一套 Carbon 码。
+    /// 与 `KeyboardShortcuts` 统一使用同一套 Carbon 码。
     var asKeyboardShortcut: KeyboardShortcuts.Shortcut {
         KeyboardShortcuts.Shortcut(carbonKeyCode: hotkeyKeyCode, carbonModifiers: hotkeyModifiers)
     }
