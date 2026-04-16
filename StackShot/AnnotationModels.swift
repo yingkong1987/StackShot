@@ -14,6 +14,15 @@ enum AnnotationTool: Hashable {
     case crop        // "resize / crop" button
 }
 
+struct EmojiSticker {
+    var content: String
+    var center: CGPoint
+    var baseSize: CGFloat
+    var scale: CGFloat
+    var rotation: CGFloat
+    var isMirrored: Bool
+}
+
 struct AnnotationToolStyle {
     var lineWidth: CGFloat
     var isFilled: Bool
@@ -41,4 +50,5 @@ enum AnnotationItem {
     case pen(points: [CGPoint], color: NSColor, lineWidth: CGFloat)
     case mosaic(rect: CGRect)
     case text(origin: CGPoint, content: String, font: NSFont, color: NSColor)
+    case emojiSticker(sticker: EmojiSticker)
 }

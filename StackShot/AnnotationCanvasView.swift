@@ -12,7 +12,7 @@ final class AnnotationCanvasView: NSView {
     var annotations: [AnnotationItem] = [] {
         didSet { needsDisplay = true }
     }
-    var currentTool: AnnotationTool = .rectangle
+    var currentTool: AnnotationTool?
     var styleProvider: ((AnnotationTool) -> AnnotationToolStyle)?
 
     /// Called when a crop operation completes – supplies the new logical size.
@@ -23,10 +23,19 @@ final class AnnotationCanvasView: NSView {
     private var dragStart:   NSPoint?
     private var dragCurrent: NSPoint?
     private var penPoints:   [CGPoint] = []
+    private var activeEmojiIndex: Int?
+    private var selectedEmojiIndex: Int?
+    private var emojiGestureStartPoint: CGPoint?
+    private var emojiInitialSticker: EmojiSticker?
+    private var emojiGestureMode: EmojiGestureMode = .move
+    private var emojiInitialAngle: CGFloat = 0
+    private var emojiInitialDistance: CGFloat = 0
+    private var trackingAreaRef: NSTrackingArea?
 
     private weak var activeTextField: TextInputField?
     private var currentStyle: AnnotationToolStyle {
-        styleProvider?(currentTool) ?? .default(for: currentTool)
+        guard let currentTool else { return .default(for: .rectangle) }
+        return styleProvider?(currentTool) ?? .default(for: currentTool)
     }
 
     // MARK: – Init
@@ -34,11 +43,36 @@ final class AnnotationCanvasView: NSView {
     init(frame: NSRect, screenshot: NSImage) {
         self.screenshot = screenshot
         super.init(frame: frame)
+        updateTrackingAreas()
     }
     required init?(coder: NSCoder) { nil }
 
     override var acceptsFirstResponder: Bool { true }
     override var isFlipped: Bool { false }  // standard AppKit: (0,0) = bottom-left
+
+    override func updateTrackingAreas() {
+        if let trackingAreaRef {
+            removeTrackingArea(trackingAreaRef)
+        }
+        let trackingArea = NSTrackingArea(
+            rect: bounds,
+            options: [.activeInKeyWindow, .inVisibleRect, .mouseMoved, .cursorUpdate],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(trackingArea)
+        trackingAreaRef = trackingArea
+        super.updateTrackingAreas()
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        updateEmojiCursor(at: convert(event.locationInWindow, from: nil))
+        super.mouseMoved(with: event)
+    }
+
+    override func cursorUpdate(with event: NSEvent) {
+        updateEmojiCursor(at: convert(event.locationInWindow, from: nil))
+    }
 
     // MARK: – Mouse handling
 
@@ -46,9 +80,20 @@ final class AnnotationCanvasView: NSView {
         commitActiveTextField()
         let p = convert(event.locationInWindow, from: nil)
 
-        switch currentTool {
+        if beginEmojiInteraction(at: p, event: event) {
+            needsDisplay = true
+            return
+        }
+
+        if selectedEmojiIndex != nil {
+            selectedEmojiIndex = nil
+        }
+
+        guard let tool = currentTool else { return }
+
+        switch tool {
         case .emoji:
-            NSApp.orderFrontCharacterPalette(nil)
+            break
         case .text:
             presentTextInput(at: p)
         case .pen:
@@ -62,8 +107,14 @@ final class AnnotationCanvasView: NSView {
     }
 
     override func mouseDragged(with event: NSEvent) {
+        if updateEmojiInteraction(with: event) {
+            needsDisplay = true
+            return
+        }
+
+        guard let tool = currentTool else { return }
         let p = convert(event.locationInWindow, from: nil)
-        if currentTool == .pen {
+        if tool == .pen {
             penPoints.append(p)
         } else {
             dragCurrent = p
@@ -72,6 +123,12 @@ final class AnnotationCanvasView: NSView {
     }
 
     override func mouseUp(with event: NSEvent) {
+        if endEmojiInteraction(with: event) {
+            needsDisplay = true
+            return
+        }
+
+        guard let tool = currentTool else { return }
         let p = convert(event.locationInWindow, from: nil)
         defer {
             dragStart   = nil
@@ -80,7 +137,7 @@ final class AnnotationCanvasView: NSView {
             needsDisplay = true
         }
 
-        switch currentTool {
+        switch tool {
         case .rectangle:
             guard let s = dragStart else { return }
             let r = normalizedRect(from: s, to: p)
@@ -135,8 +192,8 @@ final class AnnotationCanvasView: NSView {
         screenshot.draw(in: screenshotDrawRect)
 
         // Committed annotations
-        for item in annotations {
-            drawAnnotation(item)
+        for (idx, item) in annotations.enumerated() {
+            drawAnnotation(item, index: idx)
         }
 
         // In-progress preview
@@ -144,17 +201,18 @@ final class AnnotationCanvasView: NSView {
     }
 
     private var screenshotDrawRect: CGRect {
-        // Centre the screenshot inside the canvas bounds (no upscaling)
+        // 按比例铺满可用画布，并顶对齐显示（顶部贴齐）。
         let s = screenshot.size
-        let scale = min(1, bounds.width / s.width, bounds.height / s.height)
+        guard s.width > 0, s.height > 0 else { return .zero }
+        let scale = min(bounds.width / s.width, bounds.height / s.height)
         let w = s.width  * scale
         let h = s.height * scale
-        return CGRect(x: (bounds.width - w) / 2, y: (bounds.height - h) / 2, width: w, height: h)
+        return CGRect(x: (bounds.width - w) / 2, y: bounds.height - h, width: w, height: h)
     }
 
     // MARK: – Annotation rendering
 
-    private func drawAnnotation(_ item: AnnotationItem) {
+    private func drawAnnotation(_ item: AnnotationItem, index: Int) {
         switch item {
         case let .rectangle(r, c, lw, isFilled):
             let path = NSBezierPath(rect: r)
@@ -196,40 +254,92 @@ final class AnnotationCanvasView: NSView {
         case let .text(origin, content, font, color):
             let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
             (content as NSString).draw(at: origin, withAttributes: attrs)
+
+        case let .emojiSticker(sticker):
+            drawEmojiSticker(sticker, isSelected: index == selectedEmojiIndex)
+        }
+    }
+
+    private func drawEmojiSticker(_ sticker: EmojiSticker, isSelected: Bool) {
+        let size = max(8, sticker.baseSize * sticker.scale)
+        let font = NSFont.systemFont(ofSize: size)
+        let attrs: [NSAttributedString.Key: Any] = [.font: font]
+        let text = sticker.content as NSString
+        let textSize = text.size(withAttributes: attrs)
+
+        guard let cg = NSGraphicsContext.current?.cgContext else { return }
+        cg.saveGState()
+        cg.translateBy(x: sticker.center.x, y: sticker.center.y)
+        cg.rotate(by: sticker.rotation)
+        if sticker.isMirrored {
+            cg.scaleBy(x: -1, y: 1)
+        }
+        text.draw(
+            at: CGPoint(x: -textSize.width / 2, y: -textSize.height / 2),
+            withAttributes: attrs
+        )
+        cg.restoreGState()
+
+        if isSelected {
+            let highlightRect = emojiSelectionRect(for: sticker)
+            let path = NSBezierPath(roundedRect: highlightRect, xRadius: 10, yRadius: 10)
+            NSColor.controlAccentColor.withAlphaComponent(0.9).setStroke()
+            path.lineWidth = 2
+            let dash: [CGFloat] = [5, 4]
+            path.setLineDash(dash, count: dash.count, phase: 0)
+            path.stroke()
+
+            drawEmojiControls(for: highlightRect)
         }
     }
 
     private func drawArrow(from: CGPoint, to: CGPoint, color: NSColor, lineWidth: CGFloat, isFilled: Bool) {
-        let path  = NSBezierPath()
-        path.move(to: from)
-        path.line(to: to)
-        path.lineWidth = lineWidth
+        let angle = atan2(to.y - from.y, to.x - from.x)
+        let distance = hypot(to.x - from.x, to.y - from.y)
+        let headLength = min(max(18, lineWidth * 4.2), distance * 0.55)
+        let headHalfWidth = max(headLength * 0.62, lineWidth * 2.6)
 
-        let angle: CGFloat = atan2(to.y - from.y, to.x - from.x)
-        let len:   CGFloat = min(18, hypot(to.x - from.x, to.y - from.y) * 0.4)
-        let spread: CGFloat = 0.45
+        // Arrowhead base center sits behind the tip; this lets the triangle fully
+        // cover the stem end, avoiding the two exposed corners at the tip.
+        let baseCenter = CGPoint(
+            x: to.x - headLength * cos(angle),
+            y: to.y - headLength * sin(angle)
+        )
+        let perpendicular = angle + .pi / 2
+        let p1 = CGPoint(
+            x: baseCenter.x + headHalfWidth * cos(perpendicular),
+            y: baseCenter.y + headHalfWidth * sin(perpendicular)
+        )
+        let p2 = CGPoint(
+            x: baseCenter.x - headHalfWidth * cos(perpendicular),
+            y: baseCenter.y - headHalfWidth * sin(perpendicular)
+        )
 
-        let p1 = CGPoint(x: to.x - len * cos(angle - spread), y: to.y - len * sin(angle - spread))
-        let p2 = CGPoint(x: to.x - len * cos(angle + spread), y: to.y - len * sin(angle + spread))
+        let stemEnd = CGPoint(
+            x: baseCenter.x - lineWidth * 0.35 * cos(angle),
+            y: baseCenter.y - lineWidth * 0.35 * sin(angle)
+        )
 
+        let stem = NSBezierPath()
+        stem.move(to: from)
+        stem.line(to: stemEnd)
+        stem.lineWidth = lineWidth
+        stem.lineCapStyle = .round
+        stem.lineJoinStyle = .round
         color.setStroke()
-        path.stroke()
+        stem.stroke()
+
+        let head = NSBezierPath()
+        head.move(to: to)
+        head.line(to: p1)
+        head.line(to: p2)
+        head.close()
 
         if isFilled {
-            let head = NSBezierPath()
-            head.move(to: to)
-            head.line(to: p1)
-            head.line(to: p2)
-            head.close()
             color.setFill()
             head.fill()
         } else {
-            let head = NSBezierPath()
-            head.move(to: to)
-            head.line(to: p1)
-            head.move(to: to)
-            head.line(to: p2)
-            head.lineWidth = lineWidth
+            head.lineWidth = max(1.5, lineWidth)
             color.setStroke()
             head.stroke()
         }
@@ -279,8 +389,9 @@ final class AnnotationCanvasView: NSView {
     // MARK: – In-progress preview
 
     private func drawInProgress() {
+        guard let tool = currentTool else { return }
         // Pen path
-        if currentTool == .pen, penPoints.count > 1 {
+        if tool == .pen, penPoints.count > 1 {
             let style = currentStyle
             let path = NSBezierPath()
             path.move(to: penPoints[0])
@@ -296,7 +407,7 @@ final class AnnotationCanvasView: NSView {
 
         guard let s = dragStart, let c = dragCurrent else { return }
 
-        switch currentTool {
+        switch tool {
         case .rectangle:
             let style = currentStyle
             let path = NSBezierPath(rect: normalizedRect(from: s, to: c))
@@ -448,6 +559,50 @@ final class AnnotationCanvasView: NSView {
     func undo() {
         guard !annotations.isEmpty else { return }
         annotations.removeLast()
+        if let selectedEmojiIndex, !annotations.indices.contains(selectedEmojiIndex) {
+            self.selectedEmojiIndex = nil
+        }
+        needsDisplay = true
+    }
+
+    func insertEmojiSticker(_ emoji: String) {
+        let rect = screenshotDrawRect
+        guard !rect.isNull else { return }
+        let sticker = EmojiSticker(
+            content: emoji,
+            center: CGPoint(x: rect.midX, y: rect.midY),
+            baseSize: max(24, min(rect.width, rect.height) * 0.12),
+            scale: 1,
+            rotation: 0,
+            isMirrored: false
+        )
+        annotations.append(.emojiSticker(sticker: sticker))
+        selectedEmojiIndex = annotations.indices.last
+        needsDisplay = true
+    }
+
+    func rotateSelectedEmoji(by delta: CGFloat) {
+        guard let idx = selectedEmojiIndex,
+              case var .emojiSticker(sticker) = annotations[idx] else { return }
+        sticker.rotation += delta
+        annotations[idx] = .emojiSticker(sticker: sticker)
+        needsDisplay = true
+    }
+
+    func scaleSelectedEmoji(by factor: CGFloat) {
+        guard let idx = selectedEmojiIndex,
+              case var .emojiSticker(sticker) = annotations[idx] else { return }
+        sticker.scale = max(0.25, min(6.0, sticker.scale * factor))
+        annotations[idx] = .emojiSticker(sticker: sticker)
+        needsDisplay = true
+    }
+
+    func mirrorSelectedEmoji() {
+        guard let idx = selectedEmojiIndex,
+              case var .emojiSticker(sticker) = annotations[idx] else { return }
+        sticker.isMirrored.toggle()
+        annotations[idx] = .emojiSticker(sticker: sticker)
+        needsDisplay = true
     }
 
     // MARK: – Export
@@ -470,6 +625,283 @@ final class AnnotationCanvasView: NSView {
             width:  abs(b.x - a.x),
             height: abs(b.y - a.y)
         )
+    }
+
+    private func beginEmojiInteraction(at point: CGPoint, event: NSEvent) -> Bool {
+        if let selectedEmojiIndex,
+           annotations.indices.contains(selectedEmojiIndex),
+           case let .emojiSticker(sticker) = annotations[selectedEmojiIndex] {
+            switch emojiControlHitTest(point, sticker: sticker) {
+            case .rotateLeftButton:
+                rotateSelectedEmoji(by: .pi / 2)
+                return true
+            case .rotateRightButton:
+                rotateSelectedEmoji(by: -.pi / 2)
+                return true
+            case .mirrorButton:
+                mirrorSelectedEmoji()
+                return true
+            case .cornerHandle:
+                activeEmojiIndex = selectedEmojiIndex
+                emojiGestureMode = .rotate
+                emojiGestureStartPoint = point
+                emojiInitialSticker = sticker
+                emojiInitialAngle = angle(from: sticker.center, to: point)
+                return true
+            case .edgeHandle:
+                activeEmojiIndex = selectedEmojiIndex
+                emojiGestureMode = .scale
+                emojiGestureStartPoint = point
+                emojiInitialSticker = sticker
+                emojiInitialDistance = max(1, distance(from: sticker.center, to: point))
+                return true
+            case .body:
+                activeEmojiIndex = selectedEmojiIndex
+                emojiGestureMode = .move
+                emojiGestureStartPoint = point
+                emojiInitialSticker = sticker
+                return true
+            case .none:
+                break
+            }
+        }
+
+        guard let idx = topEmojiIndex(at: point),
+              case let .emojiSticker(sticker) = annotations[idx] else {
+            return false
+        }
+
+        activeEmojiIndex = idx
+        selectedEmojiIndex = idx
+        emojiGestureStartPoint = point
+        emojiInitialSticker = sticker
+        emojiGestureMode = .move
+        return true
+    }
+
+    private func updateEmojiInteraction(with event: NSEvent) -> Bool {
+        guard
+            let idx = activeEmojiIndex,
+            let start = emojiGestureStartPoint,
+            var sticker = emojiInitialSticker
+        else {
+            return false
+        }
+
+        let p = convert(event.locationInWindow, from: nil)
+        let dx = p.x - start.x
+        let dy = p.y - start.y
+
+        switch emojiGestureMode {
+        case .move:
+            sticker.center = CGPoint(x: sticker.center.x + dx, y: sticker.center.y + dy)
+        case .scale:
+            let currentDistance = max(1, distance(from: sticker.center, to: p))
+            let factor = currentDistance / max(1, emojiInitialDistance)
+            sticker.scale = max(0.25, min(6.0, sticker.scale * factor))
+        case .rotate:
+            let currentAngle = angle(from: sticker.center, to: p)
+            sticker.rotation += currentAngle - emojiInitialAngle
+        }
+
+        annotations[idx] = .emojiSticker(sticker: sticker)
+        if emojiGestureMode == .rotate {
+            emojiInitialAngle = angle(from: sticker.center, to: p)
+        } else if emojiGestureMode == .scale {
+            emojiInitialDistance = max(1, distance(from: sticker.center, to: p))
+        } else {
+            emojiGestureStartPoint = p
+        }
+        return true
+    }
+
+    private func endEmojiInteraction(with event: NSEvent) -> Bool {
+        if updateEmojiInteraction(with: event) {
+            resetEmojiInteraction()
+            return true
+        }
+        resetEmojiInteraction()
+        return false
+    }
+
+    private func resetEmojiInteraction() {
+        activeEmojiIndex = nil
+        emojiGestureStartPoint = nil
+        emojiInitialSticker = nil
+        emojiGestureMode = .move
+        emojiInitialAngle = 0
+        emojiInitialDistance = 0
+    }
+
+    private func topEmojiIndex(at point: CGPoint) -> Int? {
+        for idx in annotations.indices.reversed() {
+            guard case let .emojiSticker(sticker) = annotations[idx] else { continue }
+            let radius = max(16, sticker.baseSize * sticker.scale * 0.65)
+            let dist = hypot(point.x - sticker.center.x, point.y - sticker.center.y)
+            if dist <= radius {
+                return idx
+            }
+        }
+        return nil
+    }
+
+    private func emojiBounds(for sticker: EmojiSticker) -> CGRect {
+        let size = max(8, sticker.baseSize * sticker.scale)
+        let font = NSFont.systemFont(ofSize: size)
+        let attrs: [NSAttributedString.Key: Any] = [.font: font]
+        let text = sticker.content as NSString
+        let textSize = text.size(withAttributes: attrs)
+        let side = max(textSize.width, textSize.height)
+        let radius = max(16, side * 0.72)
+        return CGRect(
+            x: sticker.center.x - radius,
+            y: sticker.center.y - radius,
+            width: radius * 2,
+            height: radius * 2
+        )
+    }
+
+    private func emojiSelectionRect(for sticker: EmojiSticker) -> CGRect {
+        emojiBounds(for: sticker).insetBy(dx: -8, dy: -8)
+    }
+
+    private func drawEmojiControls(for selectionRect: CGRect) {
+        for action in EmojiControlAction.allCases {
+            let rect = emojiControlRect(for: action, selectionRect: selectionRect)
+            let bg = NSBezierPath(roundedRect: rect, xRadius: 9, yRadius: 9)
+            NSColor.windowBackgroundColor.withAlphaComponent(0.92).setFill()
+            bg.fill()
+            NSColor.controlAccentColor.withAlphaComponent(0.35).setStroke()
+            bg.lineWidth = 1
+            bg.stroke()
+
+            if let image = NSImage(systemSymbolName: action.systemName, accessibilityDescription: nil)?
+                .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 12, weight: .semibold)) {
+                let imageRect = CGRect(x: rect.midX - 7, y: rect.midY - 7, width: 14, height: 14)
+                image.draw(in: imageRect)
+            }
+        }
+    }
+
+    private func emojiControlRect(for action: EmojiControlAction, selectionRect: CGRect) -> CGRect {
+        let size = CGSize(width: 28, height: 24)
+        let spacing: CGFloat = 8
+        let totalWidth = size.width * 3 + spacing * 2
+        let originX = selectionRect.midX - totalWidth / 2
+        let y = selectionRect.minY - size.height - 10
+        let index: CGFloat
+        switch action {
+        case .rotateLeftButton: index = 0
+        case .mirrorButton: index = 1
+        case .rotateRightButton: index = 2
+        }
+        return CGRect(
+            x: originX + index * (size.width + spacing),
+            y: y,
+            width: size.width,
+            height: size.height
+        )
+    }
+
+    private func emojiControlHitTest(_ point: CGPoint, sticker: EmojiSticker) -> EmojiHitZone {
+        let selectionRect = emojiSelectionRect(for: sticker)
+        let cornerSize: CGFloat = 18
+        let edgeInset: CGFloat = 20
+
+        let corners = [
+            CGRect(x: selectionRect.minX - cornerSize / 2, y: selectionRect.maxY - cornerSize / 2, width: cornerSize, height: cornerSize),
+            CGRect(x: selectionRect.maxX - cornerSize / 2, y: selectionRect.maxY - cornerSize / 2, width: cornerSize, height: cornerSize),
+            CGRect(x: selectionRect.minX - cornerSize / 2, y: selectionRect.minY - cornerSize / 2, width: cornerSize, height: cornerSize),
+            CGRect(x: selectionRect.maxX - cornerSize / 2, y: selectionRect.minY - cornerSize / 2, width: cornerSize, height: cornerSize)
+        ]
+        if corners.contains(where: { $0.contains(point) }) {
+            return .cornerHandle
+        }
+
+        let topEdge = CGRect(x: selectionRect.minX + edgeInset, y: selectionRect.maxY - 6, width: selectionRect.width - edgeInset * 2, height: 12)
+        let bottomEdge = CGRect(x: selectionRect.minX + edgeInset, y: selectionRect.minY - 6, width: selectionRect.width - edgeInset * 2, height: 12)
+        let leftEdge = CGRect(x: selectionRect.minX - 6, y: selectionRect.minY + edgeInset, width: 12, height: selectionRect.height - edgeInset * 2)
+        let rightEdge = CGRect(x: selectionRect.maxX - 6, y: selectionRect.minY + edgeInset, width: 12, height: selectionRect.height - edgeInset * 2)
+        if [topEdge, bottomEdge, leftEdge, rightEdge].contains(where: { $0.contains(point) }) {
+            return .edgeHandle
+        }
+
+        for action in EmojiControlAction.allCases {
+            if emojiControlRect(for: action, selectionRect: selectionRect).contains(point) {
+                switch action {
+                case .rotateLeftButton: return .rotateLeftButton
+                case .mirrorButton: return .mirrorButton
+                case .rotateRightButton: return .rotateRightButton
+                }
+            }
+        }
+
+        if selectionRect.contains(point) {
+            return .body
+        }
+
+        return .none
+    }
+
+    private func updateEmojiCursor(at point: CGPoint) {
+        guard let selectedEmojiIndex,
+              annotations.indices.contains(selectedEmojiIndex),
+              case let .emojiSticker(sticker) = annotations[selectedEmojiIndex] else {
+            NSCursor.arrow.set()
+            return
+        }
+
+        switch emojiControlHitTest(point, sticker: sticker) {
+        case .cornerHandle:
+            NSCursor.crosshair.set()
+        case .edgeHandle:
+            NSCursor.resizeLeftRight.set()
+        case .body:
+            NSCursor.openHand.set()
+        case .rotateLeftButton, .rotateRightButton, .mirrorButton, .none:
+            NSCursor.arrow.set()
+        }
+    }
+
+    private func angle(from center: CGPoint, to point: CGPoint) -> CGFloat {
+        atan2(point.y - center.y, point.x - center.x)
+    }
+
+    private func distance(from a: CGPoint, to b: CGPoint) -> CGFloat {
+        hypot(b.x - a.x, b.y - a.y)
+    }
+}
+
+private enum EmojiGestureMode {
+    case move
+    case scale
+    case rotate
+}
+
+private enum EmojiHitZone {
+    case none
+    case body
+    case cornerHandle
+    case edgeHandle
+    case rotateLeftButton
+    case rotateRightButton
+    case mirrorButton
+}
+
+private enum EmojiControlAction: CaseIterable {
+    case rotateLeftButton
+    case mirrorButton
+    case rotateRightButton
+
+    var systemName: String {
+        switch self {
+        case .rotateLeftButton:
+            return "rotate.left"
+        case .mirrorButton:
+            return "arrow.left.and.right"
+        case .rotateRightButton:
+            return "rotate.right"
+        }
     }
 }
 

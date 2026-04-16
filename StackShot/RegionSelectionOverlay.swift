@@ -9,6 +9,7 @@ enum RegionSelectionShape {
 final class RegionSelectionOverlay: NSWindow {
     init(
         shape: RegionSelectionShape,
+        initialDragStartGlobal: CGPoint? = nil,
         onComplete: @escaping (CGRect, RegionSelectionShape) -> Void,
         onCancel: @escaping () -> Void
     ) {
@@ -25,6 +26,9 @@ final class RegionSelectionOverlay: NSWindow {
         let view = SelectionOverlayView(
             frame: NSRect(origin: .zero, size: union.size),
             shape: shape,
+            initialDragStartLocal: initialDragStartGlobal.map { global in
+                CGPoint(x: global.x - union.origin.x, y: global.y - union.origin.y)
+            },
             onFinish: { [weak self] localRect in
                 guard let self else { return }
                 let global = localRect.offsetBy(dx: self.frame.origin.x, dy: self.frame.origin.y)
@@ -57,9 +61,18 @@ private final class SelectionOverlayView: NSView {
 
     private var startPoint: NSPoint?
     private var currentPoint: NSPoint?
+    private let initialDragStartLocal: NSPoint?
+    private var externalDragTimer: Timer?
 
-    init(frame frameRect: NSRect, shape: RegionSelectionShape, onFinish: @escaping (CGRect) -> Void, onAbort: @escaping () -> Void) {
+    init(
+        frame frameRect: NSRect,
+        shape: RegionSelectionShape,
+        initialDragStartLocal: NSPoint?,
+        onFinish: @escaping (CGRect) -> Void,
+        onAbort: @escaping () -> Void
+    ) {
         self.shape = shape
+        self.initialDragStartLocal = initialDragStartLocal
         self.onFinish = onFinish
         self.onAbort = onAbort
         super.init(frame: frameRect)
@@ -71,9 +84,15 @@ private final class SelectionOverlayView: NSView {
 
     override func viewDidMoveToWindow() {
         window?.makeFirstResponder(self)
+        guard let initialDragStartLocal else { return }
+        startPoint = initialDragStartLocal
+        currentPoint = initialDragStartLocal
+        needsDisplay = true
+        beginExternalDragTracking()
     }
 
     override func mouseDown(with event: NSEvent) {
+        stopExternalDragTracking()
         let p = convert(event.locationInWindow, from: nil)
         startPoint = p
         currentPoint = p
@@ -98,6 +117,7 @@ private final class SelectionOverlayView: NSView {
     }
 
     override func mouseUp(with event: NSEvent) {
+        stopExternalDragTracking()
         defer { startPoint = nil; currentPoint = nil; needsDisplay = true }
         currentPoint = convert(event.locationInWindow, from: nil)
         guard let s = startPoint, let e = currentPoint else { return }
@@ -156,5 +176,47 @@ private final class SelectionOverlayView: NSView {
         let w = abs(b.x - a.x)
         let h = abs(b.y - a.y)
         return CGRect(x: x, y: y, width: w, height: h)
+    }
+
+    deinit {
+        stopExternalDragTracking()
+    }
+
+    private func beginExternalDragTracking() {
+        stopExternalDragTracking()
+        externalDragTimer = Timer.scheduledTimer(withTimeInterval: 1 / 120, repeats: true) { [weak self] _ in
+            self?.trackExternalDragTick()
+        }
+    }
+
+    private func stopExternalDragTracking() {
+        externalDragTimer?.invalidate()
+        externalDragTimer = nil
+    }
+
+    private func trackExternalDragTick() {
+        guard let window else { return }
+
+        let mouse = NSEvent.mouseLocation
+        currentPoint = NSPoint(x: mouse.x - window.frame.origin.x, y: mouse.y - window.frame.origin.y)
+        needsDisplay = true
+
+        let leftPressed = (NSEvent.pressedMouseButtons & 1) == 1
+        guard !leftPressed else { return }
+
+        stopExternalDragTracking()
+        defer { startPoint = nil; currentPoint = nil; needsDisplay = true }
+
+        guard let s = startPoint, let e = currentPoint else {
+            onAbort()
+            return
+        }
+
+        let r = normalizedRect(from: s, to: e)
+        if r.width >= 4, r.height >= 4 {
+            onFinish(r)
+        } else {
+            onAbort()
+        }
     }
 }

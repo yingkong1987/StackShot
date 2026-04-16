@@ -19,14 +19,8 @@ final class MenuBarController: NSObject, NSWindowDelegate {
 
         SettingsStore.shared.applyDockPolicy()
 
-        // 参考 StackPaste：菜单栏使用模板 SF Symbol，不直接缩放应用图标位图。
-        // 这样可与系统菜单栏图标尺寸和高亮行为保持一致。
-        // https://developer.apple.com/documentation/appkit/nsstatusitem
-        // https://developer.apple.com/design/human-interface-guidelines/the-menu-bar
-
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = item.button {
-            button.imageScaling = .scaleProportionallyDown
             button.image = Self.makeStatusBarIconImage()
             button.toolTip = L10n.tr("menu.status.tooltip")
         }
@@ -59,22 +53,11 @@ final class MenuBarController: NSObject, NSWindowDelegate {
         item.menu = menu
     }
 
-    /// 菜单栏图标尺寸：在原 14pt 基础上放大到 156%（130% 后再增加 20%）。
-    private static let statusBarIconPointSize: CGFloat = 14 * 1.3 * 1.2
-
     private static func makeStatusBarIconImage() -> NSImage {
-        if let base = NSImage(named: "MenuBarLogoTemplate"),
-           let logo = base.copy() as? NSImage {
-            logo.isTemplate = true
-            logo.size = NSSize(width: statusBarIconPointSize, height: statusBarIconPointSize)
-            return logo
-        }
-
         let symbol = NSImage(systemSymbolName: "camera.viewfinder", accessibilityDescription: "StackShot")
             ?? NSImage()
         symbol.isTemplate = true
-        let symbolConfig = NSImage.SymbolConfiguration(pointSize: statusBarIconPointSize, weight: .regular)
-        return symbol.withSymbolConfiguration(symbolConfig) ?? symbol
+        return symbol
     }
 
     func attachMainWindow(_ window: NSWindow) {

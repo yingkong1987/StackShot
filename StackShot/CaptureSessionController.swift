@@ -12,18 +12,26 @@ final class CaptureSessionController {
     private var currentHoveredWindow: WindowUnderMouseInfo?
     private var hoverTimer: Timer?
     private var globalClickMonitor: Any?
+    private var dragAnchorPoint: CGPoint?
+    private var didRequestScreenCaptureThisLaunch = false
+    private var didShowScreenCaptureAlertThisLaunch = false
 
     private init() {}
 
     // MARK: – Public entry
 
     func activateFromHotkey() {
+        guard ensureScreenCapturePermission(interactive: true) else {
+            endSession()
+            return
+        }
+        annotationEditor?.orderOut(nil)
         annotationEditor?.close()
         annotationEditor = nil
         dismissHoverUI()
         NSApp.activate(ignoringOtherApps: true)
-        // 产品流程：先框选截图区域，完成后再进入编辑工具栏。
-        captureAndOpenEditor(initialTool: .rectangle)
+        beginHoverTracking()
+        refreshHoveredWindow(force: true)
     }
 
     // MARK: – Hover tracking
@@ -52,6 +60,8 @@ final class CaptureSessionController {
 
     private func refreshHoveredWindow(force: Bool) {
         guard overlay == nil else { return }
+        handleHoverDragSelection()
+        guard overlay == nil else { return }
         let latest = WindowUnderMouseService.windowUnderMouse()
         guard force || latest != currentHoveredWindow else { return }
         currentHoveredWindow = latest
@@ -70,43 +80,39 @@ final class CaptureSessionController {
             h.orderFrontRegardless()
             highlight = h
         }
-
-        if let t = toolbar {
-            t.reposition(anchorFrame: info.bounds)
-            t.orderFrontRegardless()
-        } else {
-            let t = FloatingToolbarPanel(
-                anchorFrame: info.bounds,
-                callbacks: makeToolbarCallbacks()
-            )
-            t.orderFrontRegardless()
-            toolbar = t
-        }
+        // 悬停阶段只展示高亮，不展示工具栏；
+        // 工具栏会在确认框选并进入编辑卡后显示。
+        toolbar?.orderOut(nil)
+        toolbar = nil
     }
 
-    // MARK: – Build all 16 toolbar callbacks
+    private func handleHoverDragSelection() {
+        let leftPressed = (NSEvent.pressedMouseButtons & 1) == 1
+        let cursor = NSEvent.mouseLocation
 
-    private func makeToolbarCallbacks() -> FloatingToolbarCallbacks {
-        FloatingToolbarCallbacks(
-            // Group 1 – capture / draw
-            onRect:         { [weak self] in self?.startSelection(.rectangle) },
-            onCircle:       { [weak self] in self?.startSelection(.circle) },
-            onEmoji:        { NSApp.orderFrontCharacterPalette(nil) },
-            onArrow:        { [weak self] in self?.captureAndOpenEditor(initialTool: .arrow) },
-            onPen:          { [weak self] in self?.captureAndOpenEditor(initialTool: .pen) },
-            onMosaic:       { [weak self] in self?.captureAndOpenEditor(initialTool: .mosaic) },
-            onText:         { [weak self] in self?.captureAndOpenEditor(initialTool: .text) },
-            // Group 2 – process (capture first, then apply)
-            onOCRTranslate: { [weak self] in self?.captureAndOpenEditor(initialTool: .ocrTranslate) },
-            onOCR:          { [weak self] in self?.captureAndOpenEditor(initialTool: .ocr) },
-            onCrop:         { [weak self] in self?.captureAndOpenEditor(initialTool: .crop) },
-            // Group 3 – actions (capture first, then perform)
-            onUndo:         { },          // no-op before capture
-            onSave:         { [weak self] in self?.captureAndOpenEditor(initialTool: .rectangle) },
-            onPin:          { [weak self] in self?.captureAndOpenEditor(initialTool: .rectangle) },
-            onShare:        { [weak self] in self?.captureAndOpenEditor(initialTool: .rectangle) },
-            onCancel:       { [weak self] in self?.endSession() },
-            onConfirm:      { [weak self] in self?.captureAndOpenEditor(initialTool: .rectangle) }
+        guard leftPressed else {
+            dragAnchorPoint = nil
+            return
+        }
+
+        if dragAnchorPoint == nil {
+            dragAnchorPoint = cursor
+            return
+        }
+
+        guard
+            let anchor = dragAnchorPoint,
+            hypot(cursor.x - anchor.x, cursor.y - anchor.y) >= 4
+        else {
+            return
+        }
+
+        dragAnchorPoint = nil
+        startSelection(
+            .rectangle,
+            initialDragStart: anchor,
+            initialTool: nil,
+            useShapeDefaultTool: false
         )
     }
 
@@ -118,7 +124,7 @@ final class CaptureSessionController {
     }
 
     private func captureCurrentHoveredWindowByDoubleClick() {
-        guard ensureScreenCapturePermission() else { endSession(); return }
+        guard ensureScreenCapturePermission(interactive: false) else { endSession(); return }
         guard let info = currentHoveredWindow ?? WindowUnderMouseService.windowUnderMouse() else { return }
 
         guard let cgImage = CGWindowListCreateImage(
@@ -132,22 +138,29 @@ final class CaptureSessionController {
         let image = NSImage(cgImage: cgImage,
                             size: NSSize(width: CGFloat(cgImage.width), height: CGFloat(cgImage.height)))
         dismissHoverUI()
-        showAnnotationEditor(for: image, initialTool: .rectangle)
+        showAnnotationEditor(for: image, initialTool: nil)
     }
 
     // MARK: – Region selection
 
     /// Start drag-to-select for the chosen shape.
-    private func startSelection(_ shape: RegionSelectionShape) {
-        guard ensureScreenCapturePermission() else { endSession(); return }
+    private func startSelection(
+        _ shape: RegionSelectionShape,
+        initialDragStart: CGPoint? = nil,
+        initialTool: AnnotationTool? = nil,
+        useShapeDefaultTool: Bool = true
+    ) {
+        guard ensureScreenCapturePermission(interactive: false) else { endSession(); return }
         endHoverTracking()
         highlight?.orderOut(nil)
         toolbar?.orderOut(nil)
 
         let overlayWindow = RegionSelectionOverlay(
             shape: shape,
+            initialDragStartGlobal: initialDragStart,
             onComplete: { [weak self] rect, sh in
-                self?.handleCaptured(rect: rect, shape: sh, initialTool: shapeDefaultTool(sh))
+                let tool = useShapeDefaultTool ? (initialTool ?? shapeDefaultTool(sh)) : initialTool
+                self?.handleCaptured(rect: rect, shape: sh, initialTool: tool)
             },
             onCancel: { [weak self] in self?.endSession() }
         )
@@ -156,8 +169,8 @@ final class CaptureSessionController {
     }
 
     /// Capture a rectangular region and open the editor with a specific initial tool.
-    private func captureAndOpenEditor(initialTool: AnnotationTool) {
-        guard ensureScreenCapturePermission() else { endSession(); return }
+    private func captureAndOpenEditor(initialTool: AnnotationTool? = nil) {
+        guard ensureScreenCapturePermission(interactive: false) else { endSession(); return }
         endHoverTracking()
         highlight?.orderOut(nil)
         toolbar?.orderOut(nil)
@@ -176,22 +189,23 @@ final class CaptureSessionController {
     // MARK: – Post-capture
 
     private func handleCaptured(rect: CGRect, shape: RegionSelectionShape,
-                                 initialTool: AnnotationTool = .rectangle) {
+                                 initialTool: AnnotationTool? = nil) {
         // NOTE: Do NOT use defer { endSession() } here.  endSession() calls orderOut / nil on
         // overlay/toolbar/highlight while the AnnotationEditorPanel is animating in; that causes
         // _NSWindowTransformAnimation to hold dangling pointers → crash in objc_release.
         guard rect.width >= 2, rect.height >= 2 else { endSession(); return }
 
         let scale = NSScreen.screens.map(\.backingScaleFactor).max() ?? 2.0
-        let snapped = CGRect(
+        let snappedAppKit = CGRect(
             x: floor(rect.origin.x * scale) / scale,
             y: floor(rect.origin.y * scale) / scale,
             width:  ceil(rect.width  * scale) / scale,
             height: ceil(rect.height * scale) / scale
         )
+        let snappedQuartz = Self.quartzRect(fromAppKitRect: snappedAppKit)
 
         guard let cgImage = CGWindowListCreateImage(
-            snapped, .optionOnScreenOnly, kCGNullWindowID, .bestResolution
+            snappedQuartz, .optionOnScreenOnly, kCGNullWindowID, .bestResolution
         ) else {
             showCaptureFailedAlert(reason: "无法创建图像，可能被系统隐私设置阻止。")
             endSession()
@@ -205,7 +219,7 @@ final class CaptureSessionController {
         }
 
         var nsImage = NSImage(cgImage: cgImage,
-                              size: NSSize(width: snapped.width, height: snapped.height))
+                              size: NSSize(width: snappedAppKit.width, height: snappedAppKit.height))
         if shape == .circle {
             nsImage = Self.applyCircularMask(to: nsImage) ?? nsImage
         }
@@ -215,11 +229,12 @@ final class CaptureSessionController {
     }
 
     private func showAnnotationEditor(for image: NSImage,
-                                      initialTool: AnnotationTool = .rectangle) {
+                                      initialTool: AnnotationTool? = nil) {
         let editor = AnnotationEditorPanel(screenshot: image, initialTool: initialTool)
         editor.onConfirm = { [weak self] _ in self?.annotationEditor = nil }
         editor.onCancel  = { [weak self] in   self?.annotationEditor = nil }
         NSApp.activate(ignoringOtherApps: true)
+        editor.orderFrontRegardless()
         editor.makeKeyAndOrderFront(nil)
         annotationEditor = editor
     }
@@ -230,6 +245,7 @@ final class CaptureSessionController {
     /// avoid CoreAnimation conflicts when showing the annotation editor immediately after.
     private func dismissHoverUI() {
         endHoverTracking()
+        dragAnchorPoint = nil
         currentHoveredWindow = nil
         overlay?.orderOut(nil);   overlay   = nil
         toolbar?.orderOut(nil);   toolbar   = nil
@@ -241,17 +257,32 @@ final class CaptureSessionController {
         // Annotation editor manages its own lifecycle via onConfirm / onCancel.
     }
 
-    private func ensureScreenCapturePermission() -> Bool {
+    private func ensureScreenCapturePermission(interactive: Bool) -> Bool {
         #if DEBUG
-        // 开发调试阶段默认放行，避免频繁弹权限引导打断流程。
+        // 调试模式下默认放行，避免频繁权限弹窗打断开发流程。
         return true
         #else
-        if CGPreflightScreenCaptureAccess() { return true }
+        if CGPreflightScreenCaptureAccess() {
+            didShowScreenCaptureAlertThisLaunch = false
+            return true
+        }
+
+        // 非交互检查只返回权限状态，不主动弹系统权限请求和提示。
+        guard interactive else { return false }
 
         // CGRequestScreenCaptureAccess() registers the app in
         // System Settings > Privacy & Security > Screen Recording
         // (required before the user can see it in the list).
-        CGRequestScreenCaptureAccess()
+        if !didRequestScreenCaptureThisLaunch {
+            CGRequestScreenCaptureAccess()
+            didRequestScreenCaptureThisLaunch = true
+        }
+
+        // 同一次应用运行周期内只展示一次引导，避免每次截图都打断。
+        if didShowScreenCaptureAlertThisLaunch {
+            return false
+        }
+        didShowScreenCaptureAlertThisLaunch = true
 
         // Show a clear guide so the user knows exactly what to do.
         let alert = NSAlert()
@@ -260,7 +291,8 @@ final class CaptureSessionController {
             请按以下步骤操作：
             1. 点击「打开系统设置」
             2. 在「屏幕录制」列表中找到 StackShot，开启开关
-            3. 重新按下快捷键 Shift + Command + A 即可截图
+            3. 若你已开启权限但仍提示，请先完全退出并重新打开 StackShot
+            4. 重新按下快捷键 Shift + Command + A 即可截图
             """
         alert.alertStyle = .warning
         alert.addButton(withTitle: "打开系统设置")
@@ -284,6 +316,20 @@ final class CaptureSessionController {
             image.draw(in: rect, from: NSRect(origin: .zero, size: size), operation: .copy, fraction: 1)
             return true
         }
+    }
+
+    private static func quartzRect(fromAppKitRect rect: CGRect) -> CGRect {
+        let desktopBounds = NSScreen.screens.reduce(CGRect.null) { partial, screen in
+            partial.union(screen.frame)
+        }
+        guard desktopBounds.isNull == false else { return rect }
+
+        return CGRect(
+            x: rect.origin.x,
+            y: desktopBounds.maxY - rect.maxY,
+            width: rect.width,
+            height: rect.height
+        )
     }
 
     private func showCaptureFailedAlert(reason: String) {

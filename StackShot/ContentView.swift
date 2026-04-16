@@ -14,9 +14,9 @@ struct ContentView: View {
                     HStack(spacing: 10) {
                         Image("AppLogo")
                             .resizable()
-                            .interpolation(.high)
-                            .frame(width: 28, height: 28)
-                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 56, height: 56)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         Text(L10n.tr("app.name"))
                             .font(.system(size: 24, weight: .semibold))
                     }
