@@ -605,6 +605,15 @@ final class AnnotationCanvasView: NSView {
         needsDisplay = true
     }
 
+    func deleteSelectedEmoji() {
+        guard let idx = selectedEmojiIndex,
+              annotations.indices.contains(idx) else { return }
+        annotations.remove(at: idx)
+        selectedEmojiIndex = nil
+        resetEmojiInteraction()
+        needsDisplay = true
+    }
+
     // MARK: – Export
 
     /// Renders the current canvas (screenshot + all annotations) to a new NSImage.
@@ -640,6 +649,9 @@ final class AnnotationCanvasView: NSView {
                 return true
             case .mirrorButton:
                 mirrorSelectedEmoji()
+                return true
+            case .deleteButton:
+                deleteSelectedEmoji()
                 return true
             case .cornerHandle:
                 activeEmojiIndex = selectedEmojiIndex
@@ -705,10 +717,13 @@ final class AnnotationCanvasView: NSView {
         }
 
         annotations[idx] = .emojiSticker(sticker: sticker)
+        emojiInitialSticker = sticker
         if emojiGestureMode == .rotate {
             emojiInitialAngle = angle(from: sticker.center, to: p)
+            emojiGestureStartPoint = p
         } else if emojiGestureMode == .scale {
             emojiInitialDistance = max(1, distance(from: sticker.center, to: p))
+            emojiGestureStartPoint = p
         } else {
             emojiGestureStartPoint = p
         }
@@ -769,31 +784,49 @@ final class AnnotationCanvasView: NSView {
         for action in EmojiControlAction.allCases {
             let rect = emojiControlRect(for: action, selectionRect: selectionRect)
             let bg = NSBezierPath(roundedRect: rect, xRadius: 9, yRadius: 9)
-            NSColor.windowBackgroundColor.withAlphaComponent(0.92).setFill()
+            let fillColor: NSColor = action == .deleteButton
+                ? NSColor.systemRed.withAlphaComponent(0.92)
+                : NSColor.windowBackgroundColor.withAlphaComponent(0.92)
+            fillColor.setFill()
             bg.fill()
-            NSColor.controlAccentColor.withAlphaComponent(0.35).setStroke()
+            let strokeColor: NSColor = action == .deleteButton
+                ? NSColor.systemRed.withAlphaComponent(0.55)
+                : NSColor.controlAccentColor.withAlphaComponent(0.35)
+            strokeColor.setStroke()
             bg.lineWidth = 1
             bg.stroke()
 
             if let image = NSImage(systemSymbolName: action.systemName, accessibilityDescription: nil)?
-                .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 12, weight: .semibold)) {
-                let imageRect = CGRect(x: rect.midX - 7, y: rect.midY - 7, width: 14, height: 14)
+                .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 14, weight: .semibold)) {
+                let imageRect = CGRect(x: rect.midX - 8, y: rect.midY - 8, width: 16, height: 16)
+                if action == .deleteButton {
+                    NSColor.white.set()
+                }
                 image.draw(in: imageRect)
             }
         }
     }
 
     private func emojiControlRect(for action: EmojiControlAction, selectionRect: CGRect) -> CGRect {
-        let size = CGSize(width: 28, height: 24)
-        let spacing: CGFloat = 8
+        if action == .deleteButton {
+            return CGRect(
+                x: selectionRect.maxX - 14,
+                y: selectionRect.maxY - 14,
+                width: 28,
+                height: 28
+            )
+        }
+        let size = CGSize(width: 34, height: 28)
+        let spacing: CGFloat = 10
         let totalWidth = size.width * 3 + spacing * 2
         let originX = selectionRect.midX - totalWidth / 2
-        let y = selectionRect.minY - size.height - 10
+        let y = selectionRect.minY - size.height - 12
         let index: CGFloat
         switch action {
         case .rotateLeftButton: index = 0
         case .mirrorButton: index = 1
         case .rotateRightButton: index = 2
+        case .deleteButton: index = 0
         }
         return CGRect(
             x: originX + index * (size.width + spacing),
@@ -832,6 +865,7 @@ final class AnnotationCanvasView: NSView {
                 case .rotateLeftButton: return .rotateLeftButton
                 case .mirrorButton: return .mirrorButton
                 case .rotateRightButton: return .rotateRightButton
+                case .deleteButton: return .deleteButton
                 }
             }
         }
@@ -853,12 +887,12 @@ final class AnnotationCanvasView: NSView {
 
         switch emojiControlHitTest(point, sticker: sticker) {
         case .cornerHandle:
-            NSCursor.crosshair.set()
+            NSCursor.emojiRotate.set()
         case .edgeHandle:
             NSCursor.resizeLeftRight.set()
         case .body:
             NSCursor.openHand.set()
-        case .rotateLeftButton, .rotateRightButton, .mirrorButton, .none:
+        case .rotateLeftButton, .rotateRightButton, .mirrorButton, .deleteButton, .none:
             NSCursor.arrow.set()
         }
     }
@@ -886,12 +920,14 @@ private enum EmojiHitZone {
     case rotateLeftButton
     case rotateRightButton
     case mirrorButton
+    case deleteButton
 }
 
 private enum EmojiControlAction: CaseIterable {
     case rotateLeftButton
     case mirrorButton
     case rotateRightButton
+    case deleteButton
 
     var systemName: String {
         switch self {
@@ -901,8 +937,27 @@ private enum EmojiControlAction: CaseIterable {
             return "arrow.left.and.right"
         case .rotateRightButton:
             return "rotate.right"
+        case .deleteButton:
+            return "xmark"
         }
     }
+}
+
+private extension NSCursor {
+    static let emojiRotate: NSCursor = {
+        let size = NSSize(width: 24, height: 24)
+        let image = NSImage(size: size)
+        image.lockFocus()
+        NSColor.clear.setFill()
+        NSBezierPath(rect: NSRect(origin: .zero, size: size)).fill()
+        let symbolRect = NSRect(x: 3, y: 3, width: 18, height: 18)
+        if let symbol = NSImage(systemSymbolName: "rotate.right.fill", accessibilityDescription: nil)?
+            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 16, weight: .bold)) {
+            symbol.draw(in: symbolRect)
+        }
+        image.unlockFocus()
+        return NSCursor(image: image, hotSpot: NSPoint(x: 12, y: 12))
+    }()
 }
 
 // MARK: – Text input field helper

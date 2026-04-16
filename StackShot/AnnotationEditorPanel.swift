@@ -347,7 +347,7 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
         }
         let host = NSHostingController(rootView: picker)
         popover.contentViewController = host
-        popover.contentSize = NSSize(width: 278, height: 206)
+        popover.contentSize = NSSize(width: 304, height: 248)
 
         popover.show(relativeTo: anchorView.bounds, of: anchorView, preferredEdge: .maxY)
         toolbarPanel.orderFrontRegardless()
@@ -1169,9 +1169,13 @@ private struct EmojiPickerView: View {
     private let items: [String] = [
         "😀", "😄", "😁", "😂", "🥹", "😎", "🤩", "🥳",
         "👍", "👏", "🙏", "👌", "🔥", "💯", "🎉", "⭐",
-        "❤️", "💙", "💚", "🧡", "🖤", "💥", "💡", "📌"
+        "❤️", "💙", "💚", "🧡", "🖤", "💥", "💡", "📌",
+        "✅", "❌", "⚠️", "🚀", "🎯", "📎", "📝", "🔒",
+        "🔓", "📷", "🎈", "🧠", "💬", "📍", "🪄", "🧩"
     ]
-    private let columns = Array(repeating: GridItem(.fixed(28), spacing: 8), count: 8)
+    private let columns = [
+        GridItem(.adaptive(minimum: 34, maximum: 44), spacing: 10)
+    ]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -1179,21 +1183,28 @@ private struct EmojiPickerView: View {
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.secondary)
 
-            LazyVGrid(columns: columns, spacing: 8) {
-                ForEach(items, id: \.self) { emoji in
-                    Button {
-                        onSelect(emoji)
-                    } label: {
-                        Text(emoji)
-                            .font(.system(size: 20))
-                            .frame(width: 28, height: 28)
+            ScrollView(.vertical, showsIndicators: true) {
+                LazyVGrid(columns: columns, spacing: 10) {
+                    ForEach(items, id: \.self) { emoji in
+                        Button {
+                            onSelect(emoji)
+                        } label: {
+                            Text(emoji)
+                                .font(.system(size: 22))
+                                .frame(maxWidth: .infinity, minHeight: 36)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .fill(Color.primary.opacity(0.06))
+                                )
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
+                .padding(.trailing, 2)
             }
         }
         .padding(12)
-        .frame(width: 270, height: 198, alignment: .topLeading)
+        .frame(width: 296, height: 240, alignment: .topLeading)
         .background(.ultraThinMaterial)
     }
 }
