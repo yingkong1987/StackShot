@@ -176,7 +176,11 @@ private struct ToolbarContent: View {
             sep()
 
             // ── Group 2: Process ────────────────────────────────────────────
-            btn("translate", "OCR 翻译", callbacks.onOCRTranslate)
+            // OCR 翻译依赖 Apple 原生翻译能力（Translation framework），仅 macOS 15+ 提供默认可用体验；
+            // 低版本系统隐藏该按钮，避免点击后无可用翻译实现。
+            if #available(macOS 15.0, *) {
+                btn("translate", "OCR 翻译", callbacks.onOCRTranslate)
+            }
             btn("doc.text.magnifyingglass", "识别文字", callbacks.onOCR)
             btn("crop", "裁剪", callbacks.onCrop)
 

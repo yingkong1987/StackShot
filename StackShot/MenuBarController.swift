@@ -64,6 +64,8 @@ final class MenuBarController: NSObject, NSWindowDelegate {
         guard window !== mainWindow else { return }
         mainWindow = window
         window.delegate = self
+        // 启动时首次挂载主窗口，主动把 App 切到最前，避免被其他窗口覆盖。
+        bringMainWindowToFront()
     }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
@@ -75,9 +77,17 @@ final class MenuBarController: NSObject, NSWindowDelegate {
 
     @objc
     private func showMainWindow() {
+        bringMainWindowToFront()
+    }
+
+    private func bringMainWindowToFront() {
         guard let mainWindow else { return }
+        // Accessory 模式或其他 App 处于前台时，单独的 activate / makeKeyAndOrderFront 偶尔无效，
+        // 同时调用 NSRunningApplication.activate 与 orderFrontRegardless 才能稳定把窗口置顶。
         NSApp.activate(ignoringOtherApps: true)
+        NSRunningApplication.current.activate(options: [.activateAllWindows])
         mainWindow.makeKeyAndOrderFront(nil)
+        mainWindow.orderFrontRegardless()
     }
 
     @objc

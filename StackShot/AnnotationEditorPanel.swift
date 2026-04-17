@@ -4,6 +4,9 @@ import Vision
 import Combine
 import ImageIO
 import UniformTypeIdentifiers
+#if canImport(Translation)
+import Translation
+#endif
 
 private enum AnnotationEditorMetrics {
     static let toolbarButtonSize: CGFloat = 36
@@ -190,6 +193,11 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
     private var cancellables: Set<AnyCancellable> = []
     private var toolbarPanel: AnnotationToolbarFloatingPanel?
     private var emojiPopover: NSPopover?
+    // OCR 翻译流水线运行期间保留的隐藏 SwiftUI 宿主，用于承载 .translationTask。
+    private var translationHostView: NSView?
+    // OCR 翻译期间显示的进度 HUD。
+    private var translateHUD: NSView?
+    private var isOCRTranslating = false
 
     /// Called when the user confirms or shares; passes the final annotated image.
     var onConfirm: ((NSImage) -> Void)?
@@ -520,6 +528,15 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
     // MARK: OCR
 
     private func performOCR(translate: Bool) {
+        if translate {
+            if #available(macOS 15.0, *) {
+                runOCRTranslateOverlay()
+                return
+            }
+            // macOS < 15 fallback: legacy text-copy + open system Translate app.
+            legacyCopyTextThenOpenTranslate()
+            return
+        }
         let image = canvas.renderToImage()
         guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return }
 
@@ -529,17 +546,33 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
                 .compactMap { $0.topCandidates(1).first?.string } ?? []
             let text = lines.joined(separator: "\n")
             DispatchQueue.main.async {
-                if translate {
-                    self?.openTranslation(text: text)
-                } else {
-                    self?.copyOCRText(text)
-                }
+                self?.copyOCRText(text)
             }
         }
         request.recognitionLevel    = .accurate
         request.recognitionLanguages = ["zh-Hans", "zh-Hant", "en-US", "ja-JP"]
         request.usesLanguageCorrection = true
 
+        DispatchQueue.global(qos: .userInitiated).async {
+            try? handler.perform([request])
+        }
+    }
+
+    private func legacyCopyTextThenOpenTranslate() {
+        let image = canvas.renderToImage()
+        guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return }
+        let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+        let request = VNRecognizeTextRequest { [weak self] req, _ in
+            let lines = (req.results as? [VNRecognizedTextObservation])?
+                .compactMap { $0.topCandidates(1).first?.string } ?? []
+            let text = lines.joined(separator: "\n")
+            DispatchQueue.main.async {
+                self?.openTranslation(text: text)
+            }
+        }
+        request.recognitionLevel = .accurate
+        request.recognitionLanguages = ["zh-Hans", "zh-Hant", "en-US", "ja-JP"]
+        request.usesLanguageCorrection = true
         DispatchQueue.global(qos: .userInitiated).async {
             try? handler.perform([request])
         }
@@ -668,6 +701,9 @@ private enum EditorL10nKey {
     case ocrDoneTitle
     case ocrDoneMessageFormat
     case ocrTranslatableEmptyMessage
+    case ocrTranslateInProgress
+    case ocrTranslateFailedTitle
+    case ocrTranslateFailedMessagePrefix
     case exportReadImageDataFailed
     case exportUnsupportedType
     case exportWriteFailed
@@ -715,6 +751,9 @@ private enum EditorL10n {
         .ocrDoneTitle: "文字识别完成",
         .ocrDoneMessageFormat: "已识别 %d 个字符并复制到剪贴板。",
         .ocrTranslatableEmptyMessage: "图片中没有可翻译的文字。",
+        .ocrTranslateInProgress: "正在翻译…",
+        .ocrTranslateFailedTitle: "翻译失败",
+        .ocrTranslateFailedMessagePrefix: "无法完成翻译：",
         .exportReadImageDataFailed: "无法读取图像数据。",
         .exportUnsupportedType: "不支持该文件格式。",
         .exportWriteFailed: "系统写入文件失败。",
@@ -750,6 +789,9 @@ private enum EditorL10n {
         .ocrDoneTitle: "文字辨識完成",
         .ocrDoneMessageFormat: "已辨識 %d 個字元並複製到剪貼簿。",
         .ocrTranslatableEmptyMessage: "圖片中沒有可翻譯的文字。",
+        .ocrTranslateInProgress: "翻譯中…",
+        .ocrTranslateFailedTitle: "翻譯失敗",
+        .ocrTranslateFailedMessagePrefix: "無法完成翻譯：",
         .exportReadImageDataFailed: "無法讀取圖像資料。",
         .exportUnsupportedType: "不支援此檔案格式。",
         .exportWriteFailed: "系統寫入檔案失敗。",
@@ -785,6 +827,9 @@ private enum EditorL10n {
         .ocrDoneTitle: "Text Recognition Complete",
         .ocrDoneMessageFormat: "Recognized %d characters and copied them to the clipboard.",
         .ocrTranslatableEmptyMessage: "No translatable text was found in the image.",
+        .ocrTranslateInProgress: "Translating…",
+        .ocrTranslateFailedTitle: "Translation Failed",
+        .ocrTranslateFailedMessagePrefix: "Could not translate the recognized text: ",
         .exportReadImageDataFailed: "Unable to read image data.",
         .exportUnsupportedType: "This file type is not supported.",
         .exportWriteFailed: "The system failed to write the file.",
@@ -1407,7 +1452,12 @@ private struct AnnotationToolbarView: View {
         case .text:
             drawTool(.text, "t.square", EditorL10n.tr(.toolText))
         case .ocrTranslate:
-            drawTool(.ocrTranslate, "translate", EditorL10n.tr(.toolOCRTranslate))
+            // Apple Translation 框架（可编程 Session）仅 macOS 15+ 可用；低版本隐藏按钮。
+            if #available(macOS 15.0, *) {
+                drawTool(.ocrTranslate, "translate", EditorL10n.tr(.toolOCRTranslate))
+            } else {
+                EmptyView()
+            }
         case .ocr:
             drawTool(.ocr, "doc.text.magnifyingglass", EditorL10n.tr(.toolOCR))
         case .crop:
@@ -1785,5 +1835,405 @@ private struct AnnotationStylePopover: View {
             abs(lc.greenComponent - rc.greenComponent) < 0.01 &&
             abs(lc.blueComponent - rc.blueComponent) < 0.01 &&
             abs(lc.alphaComponent - rc.alphaComponent) < 0.01
+    }
+}
+
+// MARK: – OCR Translate overlay pipeline (macOS 15+)
+
+/// A single recognized text region mapped from Vision observations to image pixels.
+struct OCRTextRegion {
+    /// Bounding box in image pixel coordinates with origin top-left.
+    var imageRect: CGRect
+    var original: String
+    var translated: String?
+    /// Sampled text/stroke color.
+    var foreground: NSColor
+    /// Sampled background color used to mask the original text.
+    var background: NSColor
+}
+
+@available(macOS 15.0, *)
+extension AnnotationEditorPanel {
+
+    func runOCRTranslateOverlay() {
+        guard !isOCRTranslating else { return }
+        isOCRTranslating = true
+        showTranslateHUD()
+
+        let sourceImage = canvas.renderToImage()
+        Task { [weak self] in
+            do {
+                let regions = try await OCRTranslateOverlayRunner.recognize(in: sourceImage)
+                if regions.isEmpty {
+                    await MainActor.run {
+                        self?.hideTranslateHUD()
+                        self?.isOCRTranslating = false
+                        self?.showAlert(
+                            title: EditorL10n.tr(.ocrEmptyTitle),
+                            message: EditorL10n.tr(.ocrTranslatableEmptyMessage)
+                        )
+                    }
+                    return
+                }
+                await MainActor.run {
+                    self?.beginTranslationSession(sourceImage: sourceImage, regions: regions)
+                }
+            } catch {
+                await MainActor.run {
+                    self?.handleOCRTranslateFailure(error)
+                }
+            }
+        }
+    }
+
+    private func beginTranslationSession(sourceImage: NSImage, regions: [OCRTextRegion]) {
+        // Inject a hidden hosting view to drive .translationTask.
+        let runner = OCRTranslationRunnerView(
+            sources: regions.map { $0.original },
+            onResult: { [weak self] translated in
+                self?.finishTranslation(
+                    sourceImage: sourceImage,
+                    regions: regions,
+                    translations: translated
+                )
+            },
+            onFailure: { [weak self] error in
+                self?.handleOCRTranslateFailure(error)
+            }
+        )
+        let hosting = NSHostingView(rootView: runner)
+        hosting.frame = CGRect(x: -1, y: -1, width: 1, height: 1)
+        hosting.alphaValue = 0
+        contentView?.addSubview(hosting)
+        translationHostView = hosting
+    }
+
+    private func finishTranslation(sourceImage: NSImage, regions: [OCRTextRegion], translations: [String]) {
+        tearDownTranslationHost()
+        var merged = regions
+        for idx in merged.indices where idx < translations.count {
+            merged[idx].translated = translations[idx]
+        }
+        let composed = OCRTranslateOverlayRunner.compose(base: sourceImage, regions: merged)
+        canvas.screenshot = composed
+        hideTranslateHUD()
+        isOCRTranslating = false
+    }
+
+    private func handleOCRTranslateFailure(_ error: Error) {
+        tearDownTranslationHost()
+        hideTranslateHUD()
+        isOCRTranslating = false
+        showAlert(
+            title: EditorL10n.tr(.ocrTranslateFailedTitle),
+            message: EditorL10n.tr(.ocrTranslateFailedMessagePrefix) + error.localizedDescription
+        )
+    }
+
+    private func tearDownTranslationHost() {
+        translationHostView?.removeFromSuperview()
+        translationHostView = nil
+    }
+
+    private func showTranslateHUD() {
+        guard translateHUD == nil, let content = contentView else { return }
+        let label = NSTextField(labelWithString: EditorL10n.tr(.ocrTranslateInProgress))
+        label.font = NSFont.systemFont(ofSize: 13, weight: .medium)
+        label.textColor = .white
+        label.alignment = .center
+
+        let spinner = NSProgressIndicator()
+        spinner.style = .spinning
+        spinner.controlSize = .small
+        spinner.isIndeterminate = true
+        spinner.startAnimation(nil)
+
+        let stack = NSStackView(views: [spinner, label])
+        stack.orientation = .horizontal
+        stack.spacing = 8
+        stack.edgeInsets = NSEdgeInsets(top: 8, left: 14, bottom: 8, right: 14)
+
+        let wrapper = NSVisualEffectView()
+        wrapper.material = .hudWindow
+        wrapper.blendingMode = .withinWindow
+        wrapper.state = .active
+        wrapper.wantsLayer = true
+        wrapper.layer?.cornerRadius = 10
+        wrapper.translatesAutoresizingMaskIntoConstraints = false
+
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        wrapper.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: wrapper.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: wrapper.trailingAnchor),
+            stack.topAnchor.constraint(equalTo: wrapper.topAnchor),
+            stack.bottomAnchor.constraint(equalTo: wrapper.bottomAnchor)
+        ])
+
+        content.addSubview(wrapper)
+        NSLayoutConstraint.activate([
+            wrapper.centerXAnchor.constraint(equalTo: content.centerXAnchor),
+            wrapper.centerYAnchor.constraint(equalTo: content.centerYAnchor)
+        ])
+        translateHUD = wrapper
+    }
+
+    private func hideTranslateHUD() {
+        translateHUD?.removeFromSuperview()
+        translateHUD = nil
+    }
+}
+
+@available(macOS 15.0, *)
+private enum OCRTranslateOverlayRunner {
+
+    static func recognize(in image: NSImage) async throws -> [OCRTextRegion] {
+        guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            return []
+        }
+        let width = cgImage.width
+        let height = cgImage.height
+
+        let observations: [VNRecognizedTextObservation] = try await withCheckedThrowingContinuation { cont in
+            let req = VNRecognizeTextRequest { request, error in
+                if let error {
+                    cont.resume(throwing: error)
+                    return
+                }
+                cont.resume(returning: (request.results as? [VNRecognizedTextObservation]) ?? [])
+            }
+            req.recognitionLevel = .accurate
+            req.usesLanguageCorrection = true
+            req.recognitionLanguages = ["zh-Hans", "zh-Hant", "en-US", "ja-JP", "ko-KR", "fr-FR", "de-DE", "es-ES", "ru-RU"]
+            let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    try handler.perform([req])
+                } catch {
+                    cont.resume(throwing: error)
+                }
+            }
+        }
+
+        guard !observations.isEmpty, let sampler = PixelSampler(cgImage: cgImage) else {
+            return []
+        }
+
+        return observations.compactMap { obs -> OCRTextRegion? in
+            guard let text = obs.topCandidates(1).first?.string,
+                  !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                return nil
+            }
+            // Vision bounding box is normalized with origin bottom-left; convert to pixel rect (top-left origin).
+            let bb = obs.boundingBox
+            let rect = CGRect(
+                x: bb.origin.x * CGFloat(width),
+                y: (1 - bb.origin.y - bb.height) * CGFloat(height),
+                width: bb.width * CGFloat(width),
+                height: bb.height * CGFloat(height)
+            ).integral
+            let (fg, bg) = sampler.classifyColors(in: rect)
+            return OCRTextRegion(
+                imageRect: rect,
+                original: text,
+                translated: nil,
+                foreground: fg,
+                background: bg
+            )
+        }
+    }
+
+    @MainActor
+    static func compose(base: NSImage, regions: [OCRTextRegion]) -> NSImage {
+        // Use the image pixel dimensions so overlay coordinates match Vision output.
+        let cgRef = base.cgImage(forProposedRect: nil, context: nil, hints: nil)
+        let pixelSize = cgRef.map { CGSize(width: $0.width, height: $0.height) } ?? base.size
+        let img = NSImage(size: pixelSize)
+        img.lockFocusFlipped(false)
+        defer { img.unlockFocus() }
+
+        base.draw(in: CGRect(origin: .zero, size: pixelSize),
+                  from: .zero,
+                  operation: .copy,
+                  fraction: 1.0)
+
+        for region in regions {
+            guard let translated = region.translated?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !translated.isEmpty,
+                  translated != region.original else { continue }
+            let imageRect = region.imageRect
+            // Translate top-left origin rect into the bottom-left origin drawing space.
+            let drawRect = CGRect(
+                x: imageRect.origin.x,
+                y: pixelSize.height - imageRect.origin.y - imageRect.height,
+                width: imageRect.width,
+                height: imageRect.height
+            ).insetBy(dx: -1, dy: -1)
+
+            // Mask out the original text with the sampled background color.
+            region.background.setFill()
+            NSBezierPath(rect: drawRect).fill()
+
+            // Draw translated text centered, scaled to fit the bounding box.
+            drawFittedText(translated,
+                           in: drawRect,
+                           color: region.foreground)
+        }
+        return img
+    }
+
+    private static func drawFittedText(_ text: String, in rect: CGRect, color: NSColor) {
+        let ns = text as NSString
+        // Start from a font size close to the bounding box height, then shrink until width fits.
+        var size = max(6, floor(rect.height * 0.9))
+        let minimumSize: CGFloat = 6
+        let maxWidth = max(1, rect.width - 2)
+
+        var font = NSFont.systemFont(ofSize: size)
+        var attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
+        var textSize = ns.size(withAttributes: attrs)
+        while (textSize.width > maxWidth || textSize.height > rect.height) && size > minimumSize {
+            size -= 1
+            font = NSFont.systemFont(ofSize: size)
+            attrs[.font] = font
+            textSize = ns.size(withAttributes: attrs)
+        }
+
+        let drawPoint = CGPoint(
+            x: rect.midX - textSize.width / 2,
+            y: rect.midY - textSize.height / 2
+        )
+        ns.draw(at: drawPoint, withAttributes: attrs)
+    }
+}
+
+/// SwiftUI host that drives Apple's Translation framework session.
+@available(macOS 15.0, *)
+private struct OCRTranslationRunnerView: View {
+    let sources: [String]
+    let onResult: ([String]) -> Void
+    let onFailure: (Error) -> Void
+
+    @State private var configuration: TranslationSession.Configuration?
+
+    var body: some View {
+        Color.clear
+            .frame(width: 1, height: 1)
+            .translationTask(configuration) { session in
+                do {
+                    var translated: [String] = []
+                    translated.reserveCapacity(sources.count)
+                    for text in sources {
+                        let response = try await session.translate(text)
+                        translated.append(response.targetText)
+                    }
+                    await MainActor.run { onResult(translated) }
+                } catch {
+                    await MainActor.run { onFailure(error) }
+                }
+            }
+            .onAppear {
+                // Passing nil lets Translation auto-detect the source language and use the user's preferred target.
+                configuration = TranslationSession.Configuration(source: nil, target: nil)
+            }
+    }
+}
+
+// MARK: – Pixel sampler used to infer foreground/background colors for each text region.
+
+private final class PixelSampler {
+    private let width: Int
+    private let height: Int
+    private let bytesPerRow: Int
+    private let buffer: [UInt8]
+
+    init?(cgImage: CGImage) {
+        let width = cgImage.width
+        let height = cgImage.height
+        guard width > 0, height > 0 else { return nil }
+        let bytesPerPixel = 4
+        let bytesPerRow = width * bytesPerPixel
+        var pixels = [UInt8](repeating: 0, count: height * bytesPerRow)
+        guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) else { return nil }
+        let bitmapInfo = CGBitmapInfo.byteOrder32Big.rawValue | CGImageAlphaInfo.premultipliedLast.rawValue
+        guard let ctx = pixels.withUnsafeMutableBytes({ ptr -> CGContext? in
+            guard let base = ptr.baseAddress else { return nil }
+            return CGContext(
+                data: base,
+                width: width,
+                height: height,
+                bitsPerComponent: 8,
+                bytesPerRow: bytesPerRow,
+                space: colorSpace,
+                bitmapInfo: bitmapInfo
+            )
+        }) else { return nil }
+        ctx.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+        self.width = width
+        self.height = height
+        self.bytesPerRow = bytesPerRow
+        self.buffer = pixels
+    }
+
+    /// Separates pixels in `rect` (image pixel coords, top-left origin) into text / background clusters via luminance.
+    /// The minority cluster is treated as text (foreground); the majority cluster as background.
+    func classifyColors(in rect: CGRect) -> (fg: NSColor, bg: NSColor) {
+        let minX = max(0, Int(rect.minX))
+        let maxX = min(width, Int(ceil(rect.maxX)))
+        let minY = max(0, Int(rect.minY))
+        let maxY = min(height, Int(ceil(rect.maxY)))
+        guard maxX > minX, maxY > minY else {
+            return (.labelColor, .windowBackgroundColor)
+        }
+
+        // Sample every pixel in small rects; stride larger ones to cap work.
+        let stride = max(1, Int(ceil(sqrt(Double((maxX - minX) * (maxY - minY)) / 2000.0))))
+
+        var samples: [(r: Int, g: Int, b: Int, lum: Double)] = []
+        samples.reserveCapacity(((maxX - minX) / stride) * ((maxY - minY) / stride) + 16)
+
+        for y in Swift.stride(from: minY, to: maxY, by: stride) {
+            for x in Swift.stride(from: minX, to: maxX, by: stride) {
+                let idx = y * bytesPerRow + x * 4
+                let r = Int(buffer[idx])
+                let g = Int(buffer[idx + 1])
+                let b = Int(buffer[idx + 2])
+                // Rec. 601 luma approximation.
+                let lum = 0.299 * Double(r) + 0.587 * Double(g) + 0.114 * Double(b)
+                samples.append((r, g, b, lum))
+            }
+        }
+        guard !samples.isEmpty else {
+            return (.labelColor, .windowBackgroundColor)
+        }
+
+        let avgLum = samples.reduce(0.0) { $0 + $1.lum } / Double(samples.count)
+        var darkR = 0, darkG = 0, darkB = 0, darkCount = 0
+        var lightR = 0, lightG = 0, lightB = 0, lightCount = 0
+        for s in samples {
+            if s.lum < avgLum {
+                darkR += s.r; darkG += s.g; darkB += s.b; darkCount += 1
+            } else {
+                lightR += s.r; lightG += s.g; lightB += s.b; lightCount += 1
+            }
+        }
+        func makeColor(_ r: Int, _ g: Int, _ b: Int, count: Int) -> NSColor {
+            guard count > 0 else { return .labelColor }
+            return NSColor(
+                srgbRed: CGFloat(r) / CGFloat(count) / 255.0,
+                green: CGFloat(g) / CGFloat(count) / 255.0,
+                blue: CGFloat(b) / CGFloat(count) / 255.0,
+                alpha: 1
+            )
+        }
+        let darkColor = makeColor(darkR, darkG, darkB, count: darkCount)
+        let lightColor = makeColor(lightR, lightG, lightB, count: lightCount)
+
+        // Minority cluster is foreground (text); majority is background.
+        if darkCount <= lightCount {
+            return (fg: darkColor, bg: lightColor)
+        } else {
+            return (fg: lightColor, bg: darkColor)
+        }
     }
 }
