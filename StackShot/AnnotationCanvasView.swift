@@ -7,7 +7,10 @@ final class AnnotationCanvasView: NSView {
     // MARK: – Public state
 
     var screenshot: NSImage {
-        didSet { needsDisplay = true }
+        didSet {
+            blurredScreenshotCache = nil
+            needsDisplay = true
+        }
     }
     var annotations: [AnnotationItem] = [] {
         didSet { needsDisplay = true }
@@ -23,6 +26,8 @@ final class AnnotationCanvasView: NSView {
     private var dragStart:   NSPoint?
     private var dragCurrent: NSPoint?
     private var penPoints:   [CGPoint] = []
+    private var mosaicPoints: [CGPoint] = []
+    private var mosaicCursorPoint: CGPoint?
     private var activeEmojiIndex: Int?
     private var selectedEmojiIndex: Int?
     private var emojiGestureStartPoint: CGPoint?
@@ -33,6 +38,12 @@ final class AnnotationCanvasView: NSView {
     private var trackingAreaRef: NSTrackingArea?
 
     private weak var activeTextField: TextInputField?
+    private var activeTextEditingIndex: Int?
+    private var selectedTextIndex: Int?
+    private var activeTextDragIndex: Int?
+    private var textDragStartPoint: CGPoint?
+    private var textDragInitialOrigin: CGPoint?
+    private var blurredScreenshotCache: NSImage?
     private var currentStyle: AnnotationToolStyle {
         guard let currentTool else { return .default(for: .rectangle) }
         return styleProvider?(currentTool) ?? .default(for: currentTool)
@@ -66,19 +77,42 @@ final class AnnotationCanvasView: NSView {
     }
 
     override func mouseMoved(with event: NSEvent) {
-        updateEmojiCursor(at: convert(event.locationInWindow, from: nil))
+        let point = convert(event.locationInWindow, from: nil)
+        if currentTool == .mosaic {
+            mosaicCursorPoint = point
+        }
+        updateEmojiCursor(at: point)
+        if currentTool != .emoji {
+            NSCursor.arrow.set()
+        }
+        needsDisplay = true
         super.mouseMoved(with: event)
     }
 
     override func cursorUpdate(with event: NSEvent) {
-        updateEmojiCursor(at: convert(event.locationInWindow, from: nil))
+        let point = convert(event.locationInWindow, from: nil)
+        if currentTool == .mosaic {
+            mosaicCursorPoint = point
+        }
+        updateEmojiCursor(at: point)
+        if currentTool != .emoji {
+            NSCursor.arrow.set()
+        }
     }
 
     // MARK: – Mouse handling
 
     override func mouseDown(with event: NSEvent) {
-        commitActiveTextField()
         let p = convert(event.locationInWindow, from: nil)
+
+        if let activeTextField, activeTextField.frame.insetBy(dx: -8, dy: -8).contains(p) {
+            window?.makeFirstResponder(activeTextField)
+            return
+        }
+
+        if activeTextField != nil {
+            commitActiveTextField()
+        }
 
         if beginEmojiInteraction(at: p, event: event) {
             needsDisplay = true
@@ -89,13 +123,39 @@ final class AnnotationCanvasView: NSView {
             selectedEmojiIndex = nil
         }
 
+        if let textIndex = topTextIndex(at: p) {
+            selectedTextIndex = textIndex
+            if event.clickCount >= 2,
+               case let .text(origin, content, font, color) = annotations[textIndex] {
+                presentTextInput(
+                    at: CGPoint(x: origin.x, y: origin.y - 4),
+                    editingIndex: textIndex,
+                    initialText: content,
+                    initialFont: font,
+                    initialColor: color
+                )
+            } else if case let .text(origin, _, _, _) = annotations[textIndex] {
+                activeTextDragIndex = textIndex
+                textDragStartPoint = p
+                textDragInitialOrigin = origin
+            }
+            needsDisplay = true
+            return
+        } else if selectedTextIndex != nil {
+            selectedTextIndex = nil
+        }
+
         guard let tool = currentTool else { return }
 
         switch tool {
         case .emoji:
             break
         case .text:
+            activeTextEditingIndex = nil
             presentTextInput(at: p)
+        case .mosaic:
+            mosaicPoints = [p]
+            mosaicCursorPoint = p
         case .pen:
             penPoints = [p]
             dragStart  = p
@@ -112,10 +172,34 @@ final class AnnotationCanvasView: NSView {
             return
         }
 
+        if let dragIndex = activeTextDragIndex,
+           let start = textDragStartPoint,
+           let initialOrigin = textDragInitialOrigin,
+           annotations.indices.contains(dragIndex),
+           case .text = annotations[dragIndex] {
+            let p = convert(event.locationInWindow, from: nil)
+            let dx = p.x - start.x
+            let dy = p.y - start.y
+            if case let .text(_, content, font, color) = annotations[dragIndex] {
+                annotations[dragIndex] = .text(
+                    origin: CGPoint(x: initialOrigin.x + dx, y: initialOrigin.y + dy),
+                    content: content,
+                    font: font,
+                    color: color
+                )
+            }
+            selectedTextIndex = dragIndex
+            needsDisplay = true
+            return
+        }
+
         guard let tool = currentTool else { return }
         let p = convert(event.locationInWindow, from: nil)
         if tool == .pen {
             penPoints.append(p)
+        } else if tool == .mosaic {
+            mosaicPoints.append(p)
+            mosaicCursorPoint = p
         } else {
             dragCurrent = p
         }
@@ -128,12 +212,21 @@ final class AnnotationCanvasView: NSView {
             return
         }
 
+        if activeTextDragIndex != nil {
+            activeTextDragIndex = nil
+            textDragStartPoint = nil
+            textDragInitialOrigin = nil
+            needsDisplay = true
+            return
+        }
+
         guard let tool = currentTool else { return }
         let p = convert(event.locationInWindow, from: nil)
         defer {
             dragStart   = nil
             dragCurrent = nil
             penPoints   = []
+            mosaicPoints = []
             needsDisplay = true
         }
 
@@ -165,10 +258,9 @@ final class AnnotationCanvasView: NSView {
             annotations.append(.pen(points: penPoints, color: color, lineWidth: style.lineWidth))
 
         case .mosaic:
-            guard let s = dragStart else { return }
-            let r = normalizedRect(from: s, to: p)
-            guard r.width > 4, r.height > 4 else { return }
-            annotations.append(.mosaic(rect: r))
+            guard !mosaicPoints.isEmpty else { return }
+            let radius = max(4, currentStyle.mosaicRadius)
+            annotations.append(.mosaicStroke(points: mosaicPoints, radius: radius))
 
         case .crop:
             guard let s = dragStart else { return }
@@ -248,12 +340,25 @@ final class AnnotationCanvasView: NSView {
             c.setStroke()
             path.stroke()
 
-        case let .mosaic(r):
-            drawMosaic(in: r)
+        case let .mosaicStroke(points, radius):
+            drawMosaicStroke(points: points, radius: radius)
 
         case let .text(origin, content, font, color):
+            if index == activeTextEditingIndex {
+                break
+            }
             let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
             (content as NSString).draw(at: origin, withAttributes: attrs)
+            if index == selectedTextIndex {
+                let rect = textRect(origin: origin, content: content, font: font)
+                    .insetBy(dx: -6, dy: -5)
+                let path = NSBezierPath(roundedRect: rect, xRadius: 6, yRadius: 6)
+                NSColor.controlAccentColor.withAlphaComponent(0.85).setStroke()
+                path.lineWidth = 1.4
+                let dash: [CGFloat] = [4, 3]
+                path.setLineDash(dash, count: dash.count, phase: 0)
+                path.stroke()
+            }
 
         case let .emojiSticker(sticker):
             drawEmojiSticker(sticker, isSelected: index == selectedEmojiIndex)
@@ -346,45 +451,62 @@ final class AnnotationCanvasView: NSView {
         }
     }
 
-    private func drawMosaic(in rect: CGRect) {
-        guard let cgImage = screenshot.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return }
+    private func drawMosaicStroke(points: [CGPoint], radius: CGFloat) {
+        guard points.isEmpty == false else { return }
+        guard let blurred = blurredScreenshotImage() else { return }
 
         let drawRect = screenshotDrawRect
         guard drawRect.width > 0, drawRect.height > 0 else { return }
 
-        // Map view-space rect → screenshot pixel rect (CGImage coordinates: 0,0 top-left)
-        let sx = CGFloat(cgImage.width)  / drawRect.width
-        let sy = CGFloat(cgImage.height) / drawRect.height
+        NSGraphicsContext.saveGraphicsState()
+        NSBezierPath(rect: drawRect).addClip()
 
-        // Clamp to drawRect
-        let clipped = rect.intersection(drawRect)
-        guard !clipped.isNull else { return }
+        let clipPath = NSBezierPath()
+        for point in points {
+            let clamped = CGPoint(
+                x: min(max(point.x, drawRect.minX), drawRect.maxX),
+                y: min(max(point.y, drawRect.minY), drawRect.maxY)
+            )
+            let circle = CGRect(
+                x: clamped.x - radius,
+                y: clamped.y - radius,
+                width: radius * 2,
+                height: radius * 2
+            )
+            clipPath.appendOval(in: circle)
+        }
+        clipPath.addClip()
+        blurred.draw(in: drawRect)
+        NSGraphicsContext.restoreGraphicsState()
+    }
 
-        // Offset relative to the screenshot draw rect origin
-        let localX = clipped.origin.x - drawRect.origin.x
-        let localY = clipped.origin.y - drawRect.origin.y  // NSView Y (bottom=0)
+    private func blurredScreenshotImage() -> NSImage? {
+        if let blurredScreenshotCache {
+            return blurredScreenshotCache
+        }
 
-        // In CGImage Y (top=0): top of the clipped rect is at (drawRect.height - localY - clipped.height)
-        let imgX = localX * sx
-        let imgY = (drawRect.height - localY - clipped.height) * sy
-        let imgW = clipped.width  * sx
-        let imgH = clipped.height * sy
-        let cropRect = CGRect(x: imgX, y: imgY, width: imgW, height: imgH)
+        guard let cgImage = screenshot.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            return nil
+        }
+        let ciImage = CIImage(cgImage: cgImage)
+        guard let blurFilter = CIFilter(name: "CIGaussianBlur") else {
+            return nil
+        }
+        blurFilter.setValue(ciImage, forKey: kCIInputImageKey)
+        blurFilter.setValue(10.0, forKey: kCIInputRadiusKey)
+        guard let blurred = blurFilter.outputImage else {
+            return nil
+        }
 
-        guard let crop = cgImage.cropping(to: cropRect) else { return }
+        let cropped = blurred.cropped(to: ciImage.extent)
+        let context = CIContext()
+        guard let outCG = context.createCGImage(cropped, from: ciImage.extent) else {
+            return nil
+        }
 
-        let ci     = CIImage(cgImage: crop)
-        let filter = CIFilter(name: "CIPixellate")!
-        let scale  = max(clipped.width, clipped.height) / 12
-        filter.setValue(ci,    forKey: kCIInputImageKey)
-        filter.setValue(scale, forKey: kCIInputScaleKey)
-
-        guard let outCI = filter.outputImage else { return }
-        let ctx = CIContext()
-        guard let outCG = ctx.createCGImage(outCI, from: outCI.extent) else { return }
-
-        let mosaicImage = NSImage(cgImage: outCG, size: clipped.size)
-        mosaicImage.draw(in: clipped)
+        let image = NSImage(cgImage: outCG, size: screenshot.size)
+        blurredScreenshotCache = image
+        return image
     }
 
     // MARK: – In-progress preview
@@ -403,6 +525,27 @@ final class AnnotationCanvasView: NSView {
             let previewColor = style.isFilled ? style.color : style.color.withAlphaComponent(0.35)
             previewColor.setStroke()
             path.stroke()
+            return
+        }
+
+        if tool == .mosaic {
+            if !mosaicPoints.isEmpty {
+                let radius = max(4, currentStyle.mosaicRadius)
+                drawMosaicStroke(points: mosaicPoints, radius: radius)
+            }
+            if let cursorPoint = mosaicCursorPoint {
+                let radius = max(4, currentStyle.mosaicRadius)
+                let cursorRect = CGRect(
+                    x: cursorPoint.x - radius,
+                    y: cursorPoint.y - radius,
+                    width: radius * 2,
+                    height: radius * 2
+                )
+                let cursorPath = NSBezierPath(ovalIn: cursorRect)
+                NSColor.white.withAlphaComponent(0.9).setStroke()
+                cursorPath.lineWidth = 1.4
+                cursorPath.stroke()
+            }
             return
         }
 
@@ -434,15 +577,6 @@ final class AnnotationCanvasView: NSView {
         case .arrow:
             let style = currentStyle
             drawArrow(from: s, to: c, color: style.color, lineWidth: style.lineWidth, isFilled: style.isFilled)
-
-        case .mosaic:
-            let r = normalizedRect(from: s, to: c)
-            NSColor.black.withAlphaComponent(0.25).setFill()
-            NSBezierPath(rect: r).fill()
-            NSColor.white.withAlphaComponent(0.6).setStroke()
-            let border = NSBezierPath(rect: r)
-            border.lineWidth = 1
-            border.stroke()
 
         case .crop:
             let r = normalizedRect(from: s, to: c)
@@ -510,58 +644,137 @@ final class AnnotationCanvasView: NSView {
 
         screenshot  = cropped
         annotations = []
+        selectedTextIndex = nil
+        activeTextEditingIndex = nil
+        activeTextDragIndex = nil
+        textDragStartPoint = nil
+        textDragInitialOrigin = nil
         frame       = CGRect(origin: frame.origin, size: newSize)
         onCropCompleted?(newSize)
     }
 
     // MARK: – Text input
 
-    private func presentTextInput(at point: CGPoint) {
+    private func presentTextInput(
+        at point: CGPoint,
+        editingIndex: Int? = nil,
+        initialText: String = "",
+        initialFont: NSFont? = nil,
+        initialColor: NSColor? = nil
+    ) {
+        activeTextField?.removeFromSuperview()
+        let style = currentStyle
+        let resolvedFont = initialFont
+            ?? NSFont(name: style.textFontName, size: style.textFontSize)
+            ?? NSFont.systemFont(ofSize: style.textFontSize, weight: .semibold)
+        let resolvedColor = initialColor ?? style.color
+        let idealWidth = max(
+            200,
+            (initialText as NSString).size(withAttributes: [.font: resolvedFont]).width + 44
+        )
         let tf = TextInputField(
-            frame: CGRect(x: point.x, y: point.y - 20, width: 200, height: 32)
+            frame: CGRect(x: point.x, y: point.y - 20, width: idealWidth, height: 32)
         )
         tf.isBezeled           = false
         tf.drawsBackground     = false
-        tf.textColor           = currentStyle.color
-        tf.font                = NSFont.systemFont(ofSize: 18, weight: .semibold)
+        tf.textColor           = resolvedColor
+        tf.font                = resolvedFont
         tf.placeholderString   = "输入文字…"
+        tf.stringValue         = initialText
+        activeTextEditingIndex = editingIndex
         tf.onCommit = { [weak self, weak tf] text in
-            guard let self, let tf, !text.isEmpty else {
-                tf?.removeFromSuperview()
-                self?.activeTextField = nil
+            guard let self, let tf else {
+                return
+            }
+            guard !text.isEmpty else {
+                if let idx = editingIndex, self.annotations.indices.contains(idx) {
+                    self.annotations.remove(at: idx)
+                }
+                tf.removeFromSuperview()
+                self.activeTextField = nil
+                self.activeTextEditingIndex = nil
                 return
             }
             let origin = CGPoint(x: tf.frame.origin.x, y: tf.frame.origin.y + 4)
-            self.annotations.append(.text(
+            let item: AnnotationItem = .text(
                 origin: origin,
                 content: text,
-                font: tf.font ?? NSFont.systemFont(ofSize: 18),
-                color: tf.textColor ?? self.currentStyle.color
-            ))
+                font: tf.font ?? resolvedFont,
+                color: tf.textColor ?? resolvedColor
+            )
+            if let idx = editingIndex, self.annotations.indices.contains(idx) {
+                self.annotations[idx] = item
+                self.selectedTextIndex = idx
+            } else {
+                self.annotations.append(item)
+                self.selectedTextIndex = self.annotations.indices.last
+            }
             tf.removeFromSuperview()
             self.activeTextField = nil
+            self.activeTextEditingIndex = nil
             self.needsDisplay = true
         }
-        tf.onCancel = { [weak self, weak tf] in
-            tf?.removeFromSuperview()
-            self?.activeTextField = nil
+        tf.onCancel = { [weak self] in
+            self?.discardActiveTextEditing()
         }
         addSubview(tf)
         window?.makeFirstResponder(tf)
         activeTextField = tf
+        applyCurrentTextStyleIfNeeded()
     }
 
     private func commitActiveTextField() {
         activeTextField?.commit()
     }
 
+    @discardableResult
+    func cancelActiveTextEditingIfNeeded() -> Bool {
+        guard activeTextField != nil else { return false }
+        discardActiveTextEditing()
+        return true
+    }
+
+    func applyCurrentTextStyleIfNeeded() {
+        guard currentTool == .text, let textField = activeTextField else { return }
+        let style = currentStyle
+        let font = NSFont(name: style.textFontName, size: style.textFontSize)
+            ?? NSFont.systemFont(ofSize: style.textFontSize, weight: .semibold)
+        textField.textColor = style.color
+        textField.font = font
+
+        if let editor = window?.fieldEditor(false, for: textField) as? NSTextView {
+            editor.font = font
+            editor.textColor = style.color
+            editor.insertionPointColor = style.color
+            var attributes = editor.typingAttributes
+            attributes[.font] = font
+            attributes[.foregroundColor] = style.color
+            editor.typingAttributes = attributes
+        }
+    }
+
+    private func discardActiveTextEditing() {
+        activeTextField?.removeFromSuperview()
+        activeTextField = nil
+        activeTextEditingIndex = nil
+        window?.makeFirstResponder(self)
+        needsDisplay = true
+    }
+
     // MARK: – Undo
 
     func undo() {
         guard !annotations.isEmpty else { return }
+        commitActiveTextField()
         annotations.removeLast()
         if let selectedEmojiIndex, !annotations.indices.contains(selectedEmojiIndex) {
             self.selectedEmojiIndex = nil
+        }
+        if let selectedTextIndex, !annotations.indices.contains(selectedTextIndex) {
+            self.selectedTextIndex = nil
+        }
+        if let activeTextEditingIndex, !annotations.indices.contains(activeTextEditingIndex) {
+            self.activeTextEditingIndex = nil
         }
         needsDisplay = true
     }
@@ -635,6 +848,24 @@ final class AnnotationCanvasView: NSView {
             width:  abs(b.x - a.x),
             height: abs(b.y - a.y)
         )
+    }
+
+    private func textRect(origin: CGPoint, content: String, font: NSFont) -> CGRect {
+        let text = content as NSString
+        let size = text.size(withAttributes: [.font: font])
+        return CGRect(x: origin.x, y: origin.y, width: size.width, height: size.height)
+    }
+
+    private func topTextIndex(at point: CGPoint) -> Int? {
+        for idx in annotations.indices.reversed() {
+            guard case let .text(origin, content, font, _) = annotations[idx] else { continue }
+            let hitRect = textRect(origin: origin, content: content, font: font)
+                .insetBy(dx: -8, dy: -8)
+            if hitRect.contains(point) {
+                return idx
+            }
+        }
+        return nil
     }
 
     private func beginEmojiInteraction(at point: CGPoint, event: NSEvent) -> Bool {

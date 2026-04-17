@@ -7,6 +7,8 @@ enum RegionSelectionShape {
 
 /// 全屏半透明遮罩 + 拖拽选取；Esc/右键取消。
 final class RegionSelectionOverlay: NSWindow {
+    override var canBecomeKey: Bool { true }
+
     init(
         shape: RegionSelectionShape,
         initialDragStartGlobal: CGPoint? = nil,

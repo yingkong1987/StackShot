@@ -333,11 +333,16 @@ final class CaptureSessionController {
     }
 
     private func showCaptureFailedAlert(reason: String) {
+        // Ensure alert is visible above capture overlays/highlight windows.
+        dismissHoverUI()
+        NSApp.activate(ignoringOtherApps: true)
+
         let alert = NSAlert()
         alert.messageText     = "截图失败"
         alert.informativeText = reason
         alert.alertStyle      = .informational
         alert.addButton(withTitle: "好")
+        alert.window.level = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue + 1)
         alert.runModal()
     }
 }

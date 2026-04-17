@@ -170,8 +170,8 @@ private struct ToolbarContent: View {
             btn("face.smiling", "表情与符号", callbacks.onEmoji)
             configBtn(.arrow, "arrow.up.right", "箭头")
             configBtn(.pen, "pencil", "画笔")
-            btn("squareshape.split.3x3", "马赛克", callbacks.onMosaic)
-            btn("character.textbox", "文字", callbacks.onText)
+            btn("checkerboard.rectangle", "马赛克", callbacks.onMosaic)
+            btn("t.square", "文字", callbacks.onText)
 
             sep()
 

@@ -77,7 +77,7 @@ final class AnnotationEditorState: ObservableObject {
     }
 
     init() {
-        let persistedTools: [AnnotationTool] = [.rectangle, .circle, .arrow, .pen]
+        let persistedTools: [AnnotationTool] = [.rectangle, .circle, .arrow, .pen, .mosaic, .text]
         for tool in persistedTools {
             toolStyles[tool] = loadStyle(for: tool) ?? .default(for: tool)
         }
@@ -103,6 +103,15 @@ final class AnnotationEditorState: ObservableObject {
         let lineWidth = stored["lineWidth"] as? CGFloat
             ?? (stored["lineWidth"] as? Double).map { CGFloat($0) }
             ?? defaultStyle.lineWidth
+        let textFontSize = stored["textFontSize"] as? CGFloat
+            ?? (stored["textFontSize"] as? Double).map { CGFloat($0) }
+            ?? defaultStyle.textFontSize
+        let mosaicRadius = stored["mosaicRadius"] as? CGFloat
+            ?? (stored["mosaicRadius"] as? Double).map { CGFloat($0) }
+            ?? defaultStyle.mosaicRadius
+        let textFontName = (stored["textFontName"] as? String).flatMap { name in
+            NSFont(name: name, size: textFontSize) != nil ? name : nil
+        } ?? defaultStyle.textFontName
         let colorIndex = stored["colorIndex"] as? Int ?? 0
         let palette = Self.colorPalette
         let resolvedIndex = max(0, min(colorIndex, palette.count - 1))
@@ -111,7 +120,10 @@ final class AnnotationEditorState: ObservableObject {
         return AnnotationToolStyle(
             lineWidth: lineWidth,
             isFilled: defaultStyle.isFilled,
-            color: color
+            color: color,
+            textFontName: textFontName,
+            textFontSize: textFontSize,
+            mosaicRadius: mosaicRadius
         )
     }
 
@@ -121,7 +133,13 @@ final class AnnotationEditorState: ObservableObject {
         }?.offset ?? 0
 
         styleStorage.set(
-            ["lineWidth": Double(style.lineWidth), "colorIndex": nearestColorIndex],
+            [
+                "lineWidth": Double(style.lineWidth),
+                "colorIndex": nearestColorIndex,
+                "textFontName": style.textFontName,
+                "textFontSize": Double(style.textFontSize),
+                "mosaicRadius": Double(style.mosaicRadius)
+            ],
             forKey: storageKey(for: tool)
         )
     }
@@ -229,8 +247,10 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
         )
 
         // 恢复标准窗口边框与交通灯按钮，同时保持窗口固定在中心位置。
-        level = .floating
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        // Keep the editor in the active space with a stable normal-level z-order.
+        // It should come to front after capture, but not keep forcing top-most priority.
+        level = .normal
+        collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         isOpaque = true
         backgroundColor = NSColor(white: 0.12, alpha: 1)
         hasShadow = true
@@ -268,7 +288,10 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
 
         state.objectWillChange
             .sink { [weak self] _ in
-                self?.canvas.needsDisplay = true
+                DispatchQueue.main.async { [weak self] in
+                    self?.canvas.applyCurrentTextStyleIfNeeded()
+                    self?.canvas.needsDisplay = true
+                }
             }
             .store(in: &cancellables)
 
@@ -317,6 +340,16 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
     private func cancelEditor() {
         onCancel?()
         close()
+    }
+
+    override func cancelOperation(_ sender: Any?) {
+        if canvas.cancelActiveTextEditingIfNeeded() {
+            return
+        }
+
+        // Support Esc key to cancel the screenshot editing session,
+        // matching the toolbar "X" behavior when not text-editing.
+        cancelEditor()
     }
 
     override func close() {
@@ -656,6 +689,9 @@ private enum EditorL10nKey {
     case actionCancel
     case actionConfirmCopy
     case emojiPickerTitle
+    case textStyleFont
+    case textStyleSize
+    case mosaicRadius
 }
 
 private enum EditorL10n {
@@ -699,7 +735,10 @@ private enum EditorL10n {
         .actionShare: "分享",
         .actionCancel: "取消",
         .actionConfirmCopy: "确认并复制",
-        .emojiPickerTitle: "Emoji"
+        .emojiPickerTitle: "Emoji",
+        .textStyleFont: "字体",
+        .textStyleSize: "字号",
+        .mosaicRadius: "半径"
     ]
 
     private static let zhHant: [EditorL10nKey: String] = [
@@ -731,7 +770,10 @@ private enum EditorL10n {
         .actionShare: "分享",
         .actionCancel: "取消",
         .actionConfirmCopy: "確認並複製",
-        .emojiPickerTitle: "Emoji"
+        .emojiPickerTitle: "Emoji",
+        .textStyleFont: "字體",
+        .textStyleSize: "字號",
+        .mosaicRadius: "半徑"
     ]
 
     private static let en: [EditorL10nKey: String] = [
@@ -763,7 +805,10 @@ private enum EditorL10n {
         .actionShare: "Share",
         .actionCancel: "Cancel",
         .actionConfirmCopy: "Confirm & Copy",
-        .emojiPickerTitle: "Emoji"
+        .emojiPickerTitle: "Emoji",
+        .textStyleFont: "Font",
+        .textStyleSize: "Size",
+        .mosaicRadius: "Radius"
     ]
 }
 
@@ -948,7 +993,9 @@ private final class DraggableToolbarHostingView<Content: View>: NSHostingView<Co
     override func mouseDown(with event: NSEvent) {
         let localPoint = convert(event.locationInWindow, from: nil)
         let isInDragRegion = localPoint.y >= (bounds.height - dragRegionHeight)
-        guard isInDragRegion || hitTest(localPoint) === self else {
+        // Only use the top strip as drag handle; otherwise forward events so
+        // SwiftUI/AppKit toolbar buttons (e.g. text tool) can receive clicks.
+        guard isInDragRegion else {
             super.mouseDown(with: event)
             return
         }
@@ -1008,7 +1055,6 @@ private struct ConfigurableToolToolbarButton: NSViewRepresentable {
         context.coordinator.button?.toolTip = help
         context.coordinator.refreshSymbol()
         context.coordinator.updateAppearance(selected: state.selectedTool == tool)
-        context.coordinator.syncPopoverContent()
     }
 
     final class Coordinator: NSObject, NSPopoverDelegate {
@@ -1046,9 +1092,14 @@ private struct ConfigurableToolToolbarButton: NSViewRepresentable {
 
         @objc
         func click(_ sender: NSButton) {
+            if state.selectedTool == tool {
+                state.selectedTool = nil
+                popover?.performClose(nil)
+                return
+            }
+
             if let p = popover, p.isShown {
                 p.performClose(nil)
-                return
             }
 
             state.selectedTool = tool
@@ -1058,7 +1109,7 @@ private struct ConfigurableToolToolbarButton: NSViewRepresentable {
 
         private func presentPopover(anchoredTo sender: NSButton) {
             let pop = NSPopover()
-            pop.behavior = .transient
+            pop.behavior = .applicationDefined
             pop.animates = true
             pop.delegate = self
 
@@ -1079,6 +1130,7 @@ private struct ConfigurableToolToolbarButton: NSViewRepresentable {
 
         private func makePopoverRootView() -> AnnotationStylePopover {
             AnnotationStylePopover(
+                tool: tool,
                 style: Binding(
                     get: { [weak self] in
                         guard let self else { return .default(for: .rectangle) }
@@ -1097,6 +1149,9 @@ private struct ConfigurableToolToolbarButton: NSViewRepresentable {
             guard let pop = popover, pop.isShown,
                   let host = pop.contentViewController as? NSHostingController<AnnotationStylePopover> else { return }
             host.rootView = makePopoverRootView()
+            if state.selectedTool != tool {
+                pop.performClose(nil)
+            }
         }
 
         func popoverDidClose(_ notification: Notification) {
@@ -1279,7 +1334,7 @@ private struct AnnotationToolbarView: View {
     var onOCR:          () -> Void
     var onOCRTranslate: () -> Void
 
-    private let configurableTools: Set<AnnotationTool> = [.rectangle, .circle, .arrow, .pen]
+    private let configurableTools: Set<AnnotationTool> = [.rectangle, .circle, .arrow, .pen, .mosaic, .text]
     private let orderedTokens: [ToolbarToken] = [
         .rectangle, .circle, .emoji, .arrow, .pen, .mosaic, .text, .ocrTranslate,
         .ocr, .crop, .undo, .save, .pin, .share, .cancel, .confirm
@@ -1348,9 +1403,9 @@ private struct AnnotationToolbarView: View {
         case .pen:
             drawTool(.pen, "pencil", EditorL10n.tr(.toolPen))
         case .mosaic:
-            drawTool(.mosaic, "squareshape.split.3x3", EditorL10n.tr(.toolMosaic))
+            drawTool(.mosaic, "checkerboard.rectangle", EditorL10n.tr(.toolMosaic))
         case .text:
-            drawTool(.text, "character.textbox", EditorL10n.tr(.toolText))
+            drawTool(.text, "t.square", EditorL10n.tr(.toolText))
         case .ocrTranslate:
             drawTool(.ocrTranslate, "translate", EditorL10n.tr(.toolOCRTranslate))
         case .ocr:
@@ -1526,70 +1581,196 @@ private struct AnnotationLiquidToolbarBackground: View {
 }
 
 private struct AnnotationStylePopover: View {
+    let tool: AnnotationTool
     @Binding var style: AnnotationToolStyle
     let palette: [NSColor]
 
     private let minLineWidth: CGFloat = 1
     private let maxLineWidth: CGFloat = 14
-    private let presetLineWidths: [CGFloat] = [2, 4, 6, 8]
+    private let presetLineWidths: [CGFloat] = [2, 3, 4, 6, 8]
+    private let minTextSize: CGFloat = 12
+    private let maxTextSize: CGFloat = 96
+    private let presetTextSizes: [CGFloat] = [14, 18, 20, 24, 32, 48]
+    private let minMosaicRadius: CGFloat = 6
+    private let maxMosaicRadius: CGFloat = 80
+    private let presetMosaicRadii: [CGFloat] = [10, 18, 28, 40, 56]
     private let columns = Array(repeating: GridItem(.fixed(22), spacing: 8), count: 6)
+    private let textFontCandidates: [String] = [
+        "SFProDisplay-Semibold",
+        "HelveticaNeue-Medium",
+        "Arial-BoldMT",
+        "PingFangSC-Semibold",
+        "HiraginoSansGB-W6",
+        "HiraginoSans-W6",
+        "NotoSansCJKsc-Bold",
+        "NotoSansCJKtc-Bold",
+        "Songti SC",
+        "KohinoorDevanagari-Semibold"
+    ]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Image(systemName: "line.diagonal")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                Slider(
-                    value: Binding(
-                        get: { Double(style.lineWidth) },
-                        set: { style.lineWidth = CGFloat($0) }
-                    ),
-                    in: Double(minLineWidth)...Double(maxLineWidth)
-                )
-                .frame(width: 120)
-            }
-
-            HStack(spacing: 8) {
-                ForEach(presetLineWidths, id: \.self) { width in
-                    Button {
-                        style.lineWidth = width
-                    } label: {
-                        Circle()
-                            .fill(Color.primary)
-                            .frame(width: width + 4, height: width + 4)
-                            .frame(width: 24, height: 24)
-                            .opacity(abs(style.lineWidth - width) < 0.6 ? 1 : 0.35)
+            if tool == .text {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(EditorL10n.tr(.textStyleFont))
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    Picker("", selection: Binding(
+                        get: { currentTextFontName },
+                        set: { style.textFontName = $0 }
+                    )) {
+                        ForEach(availableTextFonts, id: \.self) { fontName in
+                            Text(displayFontName(fontName)).tag(fontName)
+                        }
                     }
-                    .buttonStyle(.plain)
+                    .labelsHidden()
+                    .frame(width: 180)
+                    .pickerStyle(.menu)
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("\(EditorL10n.tr(.textStyleSize)) \(Int(style.textFontSize.rounded()))")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    Slider(
+                        value: Binding(
+                            get: { Double(style.textFontSize) },
+                            set: { style.textFontSize = CGFloat($0) }
+                        ),
+                        in: Double(minTextSize)...Double(maxTextSize)
+                    )
+                    .frame(width: 180)
+                    let textSizeColumns = Array(repeating: GridItem(.fixed(42), spacing: 8), count: 3)
+                    LazyVGrid(columns: textSizeColumns, spacing: 8) {
+                        ForEach(presetTextSizes, id: \.self) { size in
+                            Button {
+                                style.textFontSize = size
+                            } label: {
+                                Text("\(Int(size))")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .frame(width: 42, height: 22)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                            .fill(Color.primary.opacity(abs(style.textFontSize - size) < 0.6 ? 0.16 : 0.06))
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            } else if tool == .mosaic {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("\(EditorL10n.tr(.mosaicRadius)) \(Int(style.mosaicRadius.rounded()))")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    Slider(
+                        value: Binding(
+                            get: { Double(style.mosaicRadius) },
+                            set: { style.mosaicRadius = CGFloat($0) }
+                        ),
+                        in: Double(minMosaicRadius)...Double(maxMosaicRadius)
+                    )
+                    .frame(width: 180)
+
+                    let mosaicColumns = Array(repeating: GridItem(.fixed(42), spacing: 8), count: 3)
+                    LazyVGrid(columns: mosaicColumns, spacing: 8) {
+                        ForEach(presetMosaicRadii, id: \.self) { radius in
+                            Button {
+                                style.mosaicRadius = radius
+                            } label: {
+                                Text("\(Int(radius))")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .frame(width: 42, height: 22)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                            .fill(Color.primary.opacity(abs(style.mosaicRadius - radius) < 0.8 ? 0.16 : 0.06))
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            } else {
+                HStack(spacing: 8) {
+                    Image(systemName: "line.diagonal")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    Slider(
+                        value: Binding(
+                            get: { Double(style.lineWidth) },
+                            set: { style.lineWidth = CGFloat($0) }
+                        ),
+                        in: Double(minLineWidth)...Double(maxLineWidth)
+                    )
+                    .frame(width: 120)
+                }
+
+                HStack(spacing: 8) {
+                    ForEach(presetLineWidths, id: \.self) { width in
+                        Button {
+                            style.lineWidth = width
+                        } label: {
+                            Circle()
+                                .fill(Color.primary)
+                                .frame(width: width + 4, height: width + 4)
+                                .frame(width: 24, height: 24)
+                                .opacity(abs(style.lineWidth - width) < 0.6 ? 1 : 0.35)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
             }
 
-            LazyVGrid(columns: columns, spacing: 8) {
-                ForEach(Array(palette.enumerated()), id: \.offset) { _, nsColor in
-                    let selected = sameColor(style.color, nsColor)
-                    Button {
-                        style.color = nsColor
-                    } label: {
-                        ZStack {
-                            Circle()
-                                .fill(Color(nsColor: nsColor))
-                            if selected {
+            if tool != .mosaic {
+                LazyVGrid(columns: columns, spacing: 8) {
+                    ForEach(Array(palette.enumerated()), id: \.offset) { _, nsColor in
+                        let selected = sameColor(style.color, nsColor)
+                        Button {
+                            style.color = nsColor
+                        } label: {
+                            ZStack {
                                 Circle()
-                                    .strokeBorder(Color.primary.opacity(0.85), lineWidth: 2)
-                            } else {
-                                Circle()
-                                    .strokeBorder(Color.primary.opacity(0.2), lineWidth: 0.8)
+                                    .fill(Color(nsColor: nsColor))
+                                if selected {
+                                    Circle()
+                                        .strokeBorder(Color.primary.opacity(0.85), lineWidth: 2)
+                                } else {
+                                    Circle()
+                                        .strokeBorder(Color.primary.opacity(0.2), lineWidth: 0.8)
+                                }
                             }
+                            .frame(width: 18, height: 18)
                         }
-                        .frame(width: 18, height: 18)
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
             }
         }
         .padding(12)
-        .frame(width: 210)
+        .frame(width: (tool == .text || tool == .mosaic) ? 228 : 210)
+    }
+
+    private var availableTextFonts: [String] {
+        let supported = textFontCandidates.filter { NSFont(name: $0, size: style.textFontSize) != nil }
+        if supported.isEmpty {
+            return [NSFont.systemFont(ofSize: style.textFontSize, weight: .semibold).fontName]
+        }
+        return supported
+    }
+
+    private var currentTextFontName: String {
+        let options = availableTextFonts
+        if options.contains(style.textFontName) {
+            return style.textFontName
+        }
+        return options[0]
+    }
+
+    private func displayFontName(_ fontName: String) -> String {
+        if let font = NSFont(name: fontName, size: 13) {
+            return font.displayName ?? fontName
+        }
+        return fontName
     }
 
     private func sameColor(_ lhs: NSColor, _ rhs: NSColor) -> Bool {
