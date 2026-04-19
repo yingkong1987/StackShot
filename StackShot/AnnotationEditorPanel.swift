@@ -5,6 +5,7 @@ import Combine
 import ImageIO
 import UniformTypeIdentifiers
 import QuartzCore
+import NaturalLanguage
 #if canImport(Translation)
 import Translation
 #endif
@@ -84,6 +85,7 @@ final class AnnotationEditorState: ObservableObject {
 
     @Published var selectedTool: AnnotationTool?
     @Published var isOCRRunning = false
+    @Published var isOCRTranslationApplied = false
     @Published private var toolStyles: [AnnotationTool: AnnotationToolStyle] = [:]
 
     private let styleStorage = UserDefaults.standard
@@ -222,6 +224,11 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
     // OCR 翻译期间显示的进度 HUD。
     private var translateHUD: NSView?
     private var isOCRTranslating = false
+    private var preTranslationScreenshot: NSImage?
+    private var isOCRTranslationApplied: Bool {
+        get { state.isOCRTranslationApplied }
+        set { state.isOCRTranslationApplied = newValue }
+    }
 
     /// Called when the user confirms or shares; passes the final annotated image.
     var onConfirm: ((NSImage) -> Void)?
@@ -833,7 +840,7 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
     private func performOCR(translate: Bool) {
         if translate {
             if #available(macOS 15.0, *) {
-                runOCRTranslateOverlay()
+                toggleOCRTranslateOverlay()
                 return
             }
             // macOS < 15 fallback: legacy text-copy + open system Translate app.
@@ -1925,6 +1932,26 @@ private struct ToolbarActionButton: NSViewRepresentable {
 
 // MARK: – SwiftUI Annotation Toolbar
 
+/// Small green checkmark badge overlaid on the OCR-translate button to
+/// indicate that the canvas currently shows the translated overlay
+/// (rather than the original screenshot).
+private struct OCRTranslationAppliedBadge: View {
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(Color.green)
+            Circle()
+                .strokeBorder(Color.white.opacity(0.95), lineWidth: 1.2)
+            Image(systemName: "checkmark")
+                .font(.system(size: 7, weight: .heavy))
+                .foregroundStyle(.white)
+        }
+        .frame(width: 12, height: 12)
+        .shadow(color: Color.black.opacity(0.18), radius: 1.5, x: 0, y: 0.5)
+        .accessibilityHidden(true)
+    }
+}
+
 private struct AnnotationToolbarView: View {
     @ObservedObject var state: AnnotationEditorState
     var dock: ToolbarDockPosition = .belowEditor
@@ -2014,6 +2041,15 @@ private struct AnnotationToolbarView: View {
             // Apple Translation 框架（可编程 Session）仅 macOS 15+ 可用；低版本隐藏按钮。
             if #available(macOS 15.0, *) {
                 drawTool(.ocrTranslate, "translate", EditorL10n.tr(.toolOCRTranslate))
+                    .overlay(alignment: .topTrailing) {
+                        if state.isOCRTranslationApplied {
+                            OCRTranslationAppliedBadge()
+                                .offset(x: 4, y: -4)
+                                .allowsHitTesting(false)
+                                .transition(.scale.combined(with: .opacity))
+                        }
+                    }
+                    .animation(.easeInOut(duration: 0.15), value: state.isOCRTranslationApplied)
             } else {
                 EmptyView()
             }
@@ -2749,12 +2785,31 @@ private enum OCRStructuredTextComposer {
 @available(macOS 15.0, *)
 extension AnnotationEditorPanel {
 
-    func runOCRTranslateOverlay() {
+    func toggleOCRTranslateOverlay() {
+        guard !isOCRTranslating else { return }
+
+        if isOCRTranslationApplied {
+            if let original = preTranslationScreenshot {
+                canvas.screenshot = original
+            }
+            preTranslationScreenshot = nil
+            isOCRTranslationApplied = false
+            if state.selectedTool == .ocrTranslate {
+                state.selectedTool = nil
+            }
+            return
+        }
+
+        preTranslationScreenshot = canvas.screenshot
+        state.selectedTool = .ocrTranslate
+        runOCRTranslateOverlay(sourceImage: canvas.screenshot)
+    }
+
+    func runOCRTranslateOverlay(sourceImage: NSImage) {
         guard !isOCRTranslating else { return }
         isOCRTranslating = true
         showTranslateHUD()
 
-        let sourceImage = canvas.renderToImage()
         Task { [weak self] in
             do {
                 let regions = try await OCRTranslateOverlayRunner.recognize(in: sourceImage)
@@ -2762,6 +2817,11 @@ extension AnnotationEditorPanel {
                     await MainActor.run {
                         self?.hideTranslateHUD()
                         self?.isOCRTranslating = false
+                        self?.isOCRTranslationApplied = false
+                        self?.preTranslationScreenshot = nil
+                        if self?.state.selectedTool == .ocrTranslate {
+                            self?.state.selectedTool = nil
+                        }
                         self?.showAlert(
                             title: EditorL10n.tr(.ocrEmptyTitle),
                             message: EditorL10n.tr(.ocrTranslatableEmptyMessage)
@@ -2805,19 +2865,49 @@ extension AnnotationEditorPanel {
     private func finishTranslation(sourceImage: NSImage, regions: [OCRTextRegion], translations: [String]) {
         tearDownTranslationHost()
         var merged = regions
+        var translatedCount = 0
         for idx in merged.indices where idx < translations.count {
-            merged[idx].translated = translations[idx]
+            let translated = translations[idx].trimmingCharacters(in: .whitespacesAndNewlines)
+            if !translated.isEmpty, translated != merged[idx].original {
+                merged[idx].translated = translated
+                translatedCount += 1
+            } else {
+                merged[idx].translated = nil
+            }
         }
+
+        guard translatedCount > 0 else {
+            hideTranslateHUD()
+            isOCRTranslating = false
+            isOCRTranslationApplied = false
+            preTranslationScreenshot = nil
+            if state.selectedTool == .ocrTranslate {
+                state.selectedTool = nil
+            }
+            showAlert(
+                title: EditorL10n.tr(.ocrEmptyTitle),
+                message: EditorL10n.tr(.ocrTranslatableEmptyMessage)
+            )
+            return
+        }
+
         let composed = OCRTranslateOverlayRunner.compose(base: sourceImage, regions: merged)
         canvas.screenshot = composed
         hideTranslateHUD()
         isOCRTranslating = false
+        isOCRTranslationApplied = true
+        state.selectedTool = .ocrTranslate
     }
 
     private func handleOCRTranslateFailure(_ error: Error) {
         tearDownTranslationHost()
         hideTranslateHUD()
         isOCRTranslating = false
+        isOCRTranslationApplied = false
+        preTranslationScreenshot = nil
+        if state.selectedTool == .ocrTranslate {
+            state.selectedTool = nil
+        }
         showAlert(
             title: EditorL10n.tr(.ocrTranslateFailedTitle),
             message: EditorL10n.tr(.ocrTranslateFailedMessagePrefix) + error.localizedDescription
@@ -3010,26 +3100,191 @@ private struct OCRTranslationRunnerView: View {
 
     @State private var configuration: TranslationSession.Configuration?
 
+    init(sources: [String],
+         onResult: @escaping ([String]) -> Void,
+         onFailure: @escaping (Error) -> Void) {
+        self.sources = sources
+        self.onResult = onResult
+        self.onFailure = onFailure
+        // Eagerly resolve source/target so `.translationTask` fires
+        // immediately with a usable configuration (avoids racey nil
+        // pass that often produced empty sessions).
+        let resolved = OCRTranslationLanguageResolver.resolve(for: sources)
+        _configuration = State(initialValue: TranslationSession.Configuration(
+            source: resolved.source,
+            target: resolved.target
+        ))
+    }
+
     var body: some View {
         Color.clear
             .frame(width: 1, height: 1)
             .translationTask(configuration) { session in
-                do {
-                    var translated: [String] = []
-                    translated.reserveCapacity(sources.count)
-                    for text in sources {
-                        let response = try await session.translate(text)
-                        translated.append(response.targetText)
+                await runTranslation(using: session)
+            }
+    }
+
+    private func runTranslation(using session: TranslationSession) async {
+        // 1. Pre-warm: ask the framework to download / prepare the
+        //    language pair before issuing translate calls. Without this,
+        //    the first call routinely fails on a fresh machine.
+        do {
+            try await session.prepareTranslation()
+        } catch {
+            // Non-fatal: prepareTranslation may throw when the user
+            // declines a download prompt, but individual translate
+            // calls can still succeed for already-installed pairs.
+        }
+
+        // 2. Skip strings that aren't worth translating; preserve them
+        //    as-is so a single bad item never wrecks the batch.
+        let work = sources.enumerated().map { (index, text) -> (Int, String) in
+            (index, text)
+        }
+        let translatable = work.filter { OCRTranslationLanguageResolver.isTranslatable($0.1) }
+
+        var results = sources                     // fallback = original
+        guard !translatable.isEmpty else {
+            await MainActor.run { onResult(results) }
+            return
+        }
+
+        // 3. Try the batch API first. It's faster and more tolerant of
+        //    individual quirky inputs than per-item calls.
+        let requests = translatable.map { (idx, text) in
+            TranslationSession.Request(sourceText: text, clientIdentifier: String(idx))
+        }
+
+        do {
+            let responses = try await session.translations(from: requests)
+            for response in responses {
+                if let raw = response.clientIdentifier, let idx = Int(raw),
+                   idx >= 0, idx < results.count {
+                    let translated = response.targetText
+                    if !translated.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        results[idx] = translated
                     }
-                    await MainActor.run { onResult(translated) }
-                } catch {
-                    await MainActor.run { onFailure(error) }
                 }
             }
-            .onAppear {
-                // Passing nil lets Translation auto-detect the source language and use the user's preferred target.
-                configuration = TranslationSession.Configuration(source: nil, target: nil)
+            await MainActor.run { onResult(results) }
+            return
+        } catch {
+            // Fall through to per-item retry below.
+        }
+
+        // 4. Per-item fallback: each failure is contained.
+        for (idx, text) in translatable {
+            do {
+                let response = try await session.translate(text)
+                let translated = response.targetText
+                if !translated.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    results[idx] = translated
+                }
+            } catch {
+                // Keep the original text for this region.
+                continue
             }
+        }
+        await MainActor.run { onResult(results) }
+    }
+}
+
+/// Picks source / target languages for the OCR translation pipeline.
+/// Centralised so the runner view stays focused on Apple's API surface.
+@available(macOS 15.0, *)
+private enum OCRTranslationLanguageResolver {
+
+    static func resolve(for sources: [String]) -> (source: Locale.Language?, target: Locale.Language?) {
+        let joined = sources.joined(separator: "\n")
+        let detected = detectLanguage(in: joined)
+        let detectedCode = detected?.languageCode?.identifier
+
+        // Pick a target that is *different* from the detected source.
+        // Apple's framework treats source == target as an error.
+        let preferred = preferredTargetLanguageCodes(excluding: detectedCode)
+        let targetCode = preferred.first
+        let target = targetCode.map { Locale.Language(identifier: $0) }
+        return (detected, target)
+    }
+
+    static func isTranslatable(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 1 else { return false }
+        // Pure digits / punctuation / symbols typically cause the
+        // framework to throw; skip them so the batch survives.
+        let nonAlpha = CharacterSet.letters.inverted
+        if trimmed.unicodeScalars.allSatisfy({ nonAlpha.contains($0) }) {
+            return false
+        }
+        return true
+    }
+
+    private static func detectLanguage(in text: String) -> Locale.Language? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let recognizer = NLLanguageRecognizer()
+        recognizer.processString(trimmed)
+        guard let dominant = recognizer.dominantLanguage else { return nil }
+        return Locale.Language(identifier: dominant.rawValue)
+    }
+
+    /// User's preferred languages in order, normalised to BCP-47 base
+    /// codes (e.g. `zh-Hans`, `en`, `ja`), with the detected source
+    /// removed so we never pick the same language for both sides.
+    private static func preferredTargetLanguageCodes(excluding sourceCode: String?) -> [String] {
+        var seen = Set<String>()
+        var ordered: [String] = []
+
+        let current = normalizeLanguageCode(Locale.current.identifier)
+        if !current.isEmpty,
+           !(sourceCode.map { codesAreEquivalent(current, $0) } ?? false),
+           seen.insert(current).inserted {
+            ordered.append(current)
+        }
+
+        for raw in Locale.preferredLanguages {
+            let normalized = normalizeLanguageCode(raw)
+            guard !normalized.isEmpty else { continue }
+            if let source = sourceCode, codesAreEquivalent(normalized, source) { continue }
+            if seen.insert(normalized).inserted {
+                ordered.append(normalized)
+            }
+        }
+        // Sensible defaults if the user has only the source language
+        // configured: prefer English when the source is non-English,
+        // otherwise prefer Simplified Chinese.
+        if ordered.isEmpty {
+            if let source = sourceCode, codesAreEquivalent(source, "en") {
+                ordered.append("zh-Hans")
+            } else {
+                ordered.append("en")
+            }
+        }
+        return ordered
+    }
+
+    private static func normalizeLanguageCode(_ raw: String) -> String {
+        // Locale.preferredLanguages returns things like "zh-Hans-CN".
+        // Translation expects the script-qualified base ("zh-Hans") or
+        // a plain code ("en"). Strip the region.
+        let language = Locale.Language(identifier: raw)
+        let base: String
+        if let script = language.script?.identifier,
+           let code = language.languageCode?.identifier,
+           !script.isEmpty {
+            base = "\(code)-\(script)"
+        } else if let code = language.languageCode?.identifier {
+            base = code
+        } else {
+            base = raw
+        }
+        return base
+    }
+
+    private static func codesAreEquivalent(_ lhs: String, _ rhs: String) -> Bool {
+        let l = Locale.Language(identifier: lhs).languageCode?.identifier ?? lhs
+        let r = Locale.Language(identifier: rhs).languageCode?.identifier ?? rhs
+        return l.caseInsensitiveCompare(r) == .orderedSame
     }
 }
 
