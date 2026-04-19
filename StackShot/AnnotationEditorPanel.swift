@@ -1209,43 +1209,256 @@ private extension String {
 
 final class PinWindowStore {
     static let shared = PinWindowStore()
-    private var windows: [NSWindow] = []
+    fileprivate static let basePinnedWindowLevel = NSWindow.Level.screenSaver.rawValue + 24
+    fileprivate static let levelStride = 2
+
+    private struct Entry {
+        let panel: PinnedImagePanel
+        let activationOrder: Int
+    }
+
+    private var entries: [ObjectIdentifier: Entry] = [:]
+    private var nextActivationOrder = 0
 
     func pin(_ image: NSImage) {
-        // Constrain displayed size to 60 % of main screen
-        let screen  = NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1440, height: 900)
-        let maxW    = screen.width  * 0.6
-        let maxH    = screen.height * 0.6
-        let scale   = min(1, maxW / image.size.width, maxH / image.size.height)
-        let dispSize = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        let panel = PinnedImagePanel(image: image)
+        activate(panel)
+        panel.makeKeyAndOrderFront(nil)
+        panel.orderFrontRegardless()
+    }
 
-        let win = NSPanel(
-            contentRect: CGRect(
-                x: screen.midX - dispSize.width  / 2,
-                y: screen.midY - dispSize.height / 2,
-                width:  dispSize.width,
-                height: dispSize.height
-            ),
-            styleMask: [.titled, .closable, .resizable, .nonactivatingPanel],
+    fileprivate func activate(_ panel: PinnedImagePanel) {
+        nextActivationOrder += 1
+        entries[ObjectIdentifier(panel)] = Entry(panel: panel, activationOrder: nextActivationOrder)
+        refreshPinnedWindowLevels()
+    }
+
+    fileprivate func deactivate(_ panel: PinnedImagePanel) {
+        entries.removeValue(forKey: ObjectIdentifier(panel))
+        panel.applyUnpinnedWindowLevel()
+        refreshPinnedWindowLevels()
+    }
+
+    fileprivate func remove(_ panel: PinnedImagePanel) {
+        entries.removeValue(forKey: ObjectIdentifier(panel))
+        refreshPinnedWindowLevels()
+    }
+
+    private func refreshPinnedWindowLevels() {
+        let sortedPanels = entries.values
+            .map { ($0.panel, $0.activationOrder) }
+            .sorted { $0.1 < $1.1 }
+
+        for (index, item) in sortedPanels.enumerated() {
+            item.0.applyPinnedWindowOrder(index)
+        }
+    }
+}
+
+private final class PinnedImagePanel: NSPanel {
+    private let pinStatusView = PinStatusTitlebarView()
+    private let imageView = NSImageView()
+    private var isPinnedToFront = true
+    private var pinnedWindowOrder: Int?
+    private var pinStatusConstraints: [NSLayoutConstraint] = []
+
+    init(image: NSImage) {
+        let screen = NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1440, height: 900)
+        let maxW = screen.width * 0.6
+        let maxH = screen.height * 0.6
+        let scale = min(1, maxW / image.size.width, maxH / image.size.height)
+        let displaySize = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        let frame = CGRect(
+            x: screen.midX - displaySize.width / 2,
+            y: screen.midY - displaySize.height / 2,
+            width: displaySize.width,
+            height: displaySize.height
+        )
+
+        super.init(
+            contentRect: frame,
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
-        win.title              = "StackShot"
-        win.level              = .floating
-        win.isReleasedWhenClosed = false
-        win.collectionBehavior   = [.canJoinAllSpaces]
-        win.hasShadow            = true
 
-        let iv = NSImageView(frame: CGRect(origin: .zero, size: dispSize))
-        iv.image         = image
-        iv.imageScaling  = .scaleProportionallyUpOrDown
-        iv.autoresizingMask = [.width, .height]
-        win.contentView  = iv
-        win.makeKeyAndOrderFront(nil)
+        title = "StackShot"
+        isReleasedWhenClosed = false
+        collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
+        hasShadow = true
+        isMovableByWindowBackground = false
+        minSize = NSSize(width: 180, height: 120)
 
-        // Remove closed windows to avoid unbounded growth
-        windows = windows.filter { $0.isVisible }
-        windows.append(win)
+        imageView.frame = CGRect(origin: .zero, size: displaySize)
+        imageView.autoresizingMask = [.width, .height]
+        imageView.image = image
+        imageView.imageScaling = .scaleProportionallyUpOrDown
+        contentView = imageView
+
+        setupPinStatusControl()
+        installPinStatusViewIfNeeded()
+        applyPinnedAppearance()
+    }
+
+    override func close() {
+        PinWindowStore.shared.remove(self)
+        super.close()
+    }
+
+    override func makeKeyAndOrderFront(_ sender: Any?) {
+        super.makeKeyAndOrderFront(sender)
+        DispatchQueue.main.async { [weak self] in
+            self?.installPinStatusViewIfNeeded()
+            self?.applyPinnedAppearance()
+        }
+    }
+
+    @objc
+    private func togglePinnedFromTitlebar(_ sender: Any?) {
+        setPinnedToFront(!isPinnedToFront)
+    }
+
+    private func setupPinStatusControl() {
+        pinStatusView.button.target = self
+        pinStatusView.button.action = #selector(togglePinnedFromTitlebar(_:))
+        pinStatusView.update(isPinned: true, tooltip: EditorL10n.tr(.actionPin))
+    }
+
+    private func installPinStatusViewIfNeeded() {
+        guard let titlebarView = standardWindowButton(.closeButton)?.superview else { return }
+        guard pinStatusView.superview !== titlebarView else { return }
+
+        pinStatusView.removeFromSuperview()
+        titlebarView.addSubview(pinStatusView)
+
+        NSLayoutConstraint.deactivate(pinStatusConstraints)
+        pinStatusConstraints.removeAll()
+
+        let centerAnchor = standardWindowButton(.closeButton)?.centerYAnchor ?? titlebarView.centerYAnchor
+        pinStatusConstraints = [
+            pinStatusView.trailingAnchor.constraint(equalTo: titlebarView.trailingAnchor, constant: -14),
+            pinStatusView.centerYAnchor.constraint(equalTo: centerAnchor),
+        ]
+        NSLayoutConstraint.activate(pinStatusConstraints)
+    }
+
+    private func setPinnedToFront(_ pinned: Bool) {
+        guard isPinnedToFront != pinned else { return }
+        isPinnedToFront = pinned
+
+        if pinned {
+            applyPinnedAppearance()
+            PinWindowStore.shared.activate(self)
+            orderFrontRegardless()
+        } else {
+            PinWindowStore.shared.deactivate(self)
+            applyUnpinnedWindowLevel()
+        }
+    }
+
+    private func applyPinnedAppearance() {
+        pinStatusView.update(isPinned: true, tooltip: EditorL10n.tr(.actionPin))
+    }
+
+    fileprivate func applyPinnedWindowOrder(_ order: Int) {
+        isPinnedToFront = true
+        pinnedWindowOrder = order
+        level = NSWindow.Level(rawValue: PinWindowStore.basePinnedWindowLevel + order * PinWindowStore.levelStride)
+        pinStatusView.update(isPinned: true, tooltip: EditorL10n.tr(.actionPin))
+    }
+
+    fileprivate func applyUnpinnedWindowLevel() {
+        isPinnedToFront = false
+        pinnedWindowOrder = nil
+        level = .normal
+        pinStatusView.update(isPinned: false, tooltip: EditorL10n.tr(.actionPin))
+    }
+}
+
+private final class PinStatusTitlebarView: NSView {
+    let button = NSButton()
+
+    private static let fallbackPinnedTint = NSColor(
+        srgbRed: CGFloat(0x6D) / 255.0,
+        green: CGFloat(0xC6) / 255.0,
+        blue: CGFloat(0x6C) / 255.0,
+        alpha: 1
+    )
+
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: 34, height: 28)
+    }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        translatesAutoresizingMaskIntoConstraints = false
+        wantsLayer = true
+        layer?.cornerRadius = 8
+        layer?.cornerCurve = .continuous
+        layer?.borderWidth = 1
+
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.isBordered = false
+        button.imagePosition = .imageOnly
+        button.focusRingType = .none
+
+        addSubview(button)
+        NSLayoutConstraint.activate([
+            widthAnchor.constraint(equalToConstant: 34),
+            heightAnchor.constraint(equalToConstant: 28),
+            button.leadingAnchor.constraint(equalTo: leadingAnchor),
+            button.trailingAnchor.constraint(equalTo: trailingAnchor),
+            button.topAnchor.constraint(equalTo: topAnchor),
+            button.bottomAnchor.constraint(equalTo: bottomAnchor),
+        ])
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    func update(isPinned: Bool, tooltip: String) {
+        let pinnedTint = preferredPinnedTintColor()
+        let symbolName = isPinned ? "pin.fill" : "pin"
+        let configuration = NSImage.SymbolConfiguration(pointSize: 14, weight: isPinned ? .bold : .medium)
+        button.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: tooltip)?
+            .withSymbolConfiguration(configuration)
+        button.contentTintColor = isPinned ? pinnedTint : NSColor.secondaryLabelColor
+        button.toolTip = tooltip
+
+        let fillColor = NSColor.clear
+        let strokeColor = isPinned
+            ? NSColor.clear
+            : NSColor.clear
+        layer?.backgroundColor = fillColor.cgColor
+        layer?.borderColor = strokeColor.cgColor
+        layer?.shadowColor = nil
+        layer?.shadowOpacity = 0
+        layer?.shadowRadius = 0
+        layer?.shadowOffset = .zero
+    }
+
+    private func preferredPinnedTintColor() -> NSColor {
+        guard
+            let zoomButton = window?.standardWindowButton(.zoomButton),
+            let sampledColor = sampleCenterColor(from: zoomButton),
+            sampledColor.alphaComponent > 0.2,
+            sampledColor.greenComponent > sampledColor.redComponent,
+            sampledColor.greenComponent > sampledColor.blueComponent
+        else {
+            return Self.fallbackPinnedTint
+        }
+        return sampledColor
+    }
+
+    private func sampleCenterColor(from view: NSView) -> NSColor? {
+        let bounds = view.bounds
+        guard bounds.width > 0, bounds.height > 0 else { return nil }
+        view.layoutSubtreeIfNeeded()
+        guard let rep = view.bitmapImageRepForCachingDisplay(in: bounds) else { return nil }
+        view.cacheDisplay(in: bounds, to: rep)
+
+        let sampleX = max(0, min(rep.pixelsWide - 1, rep.pixelsWide / 2))
+        let sampleY = max(0, min(rep.pixelsHigh - 1, rep.pixelsHigh / 2))
+        return rep.colorAt(x: sampleX, y: sampleY)?.usingColorSpace(.deviceRGB)?.withAlphaComponent(1)
     }
 }
 
