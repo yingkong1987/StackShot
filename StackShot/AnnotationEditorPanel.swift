@@ -504,7 +504,12 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
             setOCRSidebarContentConstraintsActive(true)
         }
 
-        contentContainer.layoutSubtreeIfNeeded()
+        // Note: avoid an explicit layoutSubtreeIfNeeded() here. The
+        // following setFrame(display: true, animate:) drives the
+        // layout pass on its own, and forcing it eagerly can trigger
+        // "-layoutSubtreeIfNeeded on a view which is already being
+        // laid out" warnings when this method is reached from inside a
+        // SwiftUI hosting view's layout cycle.
         setFrame(newFrame, display: true, animate: animated)
         if actualSidebarWidth == 0 {
             ocrResultSidebar.isHidden = true
