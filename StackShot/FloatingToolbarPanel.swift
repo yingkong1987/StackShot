@@ -26,6 +26,66 @@ struct FloatingToolbarCallbacks {
     var onConfirm:       () -> Void = {}
 }
 
+struct OCRToolbarGlyph: View {
+    var color: Color = .primary
+
+    var body: some View {
+        GeometryReader { proxy in
+            let size = min(proxy.size.width, proxy.size.height)
+            let stroke = max(1.35, size * 0.09)
+            let cornerLength = size * 0.24
+
+            ZStack {
+                OCRViewfinderShape(cornerLength: cornerLength)
+                    .stroke(
+                        color,
+                        style: StrokeStyle(lineWidth: stroke, lineCap: .round, lineJoin: .round)
+                    )
+
+                Text("A")
+                    .font(.system(size: size * 0.56, weight: .bold, design: .rounded))
+                    .foregroundStyle(color)
+                    .offset(y: -size * 0.01)
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+        }
+        .aspectRatio(1, contentMode: .fit)
+        .accessibilityHidden(true)
+    }
+}
+
+private struct OCRViewfinderShape: Shape {
+    let cornerLength: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let x0 = rect.minX
+        let x1 = rect.maxX
+        let y0 = rect.minY
+        let y1 = rect.maxY
+        let length = min(cornerLength, min(rect.width, rect.height) * 0.45)
+
+        var path = Path()
+
+        path.move(to: CGPoint(x: x0, y: y0 + length))
+        path.addLine(to: CGPoint(x: x0, y: y0))
+        path.addLine(to: CGPoint(x: x0 + length, y: y0))
+
+        path.move(to: CGPoint(x: x1 - length, y: y0))
+        path.addLine(to: CGPoint(x: x1, y: y0))
+        path.addLine(to: CGPoint(x: x1, y: y0 + length))
+
+        path.move(to: CGPoint(x: x0, y: y1 - length))
+        path.addLine(to: CGPoint(x: x0, y: y1))
+        path.addLine(to: CGPoint(x: x0 + length, y: y1))
+
+        path.move(to: CGPoint(x: x1 - length, y: y1))
+        path.addLine(to: CGPoint(x: x1, y: y1))
+        path.addLine(to: CGPoint(x: x1, y: y1 - length))
+
+        return path
+    }
+}
+
 // MARK: – Panel
 
 /// 悬浮工具条：激活后完整展示所有 18 个功能按钮。
@@ -181,7 +241,7 @@ private struct ToolbarContent: View {
             if #available(macOS 15.0, *) {
                 btn("translate", "OCR 翻译", callbacks.onOCRTranslate)
             }
-            btn("doc.text.magnifyingglass", "识别文字", callbacks.onOCR)
+            ocrBtn("识别文字", callbacks.onOCR)
             btn("crop", "裁剪", callbacks.onCrop)
 
             sep()
@@ -226,6 +286,18 @@ private struct ToolbarContent: View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: 14, weight: .medium))
+                .frame(width: 32, height: 32)
+        }
+        .buttonStyle(.plain)
+        .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        .help(tip)
+    }
+
+    @ViewBuilder
+    private func ocrBtn(_ tip: String, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            OCRToolbarGlyph()
+                .frame(width: 17, height: 17)
                 .frame(width: 32, height: 32)
         }
         .buttonStyle(.plain)

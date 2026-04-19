@@ -192,6 +192,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "Show Main Window",
             "menu.quit_app": "Quit StackShot",
+            "magnifier.coordinates": "Coord",
+            "magnifier.color": "Color",
+            "magnifier.copy_hint": "Press ⌘+C to copy color",
         ],
         "en-GB": [
             "app.name": "StackShot",
@@ -216,6 +219,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "Show Main Window",
             "menu.quit_app": "Quit StackShot",
+            "magnifier.coordinates": "Coord",
+            "magnifier.color": "Colour",
+            "magnifier.copy_hint": "Press ⌘+C to copy colour",
         ],
         "en-AU": [
             "app.name": "StackShot",
@@ -240,6 +246,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "Show Main Window",
             "menu.quit_app": "Quit StackShot",
+            "magnifier.coordinates": "Coord",
+            "magnifier.color": "Colour",
+            "magnifier.copy_hint": "Press ⌘+C to copy colour",
         ],
         "en-CA": [
             "app.name": "StackShot",
@@ -264,6 +273,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "Show Main Window",
             "menu.quit_app": "Quit StackShot",
+            "magnifier.coordinates": "Coord",
+            "magnifier.color": "Color",
+            "magnifier.copy_hint": "Press ⌘+C to copy color",
         ],
         "zh-Hans": [
             "app.name": "StackShot",
@@ -288,6 +300,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "显示主窗口",
             "menu.quit_app": "退出 StackShot",
+            "magnifier.coordinates": "坐标",
+            "magnifier.color": "色值",
+            "magnifier.copy_hint": "按 ⌘+C 复制色值",
         ],
         "zh-Hant": [
             "app.name": "StackShot",
@@ -312,6 +327,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "顯示主視窗",
             "menu.quit_app": "結束 StackShot",
+            "magnifier.coordinates": "座標",
+            "magnifier.color": "色值",
+            "magnifier.copy_hint": "按 ⌘+C 複製色值",
         ],
         "ja": [
             "app.name": "StackShot",
@@ -336,6 +354,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "メインウインドウを表示",
             "menu.quit_app": "StackShot を終了",
+            "magnifier.coordinates": "座標",
+            "magnifier.color": "色値",
+            "magnifier.copy_hint": "⌘+C で色値をコピー",
         ],
         "ko": [
             "app.name": "StackShot",
@@ -360,6 +381,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "메인 창 보기",
             "menu.quit_app": "StackShot 종료",
+            "magnifier.coordinates": "좌표",
+            "magnifier.color": "색상",
+            "magnifier.copy_hint": "⌘+C 로 색상 복사",
         ],
         "fr": [
             "app.name": "StackShot",
@@ -384,6 +408,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "Afficher la fenêtre principale",
             "menu.quit_app": "Quitter StackShot",
+            "magnifier.coordinates": "Coord.",
+            "magnifier.color": "Couleur",
+            "magnifier.copy_hint": "⌘+C pour copier la couleur",
         ],
         "fr-CA": [
             "app.name": "StackShot",
@@ -408,6 +435,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "Afficher la fenêtre principale",
             "menu.quit_app": "Quitter StackShot",
+            "magnifier.coordinates": "Coord.",
+            "magnifier.color": "Couleur",
+            "magnifier.copy_hint": "⌘+C pour copier la couleur",
         ],
         "de": [
             "app.name": "StackShot",
@@ -432,6 +462,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "Hauptfenster anzeigen",
             "menu.quit_app": "StackShot beenden",
+            "magnifier.coordinates": "Koord.",
+            "magnifier.color": "Farbe",
+            "magnifier.copy_hint": "⌘+C zum Kopieren der Farbe",
         ],
         "es-ES": [
             "app.name": "StackShot",
@@ -456,6 +489,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "Mostrar ventana principal",
             "menu.quit_app": "Salir de StackShot",
+            "magnifier.coordinates": "Coord.",
+            "magnifier.color": "Color",
+            "magnifier.copy_hint": "⌘+C para copiar el color",
         ],
         "es-MX": [
             "app.name": "StackShot",
@@ -480,6 +516,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "Mostrar ventana principal",
             "menu.quit_app": "Salir de StackShot",
+            "magnifier.coordinates": "Coord.",
+            "magnifier.color": "Color",
+            "magnifier.copy_hint": "⌘+C para copiar el color",
         ],
         "it": [
             "app.name": "StackShot",
@@ -504,6 +543,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "Mostra finestra principale",
             "menu.quit_app": "Esci da StackShot",
+            "magnifier.coordinates": "Coord.",
+            "magnifier.color": "Colore",
+            "magnifier.copy_hint": "⌘+C per copiare il colore",
         ],
         "pt-PT": [
             "app.name": "StackShot",
@@ -528,6 +570,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "Mostrar janela principal",
             "menu.quit_app": "Sair do StackShot",
+            "magnifier.coordinates": "Coord.",
+            "magnifier.color": "Cor",
+            "magnifier.copy_hint": "⌘+C para copiar a cor",
         ],
         "pt-BR": [
             "app.name": "StackShot",
@@ -552,6 +597,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "Mostrar janela principal",
             "menu.quit_app": "Encerrar StackShot",
+            "magnifier.coordinates": "Coord.",
+            "magnifier.color": "Cor",
+            "magnifier.copy_hint": "⌘+C para copiar a cor",
         ],
         "ru": [
             "app.name": "StackShot",
@@ -576,6 +624,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "Показать главное окно",
             "menu.quit_app": "Выйти из StackShot",
+            "magnifier.coordinates": "Коорд.",
+            "magnifier.color": "Цвет",
+            "magnifier.copy_hint": "⌘+C — скопировать цвет",
         ],
         "uk": [
             "app.name": "StackShot",
@@ -600,6 +651,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "Показати головне вікно",
             "menu.quit_app": "Вийти зі StackShot",
+            "magnifier.coordinates": "Коорд.",
+            "magnifier.color": "Колір",
+            "magnifier.copy_hint": "⌘+C — скопіювати колір",
         ],
         "tr": [
             "app.name": "StackShot",
@@ -624,6 +678,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "Ana pencereyi göster",
             "menu.quit_app": "StackShot'tan çık",
+            "magnifier.coordinates": "Koord.",
+            "magnifier.color": "Renk",
+            "magnifier.copy_hint": "Rengi kopyalamak için ⌘+C",
         ],
         "ar": [
             "app.name": "StackShot",
@@ -648,6 +705,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "إظهار النافذة الرئيسية",
             "menu.quit_app": "إنهاء StackShot",
+            "magnifier.coordinates": "الإحداثيات",
+            "magnifier.color": "اللون",
+            "magnifier.copy_hint": "اضغط ⌘+C لنسخ اللون",
         ],
         "bn": [
             "app.name": "StackShot",
@@ -672,6 +732,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "মূল উইন্ডো দেখান",
             "menu.quit_app": "StackShot বন্ধ করুন",
+            "magnifier.coordinates": "স্থানাঙ্ক",
+            "magnifier.color": "রং",
+            "magnifier.copy_hint": "রং কপি করতে ⌘+C চাপুন",
         ],
         "ca": [
             "app.name": "StackShot",
@@ -696,6 +759,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "Mostra la finestra principal",
             "menu.quit_app": "Surt de StackShot",
+            "magnifier.coordinates": "Coord.",
+            "magnifier.color": "Color",
+            "magnifier.copy_hint": "⌘+C per copiar el color",
         ],
         "hr": [
             "app.name": "StackShot",
@@ -720,6 +786,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "Prikaži glavni prozor",
             "menu.quit_app": "Izađi iz StackShota",
+            "magnifier.coordinates": "Koord.",
+            "magnifier.color": "Boja",
+            "magnifier.copy_hint": "⌘+C za kopiranje boje",
         ],
         "cs": [
             "app.name": "StackShot",
@@ -744,6 +813,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "Zobrazit hlavní okno",
             "menu.quit_app": "Ukončit StackShot",
+            "magnifier.coordinates": "Souř.",
+            "magnifier.color": "Barva",
+            "magnifier.copy_hint": "⌘+C pro zkopírování barvy",
         ],
         "da": [
             "app.name": "StackShot",
@@ -768,6 +840,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "Vis hovedvindue",
             "menu.quit_app": "Afslut StackShot",
+            "magnifier.coordinates": "Koord.",
+            "magnifier.color": "Farve",
+            "magnifier.copy_hint": "⌘+C for at kopiere farven",
         ],
         "nl": [
             "app.name": "StackShot",
@@ -792,6 +867,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "Hoofdvenster tonen",
             "menu.quit_app": "Stop StackShot",
+            "magnifier.coordinates": "Coörd.",
+            "magnifier.color": "Kleur",
+            "magnifier.copy_hint": "⌘+C om kleur te kopiëren",
         ],
         "fi": [
             "app.name": "StackShot",
@@ -816,6 +894,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "Näytä pääikkuna",
             "menu.quit_app": "Lopeta StackShot",
+            "magnifier.coordinates": "Koord.",
+            "magnifier.color": "Väri",
+            "magnifier.copy_hint": "⌘+C kopioidaksesi värin",
         ],
         "el": [
             "app.name": "StackShot",
@@ -840,6 +921,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "Εμφάνιση κύριου παραθύρου",
             "menu.quit_app": "Έξοδος από το StackShot",
+            "magnifier.coordinates": "Συντ.",
+            "magnifier.color": "Χρώμα",
+            "magnifier.copy_hint": "⌘+C για αντιγραφή χρώματος",
         ],
         "he": [
             "app.name": "StackShot",
@@ -864,6 +948,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "הצג חלון ראשי",
             "menu.quit_app": "יציאה מ-StackShot",
+            "magnifier.coordinates": "קואורד.",
+            "magnifier.color": "צבע",
+            "magnifier.copy_hint": "⌘+C להעתקת הצבע",
         ],
         "hi": [
             "app.name": "StackShot",
@@ -888,6 +975,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "मुख्य विंडो दिखाएँ",
             "menu.quit_app": "StackShot बंद करें",
+            "magnifier.coordinates": "निर्देशांक",
+            "magnifier.color": "रंग",
+            "magnifier.copy_hint": "रंग कॉपी करने के लिए ⌘+C दबाएँ",
         ],
         "hu": [
             "app.name": "StackShot",
@@ -912,6 +1002,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "Főablak megjelenítése",
             "menu.quit_app": "Kilépés a StackShotból",
+            "magnifier.coordinates": "Koord.",
+            "magnifier.color": "Szín",
+            "magnifier.copy_hint": "Szín másolása: ⌘+C",
         ],
         "id": [
             "app.name": "StackShot",
@@ -936,6 +1029,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "Tampilkan jendela utama",
             "menu.quit_app": "Keluar dari StackShot",
+            "magnifier.coordinates": "Koord.",
+            "magnifier.color": "Warna",
+            "magnifier.copy_hint": "⌘+C untuk menyalin warna",
         ],
         "ms": [
             "app.name": "StackShot",
@@ -960,6 +1056,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "Tunjukkan tetingkap utama",
             "menu.quit_app": "Keluar StackShot",
+            "magnifier.coordinates": "Koord.",
+            "magnifier.color": "Warna",
+            "magnifier.copy_hint": "⌘+C untuk menyalin warna",
         ],
         "no": [
             "app.name": "StackShot",
@@ -984,6 +1083,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "Vis hovedvindu",
             "menu.quit_app": "Avslutt StackShot",
+            "magnifier.coordinates": "Koord.",
+            "magnifier.color": "Farge",
+            "magnifier.copy_hint": "⌘+C for å kopiere fargen",
         ],
         "pl": [
             "app.name": "StackShot",
@@ -1008,6 +1110,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "Pokaż główne okno",
             "menu.quit_app": "Zakończ StackShot",
+            "magnifier.coordinates": "Wsp.",
+            "magnifier.color": "Kolor",
+            "magnifier.copy_hint": "⌘+C aby skopiować kolor",
         ],
         "ro": [
             "app.name": "StackShot",
@@ -1032,6 +1137,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "Afișează fereastra principală",
             "menu.quit_app": "Ieșire din StackShot",
+            "magnifier.coordinates": "Coord.",
+            "magnifier.color": "Culoare",
+            "magnifier.copy_hint": "⌘+C pentru a copia culoarea",
         ],
         "sk": [
             "app.name": "StackShot",
@@ -1056,6 +1164,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "Zobraziť hlavné okno",
             "menu.quit_app": "Ukončiť StackShot",
+            "magnifier.coordinates": "Súr.",
+            "magnifier.color": "Farba",
+            "magnifier.copy_hint": "⌘+C na skopírovanie farby",
         ],
         "sl": [
             "app.name": "StackShot",
@@ -1080,6 +1191,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "Prikaži glavno okno",
             "menu.quit_app": "Izhod iz StackShot",
+            "magnifier.coordinates": "Koord.",
+            "magnifier.color": "Barva",
+            "magnifier.copy_hint": "⌘+C za kopiranje barve",
         ],
         "sv": [
             "app.name": "StackShot",
@@ -1104,6 +1218,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "Visa huvudfönster",
             "menu.quit_app": "Avsluta StackShot",
+            "magnifier.coordinates": "Koord.",
+            "magnifier.color": "Färg",
+            "magnifier.copy_hint": "⌘+C för att kopiera färgen",
         ],
         "th": [
             "app.name": "StackShot",
@@ -1128,6 +1245,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "แสดงหน้าต่างหลัก",
             "menu.quit_app": "ออกจาก StackShot",
+            "magnifier.coordinates": "พิกัด",
+            "magnifier.color": "สี",
+            "magnifier.copy_hint": "⌘+C เพื่อคัดลอกสี",
         ],
         "vi": [
             "app.name": "StackShot",
@@ -1152,6 +1272,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "Hiện cửa sổ chính",
             "menu.quit_app": "Thoát StackShot",
+            "magnifier.coordinates": "Tọa độ",
+            "magnifier.color": "Màu",
+            "magnifier.copy_hint": "⌘+C để sao chép màu",
         ],
         "gu": [
             "app.name": "StackShot",
@@ -1176,6 +1299,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "મુખ્ય વિન્ડો બતાવો",
             "menu.quit_app": "StackShot બંધ કરો",
+            "magnifier.coordinates": "કોઓર્ડ.",
+            "magnifier.color": "રંગ",
+            "magnifier.copy_hint": "રંગ કૉપિ કરવા ⌘+C દબાવો",
         ],
         "kn": [
             "app.name": "StackShot",
@@ -1200,6 +1326,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "ಮುಖ್ಯ ಕಿಟಕಿ ತೋರಿಸಿ",
             "menu.quit_app": "StackShot ನಿಂದ ನಿರ್ಗಮಿಸಿ",
+            "magnifier.coordinates": "ನಿರ್ದೇಶಾಂಕ",
+            "magnifier.color": "ಬಣ್ಣ",
+            "magnifier.copy_hint": "ಬಣ್ಣ ನಕಲಿಸಲು ⌘+C ಒತ್ತಿ",
         ],
         "ml": [
             "app.name": "StackShot",
@@ -1224,6 +1353,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "പ്രധാന ജാലകം കാണിക്കുക",
             "menu.quit_app": "StackShot നിന്ന് പുറപ്പെടുക",
+            "magnifier.coordinates": "കോർഡ്.",
+            "magnifier.color": "നിറം",
+            "magnifier.copy_hint": "നിറം പകർത്താൻ ⌘+C അമർത്തുക",
         ],
         "mr": [
             "app.name": "StackShot",
@@ -1248,6 +1380,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "मुख्य विंडो दाखवा",
             "menu.quit_app": "StackShot बंद करा",
+            "magnifier.coordinates": "निर्देशांक",
+            "magnifier.color": "रंग",
+            "magnifier.copy_hint": "रंग कॉपी करण्यासाठी ⌘+C दाबा",
         ],
         "or": [
             "app.name": "StackShot",
@@ -1272,6 +1407,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "ମୁଖ୍ୟ ୱିଣ୍ଡୋ ଦେଖାନ୍ତୁ",
             "menu.quit_app": "StackShot ବନ୍ଦ କରନ୍ତୁ",
+            "magnifier.coordinates": "ସ୍ଥାନାଙ୍କ",
+            "magnifier.color": "ରଙ୍ଗ",
+            "magnifier.copy_hint": "ରଙ୍ଗ କପି କରିବାକୁ ⌘+C ଦବାନ୍ତୁ",
         ],
         "pa": [
             "app.name": "StackShot",
@@ -1296,6 +1434,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "ਮੁੱਖ ਵਿੰਡੋ ਦਿਖਾਓ",
             "menu.quit_app": "StackShot ਬੰਦ ਕਰੋ",
+            "magnifier.coordinates": "ਕੋਆਰਡ.",
+            "magnifier.color": "ਰੰਗ",
+            "magnifier.copy_hint": "ਰੰਗ ਕਾਪੀ ਕਰਨ ਲਈ ⌘+C ਦਬਾਓ",
         ],
         "ta": [
             "app.name": "StackShot",
@@ -1320,6 +1461,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "முதன்மை சாளரத்தை காட்டு",
             "menu.quit_app": "StackShot-இல் இருந்து வெளியேறு",
+            "magnifier.coordinates": "ஒருங்கிணைப்பு",
+            "magnifier.color": "நிறம்",
+            "magnifier.copy_hint": "நிறத்தை நகலெடுக்க ⌘+C அழுத்தவும்",
         ],
         "te": [
             "app.name": "StackShot",
@@ -1344,6 +1488,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "ప్రధాన విండోను చూపించు",
             "menu.quit_app": "StackShot నుంచి నిష్క్రమించు",
+            "magnifier.coordinates": "కోఆర్డ్.",
+            "magnifier.color": "రంగు",
+            "magnifier.copy_hint": "రంగు కాపీ చేయడానికి ⌘+C నొక్కండి",
         ],
         "ur": [
             "app.name": "StackShot",
@@ -1368,6 +1515,9 @@ enum L10n {
             "menu.status.tooltip": "StackShot",
             "menu.show_main_window": "مرکزی ونڈو دکھائیں",
             "menu.quit_app": "StackShot بند کریں",
+            "magnifier.coordinates": "کوآرڈ.",
+            "magnifier.color": "رنگ",
+            "magnifier.copy_hint": "رنگ کاپی کرنے کے لیے ⌘+C دبائیں",
         ],
     ]
 }

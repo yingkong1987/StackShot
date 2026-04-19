@@ -1,9 +1,10 @@
 import AppKit
 import SwiftUI
-import Vision
+@preconcurrency import Vision
 import Combine
 import ImageIO
 import UniformTypeIdentifiers
+import QuartzCore
 #if canImport(Translation)
 import Translation
 #endif
@@ -18,6 +19,10 @@ private enum AnnotationEditorMetrics {
     static let toolbarItemCount: Int = 16
     static let toolbarBelowRowCount: Int = 2
     static let toolbarRightColumnCount: Int = 2
+    static let ocrSidebarPreferredWidth: CGFloat = 290
+    static let ocrSidebarMinWidth: CGFloat = 200
+    static let ocrSidebarInset: CGFloat = 12
+    static let ocrMinimumScanDuration: TimeInterval = 1.5
 
     static var toolbarBelowColumnCount: Int {
         Int(ceil(Double(toolbarItemCount) / Double(toolbarBelowRowCount)))
@@ -53,6 +58,12 @@ private enum ToolbarDockPosition {
     case rightOfEditor
 }
 
+private struct OCRUIRestoreState {
+    var sidebarVisible: Bool
+    var attributedText: NSAttributedString
+    var selectedRange: NSRange
+}
+
 // MARK: – Editor state (shared between SwiftUI toolbar and AppKit canvas)
 
 final class AnnotationEditorState: ObservableObject {
@@ -72,6 +83,7 @@ final class AnnotationEditorState: ObservableObject {
     ]
 
     @Published var selectedTool: AnnotationTool?
+    @Published var isOCRRunning = false
     @Published private var toolStyles: [AnnotationTool: AnnotationToolStyle] = [:]
 
     private let styleStorage = UserDefaults.standard
@@ -190,9 +202,21 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
 
     private let canvas: AnnotationCanvasView
     private let state  = AnnotationEditorState()
+    private let contentContainer = NSView()
+    private let ocrScanOverlay = OCRScanOverlayView()
+    private let ocrResultSidebar = NSVisualEffectView()
+    private let ocrResultScrollView = NSScrollView()
+    private let ocrResultTextView = NSTextView(frame: .zero)
+    private let ocrResultLoadingIndicator = NSProgressIndicator()
     private var cancellables: Set<AnyCancellable> = []
     private var toolbarPanel: AnnotationToolbarFloatingPanel?
     private var emojiPopover: NSPopover?
+    private var ocrSidebarWidthConstraint: NSLayoutConstraint?
+    private var ocrSidebarContentConstraints: [NSLayoutConstraint] = []
+    private var ocrLoadingStartTime: CFTimeInterval?
+    private var ocrSessionToken = UUID()
+    private var ocrCompletionWorkItem: DispatchWorkItem?
+    private var ocrRestoreState: OCRUIRestoreState?
     // OCR 翻译流水线运行期间保留的隐藏 SwiftUI 宿主，用于承载 .translationTask。
     private var translationHostView: NSView?
     // OCR 翻译期间显示的进度 HUD。
@@ -313,27 +337,304 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
     // MARK: Layout
 
     private func setupContent(canvasW: CGFloat, canvasH: CGFloat) {
-        let container = NSView(frame: CGRect(x: 0, y: 0, width: canvasW, height: canvasH))
-        container.autoresizingMask = [.width, .height]
-        contentView = container
+        contentContainer.frame = CGRect(x: 0, y: 0, width: canvasW, height: canvasH)
+        contentContainer.autoresizingMask = [.width, .height]
+        contentView = contentContainer
         windowController?.window?.acceptsMouseMovedEvents = true
         acceptsMouseMovedEvents = true
 
         // Canvas
-        canvas.autoresizingMask = [.width, .height]
-        container.addSubview(canvas)
+        canvas.translatesAutoresizingMaskIntoConstraints = false
+        contentContainer.addSubview(canvas)
+
+        setupOCRScanOverlay()
+        contentContainer.addSubview(ocrScanOverlay)
+
+        setupOCRResultSidebar()
+        contentContainer.addSubview(ocrResultSidebar)
+
+        let sidebarWidthConstraint = ocrResultSidebar.widthAnchor.constraint(equalToConstant: 0)
+        ocrSidebarWidthConstraint = sidebarWidthConstraint
+
+        NSLayoutConstraint.activate([
+            canvas.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
+            canvas.topAnchor.constraint(equalTo: contentContainer.topAnchor),
+            canvas.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor),
+            canvas.trailingAnchor.constraint(equalTo: ocrResultSidebar.leadingAnchor),
+
+            ocrScanOverlay.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
+            ocrScanOverlay.topAnchor.constraint(equalTo: contentContainer.topAnchor),
+            ocrScanOverlay.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor),
+            ocrScanOverlay.trailingAnchor.constraint(equalTo: ocrResultSidebar.leadingAnchor),
+
+            ocrResultSidebar.topAnchor.constraint(equalTo: contentContainer.topAnchor),
+            ocrResultSidebar.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor),
+            ocrResultSidebar.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
+            sidebarWidthConstraint,
+        ])
     }
 
     private func resizeAfterCrop(newSize: NSSize) {
         let newW = max(newSize.width, 80)
         let newH = max(newSize.height, 60)
         let current = frame
+        let sidebarWidth = currentOCRSidebarWidth
         let newFrame = CGRect(
-            x: current.midX - newW / 2,
+            x: current.midX - (newW + sidebarWidth) / 2,
             y: current.midY - newH / 2,
-            width: newW, height: newH
+            width: newW + sidebarWidth, height: newH
         )
         setFrame(newFrame, display: true, animate: true)
+    }
+
+    private var currentOCRSidebarWidth: CGFloat {
+        ocrSidebarWidthConstraint?.constant ?? 0
+    }
+
+    private var isOCRSidebarPresented: Bool {
+        currentOCRSidebarWidth > 0.5 && !ocrResultSidebar.isHidden
+    }
+
+    private var preferredOCRTextWidth: CGFloat {
+        let targetSidebarWidth = max(currentOCRSidebarWidth, preferredOCRSidebarWidth(for: frame))
+        return max(160, targetSidebarWidth - AnnotationEditorMetrics.ocrSidebarInset * 2 - 8)
+    }
+
+    private func setupOCRScanOverlay() {
+        ocrScanOverlay.translatesAutoresizingMaskIntoConstraints = false
+        ocrScanOverlay.isHidden = true
+    }
+
+    private func setupOCRResultSidebar() {
+        ocrResultSidebar.translatesAutoresizingMaskIntoConstraints = false
+        ocrResultSidebar.material = .sidebar
+        ocrResultSidebar.blendingMode = .withinWindow
+        ocrResultSidebar.state = .active
+        ocrResultSidebar.isHidden = true
+        ocrResultSidebar.wantsLayer = true
+        ocrResultSidebar.layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.28).cgColor
+        ocrResultSidebar.layer?.borderWidth = 0.8
+
+        ocrResultTextView.isEditable = true
+        ocrResultTextView.isSelectable = true
+        ocrResultTextView.isRichText = true
+        ocrResultTextView.usesFindBar = true
+        ocrResultTextView.allowsUndo = true
+        ocrResultTextView.drawsBackground = false
+        ocrResultTextView.font = NSFont.systemFont(ofSize: 13, weight: .regular)
+        ocrResultTextView.textContainerInset = NSSize(width: 4, height: 8)
+        ocrResultTextView.importsGraphics = false
+        ocrResultTextView.isAutomaticQuoteSubstitutionEnabled = false
+        ocrResultTextView.isAutomaticDashSubstitutionEnabled = false
+        ocrResultTextView.isAutomaticTextReplacementEnabled = false
+        ocrResultTextView.isAutomaticTextCompletionEnabled = false
+        ocrResultTextView.isContinuousSpellCheckingEnabled = false
+        ocrResultTextView.minSize = .zero
+        ocrResultTextView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        ocrResultTextView.isHorizontallyResizable = false
+        ocrResultTextView.isVerticallyResizable = true
+        ocrResultTextView.autoresizingMask = [.width]
+        ocrResultTextView.textContainer?.containerSize = NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude)
+        ocrResultTextView.textContainer?.widthTracksTextView = true
+
+        ocrResultScrollView.translatesAutoresizingMaskIntoConstraints = false
+        ocrResultScrollView.borderType = .noBorder
+        ocrResultScrollView.drawsBackground = false
+        ocrResultScrollView.hasVerticalScroller = true
+        ocrResultScrollView.autohidesScrollers = true
+        ocrResultScrollView.documentView = ocrResultTextView
+        ocrResultScrollView.isHidden = true
+
+        ocrResultLoadingIndicator.translatesAutoresizingMaskIntoConstraints = false
+        ocrResultLoadingIndicator.style = .spinning
+        ocrResultLoadingIndicator.controlSize = .regular
+        ocrResultLoadingIndicator.isDisplayedWhenStopped = false
+        ocrResultLoadingIndicator.isHidden = true
+
+        ocrResultSidebar.addSubview(ocrResultScrollView)
+        ocrResultSidebar.addSubview(ocrResultLoadingIndicator)
+
+        ocrSidebarContentConstraints = [
+            ocrResultScrollView.leadingAnchor.constraint(equalTo: ocrResultSidebar.leadingAnchor, constant: AnnotationEditorMetrics.ocrSidebarInset),
+            ocrResultScrollView.trailingAnchor.constraint(equalTo: ocrResultSidebar.trailingAnchor, constant: -AnnotationEditorMetrics.ocrSidebarInset),
+            ocrResultScrollView.topAnchor.constraint(equalTo: ocrResultSidebar.topAnchor, constant: AnnotationEditorMetrics.ocrSidebarInset),
+            ocrResultScrollView.bottomAnchor.constraint(equalTo: ocrResultSidebar.bottomAnchor, constant: -AnnotationEditorMetrics.ocrSidebarInset),
+        ]
+
+        NSLayoutConstraint.activate([
+            ocrResultLoadingIndicator.centerXAnchor.constraint(equalTo: ocrResultSidebar.centerXAnchor),
+            ocrResultLoadingIndicator.centerYAnchor.constraint(equalTo: ocrResultSidebar.centerYAnchor),
+        ])
+    }
+
+    private func setOCRSidebarVisible(_ visible: Bool, animated: Bool) {
+        guard let widthConstraint = ocrSidebarWidthConstraint else { return }
+
+        let currentSidebarWidth = widthConstraint.constant
+        let targetSidebarWidth = visible ? preferredOCRSidebarWidth(for: frame) : 0
+        guard abs(currentSidebarWidth - targetSidebarWidth) > 0.5 || ocrResultSidebar.isHidden == visible else {
+            return
+        }
+
+        let baseEditorWidth = frame.width - currentSidebarWidth
+        let totalWidth = min(baseEditorWidth + targetSidebarWidth, visibleFrameForEditor(frame).width)
+        let actualSidebarWidth = max(0, totalWidth - baseEditorWidth)
+
+        var newFrame = frame
+        newFrame.size.width = totalWidth
+        let visibleFrame = visibleFrameForEditor(newFrame)
+        newFrame.origin.x = min(newFrame.origin.x, visibleFrame.maxX - newFrame.width)
+        newFrame.origin.x = max(visibleFrame.minX, newFrame.origin.x)
+
+        if actualSidebarWidth == 0 {
+            setOCRSidebarContentConstraintsActive(false)
+        }
+
+        ocrResultSidebar.isHidden = false
+        widthConstraint.constant = actualSidebarWidth
+
+        if actualSidebarWidth > 0 {
+            setOCRSidebarContentConstraintsActive(true)
+        }
+
+        contentContainer.layoutSubtreeIfNeeded()
+        setFrame(newFrame, display: true, animate: animated)
+        if actualSidebarWidth == 0 {
+            ocrResultSidebar.isHidden = true
+        }
+    }
+
+    private func setOCRSidebarContentConstraintsActive(_ active: Bool) {
+        if active {
+            NSLayoutConstraint.activate(ocrSidebarContentConstraints)
+        } else {
+            NSLayoutConstraint.deactivate(ocrSidebarContentConstraints)
+        }
+    }
+
+    private func preferredOCRSidebarWidth(for windowFrame: CGRect) -> CGFloat {
+        let visibleFrame = visibleFrameForEditor(windowFrame)
+        let baseEditorWidth = windowFrame.width - currentOCRSidebarWidth
+        let maxSidebarWidth = max(0, visibleFrame.width - baseEditorWidth)
+        guard maxSidebarWidth > 0 else { return 0 }
+        if maxSidebarWidth >= AnnotationEditorMetrics.ocrSidebarMinWidth {
+            return min(AnnotationEditorMetrics.ocrSidebarPreferredWidth, maxSidebarWidth)
+        }
+        return maxSidebarWidth
+    }
+
+    private func visibleFrameForEditor(_ windowFrame: CGRect) -> CGRect {
+        let probePoint = CGPoint(x: windowFrame.midX, y: windowFrame.midY)
+        let screen = NSScreen.screens.first(where: { $0.visibleFrame.contains(probePoint) }) ?? NSScreen.main
+        return screen?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1440, height: 900)
+    }
+
+    private func beginOCRLoadingUI() {
+        cancelPendingOCRCompletion()
+        captureOCRRestoreState()
+        state.isOCRRunning = true
+        ocrSessionToken = UUID()
+        ocrLoadingStartTime = CACurrentMediaTime()
+        ocrResultTextView.textStorage?.setAttributedString(NSAttributedString())
+        ocrResultTextView.setSelectedRange(NSRange(location: 0, length: 0))
+        ocrResultScrollView.isHidden = true
+        let preserveSidebar = ocrRestoreState?.sidebarVisible == true
+        ocrResultLoadingIndicator.isHidden = !preserveSidebar
+        if preserveSidebar {
+            ocrResultSidebar.isHidden = false
+            setOCRSidebarContentConstraintsActive(true)
+            ocrResultLoadingIndicator.startAnimation(nil)
+        } else {
+            ocrResultLoadingIndicator.stopAnimation(nil)
+            setOCRSidebarVisible(false, animated: false)
+        }
+        ocrScanOverlay.startAnimating()
+    }
+
+    private func showOCRResultsUI(with attributedText: NSAttributedString) {
+        ocrResultLoadingIndicator.stopAnimation(nil)
+        ocrResultLoadingIndicator.isHidden = true
+        ocrResultTextView.textStorage?.setAttributedString(attributedText)
+        if attributedText.length > 0 {
+            ocrResultTextView.typingAttributes = attributedText.attributes(at: 0, effectiveRange: nil)
+        } else {
+            ocrResultTextView.typingAttributes = [
+                .font: NSFont.systemFont(ofSize: 13, weight: .regular),
+                .foregroundColor: NSColor.labelColor
+            ]
+        }
+        ocrResultTextView.setSelectedRange(NSRange(location: 0, length: 0))
+        ocrResultScrollView.isHidden = false
+        setOCRSidebarVisible(true, animated: true)
+        ocrRestoreState = nil
+    }
+
+    private func finishOCRLoadingUI() {
+        state.isOCRRunning = false
+        ocrLoadingStartTime = nil
+        ocrScanOverlay.stopAnimating()
+        ocrResultLoadingIndicator.stopAnimation(nil)
+        ocrResultLoadingIndicator.isHidden = true
+    }
+
+    private func resetOCRUI(hideSidebar: Bool) {
+        cancelPendingOCRCompletion()
+        state.isOCRRunning = false
+        ocrLoadingStartTime = nil
+        ocrScanOverlay.stopAnimating()
+        ocrResultLoadingIndicator.stopAnimation(nil)
+        ocrResultLoadingIndicator.isHidden = true
+        ocrResultScrollView.isHidden = true
+        ocrResultTextView.textStorage?.setAttributedString(NSAttributedString())
+        ocrRestoreState = nil
+        if hideSidebar {
+            setOCRSidebarVisible(false, animated: true)
+        }
+    }
+
+    private func captureOCRRestoreState() {
+        let attributedText = NSAttributedString(
+            attributedString: ocrResultTextView.textStorage ?? NSTextStorage()
+        )
+        ocrRestoreState = OCRUIRestoreState(
+            sidebarVisible: isOCRSidebarPresented,
+            attributedText: attributedText,
+            selectedRange: ocrResultTextView.selectedRange()
+        )
+    }
+
+    private func restoreOCRUIAfterFailure(postRestore: ((AnnotationEditorPanel) -> Void)? = nil) {
+        finishOCRLoadingUI()
+
+        guard let snapshot = ocrRestoreState else {
+            resetOCRUI(hideSidebar: true)
+            postRestore?(self)
+            return
+        }
+
+        if snapshot.sidebarVisible {
+            ocrResultSidebar.isHidden = false
+            setOCRSidebarContentConstraintsActive(true)
+            ocrResultTextView.textStorage?.setAttributedString(snapshot.attributedText)
+            if snapshot.attributedText.length > 0 {
+                ocrResultTextView.typingAttributes = snapshot.attributedText.attributes(at: 0, effectiveRange: nil)
+            } else {
+                ocrResultTextView.typingAttributes = [
+                    .font: NSFont.systemFont(ofSize: 13, weight: .regular),
+                    .foregroundColor: NSColor.labelColor
+                ]
+            }
+            ocrResultTextView.setSelectedRange(snapshot.selectedRange)
+            ocrResultScrollView.isHidden = false
+            setOCRSidebarVisible(true, animated: false)
+        } else {
+            ocrResultTextView.textStorage?.setAttributedString(NSAttributedString())
+            ocrResultScrollView.isHidden = true
+            setOCRSidebarVisible(false, animated: false)
+        }
+
+        ocrRestoreState = nil
+        postRestore?(self)
     }
 
     // MARK: Actions
@@ -361,11 +662,13 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
     }
 
     override func close() {
+        cancelPendingOCRCompletion()
         hideFloatingToolbar()
         emojiPopover?.performClose(nil)
         emojiPopover = nil
         toolbarPanel?.close()
         toolbarPanel = nil
+        ocrScanOverlay.stopAnimating()
         super.close()
     }
 
@@ -537,24 +840,29 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
             legacyCopyTextThenOpenTranslate()
             return
         }
-        let image = canvas.renderToImage()
-        guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return }
 
-        let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
-        let request = VNRecognizeTextRequest { [weak self] req, _ in
-            let lines = (req.results as? [VNRecognizedTextObservation])?
-                .compactMap { $0.topCandidates(1).first?.string } ?? []
-            let text = lines.joined(separator: "\n")
+        guard !state.isOCRRunning else { return }
+        let sourceImage = canvas.renderToImage()
+        beginOCRLoadingUI()
+
+        OCRRecognitionPipeline.recognize(in: sourceImage) { [weak self] result in
             DispatchQueue.main.async {
-                self?.copyOCRText(text)
+                guard let self else { return }
+                let sessionToken = self.ocrSessionToken
+                switch result {
+                case let .success(snapshot):
+                    let attributed = OCRStructuredTextComposer.makeAttributedString(
+                        from: snapshot.regions,
+                        imageSize: snapshot.imageSize,
+                        preferredTextWidth: self.preferredOCRTextWidth
+                    )
+                    self.handleOCRRecognizedText(attributed, sessionToken: sessionToken)
+                case .failure:
+                    self.completeOCRAfterMinimumDuration(for: sessionToken) { panel in
+                        panel.restoreOCRUIAfterFailure()
+                    }
+                }
             }
-        }
-        request.recognitionLevel    = .accurate
-        request.recognitionLanguages = ["zh-Hans", "zh-Hant", "en-US", "ja-JP"]
-        request.usesLanguageCorrection = true
-
-        DispatchQueue.global(qos: .userInitiated).async {
-            try? handler.perform([request])
         }
     }
 
@@ -578,18 +886,52 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
         }
     }
 
-    private func copyOCRText(_ text: String) {
-        guard !text.isEmpty else {
-            showAlert(title: EditorL10n.tr(.ocrEmptyTitle), message: EditorL10n.tr(.ocrEmptyMessage))
+    private func handleOCRRecognizedText(_ attributedText: NSAttributedString, sessionToken: UUID) {
+        let plainText = attributedText.string.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !plainText.isEmpty else {
+            completeOCRAfterMinimumDuration(for: sessionToken) { panel in
+                panel.restoreOCRUIAfterFailure { restoredPanel in
+                    restoredPanel.showAlert(title: EditorL10n.tr(.ocrEmptyTitle), message: EditorL10n.tr(.ocrEmptyMessage))
+                }
+            }
             return
         }
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
-        NSSound.beep()
-        showAlert(
-            title: EditorL10n.tr(.ocrDoneTitle),
-            message: String(format: EditorL10n.tr(.ocrDoneMessageFormat), text.count)
-        )
+        showOCRResultsUI(with: attributedText)
+        completeOCRAfterMinimumDuration(for: sessionToken) { panel in
+            panel.finishOCRLoadingUI()
+        }
+    }
+
+    private func completeOCRAfterMinimumDuration(
+        for sessionToken: UUID,
+        action: @escaping (AnnotationEditorPanel) -> Void
+    ) {
+        let remainingDelay = remainingOCRScanDelay
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self, self.ocrSessionToken == sessionToken else { return }
+            self.ocrCompletionWorkItem = nil
+            action(self)
+        }
+
+        ocrCompletionWorkItem?.cancel()
+        ocrCompletionWorkItem = workItem
+
+        if remainingDelay <= 0 {
+            workItem.perform()
+        } else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + remainingDelay, execute: workItem)
+        }
+    }
+
+    private var remainingOCRScanDelay: TimeInterval {
+        guard let ocrLoadingStartTime else { return 0 }
+        let elapsed = CACurrentMediaTime() - ocrLoadingStartTime
+        return max(0, AnnotationEditorMetrics.ocrMinimumScanDuration - elapsed)
+    }
+
+    private func cancelPendingOCRCompletion() {
+        ocrCompletionWorkItem?.cancel()
+        ocrCompletionWorkItem = nil
     }
 
     private func openTranslation(text: String) {
@@ -1035,6 +1377,10 @@ private final class DraggableToolbarHostingView<Content: View>: NSHostingView<Co
         fatalError("init(coder:) has not been implemented")
     }
 
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
+    }
+
     override func mouseDown(with event: NSEvent) {
         let localPoint = convert(event.locationInWindow, from: nil)
         let isInDragRegion = localPoint.y >= (bounds.height - dragRegionHeight)
@@ -1459,7 +1805,7 @@ private struct AnnotationToolbarView: View {
                 EmptyView()
             }
         case .ocr:
-            drawTool(.ocr, "doc.text.magnifyingglass", EditorL10n.tr(.toolOCR))
+            ocrToolButton(EditorL10n.tr(.toolOCR))
         case .crop:
             drawTool(.crop, "crop", EditorL10n.tr(.toolCrop))
         case .undo:
@@ -1509,6 +1855,36 @@ private struct AnnotationToolbarView: View {
             )
             .help(tip)
         }
+    }
+
+    @ViewBuilder
+    private func ocrToolButton(_ tip: String) -> some View {
+        let isRunning = state.isOCRRunning
+
+        Button {
+            guard !isRunning else { return }
+            state.selectedTool = .ocr
+            onOCR()
+        } label: {
+            Group {
+                if isRunning {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    OCRToolbarGlyph()
+                        .frame(width: 18, height: 18)
+                }
+            }
+            .frame(width: AnnotationEditorMetrics.toolbarButtonSize,
+                   height: AnnotationEditorMetrics.toolbarButtonSize)
+        }
+        .buttonStyle(.plain)
+        .background(
+            (state.selectedTool == .ocr || isRunning) ? Color.accentColor.opacity(0.28) : Color.primary.opacity(0.08),
+            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+        )
+        .disabled(isRunning)
+        .help(tip)
     }
 
     @ViewBuilder
@@ -1850,6 +2226,311 @@ struct OCRTextRegion {
     var foreground: NSColor
     /// Sampled background color used to mask the original text.
     var background: NSColor
+}
+
+private struct OCRRecognitionSnapshot {
+    var imageSize: CGSize
+    var regions: [OCRTextRegion]
+}
+
+private enum OCRRecognitionPipeline {
+    private static let recognitionLanguages = [
+        "zh-Hans", "zh-Hant", "en-US", "ja-JP", "ko-KR", "fr-FR", "de-DE", "es-ES", "ru-RU"
+    ]
+
+    static func recognize(in image: NSImage, completion: @escaping (Result<OCRRecognitionSnapshot, Error>) -> Void) {
+        guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            completion(.success(OCRRecognitionSnapshot(imageSize: image.size, regions: [])))
+            return
+        }
+
+        let imageSize = CGSize(width: cgImage.width, height: cgImage.height)
+        let sampler = PixelSampler(cgImage: cgImage)
+        let request = VNRecognizeTextRequest { request, error in
+            if let error {
+                completion(.failure(error))
+                return
+            }
+
+            let observations = (request.results as? [VNRecognizedTextObservation]) ?? []
+            let regions = observations.compactMap { observation -> OCRTextRegion? in
+                guard let candidate = observation.topCandidates(1).first else { return nil }
+                let text = candidate.string
+                guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+
+                let bb = observation.boundingBox
+                let rect = CGRect(
+                    x: bb.origin.x * imageSize.width,
+                    y: (1 - bb.origin.y - bb.height) * imageSize.height,
+                    width: bb.width * imageSize.width,
+                    height: bb.height * imageSize.height
+                ).integral
+                let colors = sampler?.classifyColors(in: rect) ?? (fg: .labelColor, bg: .windowBackgroundColor)
+                return OCRTextRegion(
+                    imageRect: rect,
+                    original: text,
+                    translated: nil,
+                    foreground: colors.fg,
+                    background: colors.bg
+                )
+            }
+
+            completion(.success(OCRRecognitionSnapshot(imageSize: imageSize, regions: regions)))
+        }
+        request.recognitionLevel = .accurate
+        request.usesLanguageCorrection = true
+        request.recognitionLanguages = recognitionLanguages
+
+        let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                try handler.perform([request])
+            } catch {
+                completion(.failure(error))
+            }
+        }
+    }
+}
+
+private enum OCRStructuredTextComposer {
+    private struct Line {
+        var regions: [OCRTextRegion]
+
+        var rect: CGRect {
+            guard let first = regions.first else { return .zero }
+            return regions.dropFirst().reduce(first.imageRect) { partial, region in
+                partial.union(region.imageRect)
+            }
+        }
+
+        var medianHeight: CGFloat {
+            OCRStructuredTextComposer.median(for: regions.map { max(1, $0.imageRect.height) })
+        }
+    }
+
+    static func makeAttributedString(from regions: [OCRTextRegion], imageSize: CGSize, preferredTextWidth: CGFloat) -> NSAttributedString {
+        let trimmedRegions = regions.filter { !$0.original.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        guard !trimmedRegions.isEmpty else { return NSAttributedString() }
+
+        let lines = clusterLines(from: trimmedRegions)
+        let globalMedianHeight = median(for: trimmedRegions.map { max(1, $0.imageRect.height) })
+        let output = NSMutableAttributedString()
+
+        for lineIndex in lines.indices {
+            let line = lines[lineIndex]
+            let pointSize = fittedPointSize(for: line, globalMedianHeight: globalMedianHeight, preferredTextWidth: preferredTextWidth)
+            let weight = fontWeight(for: line, globalMedianHeight: globalMedianHeight)
+            let paragraphStyle = makeParagraphStyle(for: line, imageSize: imageSize, pointSize: pointSize)
+            let font = NSFont.systemFont(ofSize: pointSize, weight: weight)
+            let sortedRegions = line.regions.sorted { $0.imageRect.minX < $1.imageRect.minX }
+
+            for regionIndex in sortedRegions.indices {
+                if regionIndex > 0 {
+                    let gapString = spacer(
+                        between: sortedRegions[regionIndex - 1],
+                        and: sortedRegions[regionIndex],
+                        medianHeight: globalMedianHeight
+                    )
+                    if !gapString.isEmpty {
+                        output.append(
+                            NSAttributedString(
+                                string: gapString,
+                                attributes: [
+                                    .font: font,
+                                    .paragraphStyle: paragraphStyle,
+                                    .foregroundColor: NSColor.clear
+                                ]
+                            )
+                        )
+                    }
+                }
+
+                let region = sortedRegions[regionIndex]
+
+                var attributes: [NSAttributedString.Key: Any] = [
+                    .font: font,
+                    .paragraphStyle: paragraphStyle,
+                    .foregroundColor: foregroundColor(for: region)
+                ]
+                if let backgroundColor = backgroundHighlightColor(for: region) {
+                    attributes[.backgroundColor] = backgroundColor
+                }
+                output.append(NSAttributedString(string: region.original, attributes: attributes))
+            }
+
+            if lineIndex < lines.count - 1 {
+                output.append(
+                    NSAttributedString(
+                        string: lineSeparator(between: line, and: lines[lineIndex + 1], globalMedianHeight: globalMedianHeight),
+                        attributes: [
+                            .font: font,
+                            .paragraphStyle: paragraphStyle
+                        ]
+                    )
+                )
+            }
+        }
+
+        return output
+    }
+
+    private static func clusterLines(from regions: [OCRTextRegion]) -> [Line] {
+        let sorted = regions.sorted { lhs, rhs in
+            let verticalDelta = lhs.imageRect.minY - rhs.imageRect.minY
+            if abs(verticalDelta) > max(lhs.imageRect.height, rhs.imageRect.height) * 0.45 {
+                return verticalDelta < 0
+            }
+            return lhs.imageRect.minX < rhs.imageRect.minX
+        }
+
+        var lines: [Line] = []
+        for region in sorted {
+            if let last = lines.last, belongs(region, to: last) {
+                lines[lines.count - 1].regions.append(region)
+            } else {
+                lines.append(Line(regions: [region]))
+            }
+        }
+
+        for index in lines.indices {
+            lines[index].regions.sort { $0.imageRect.minX < $1.imageRect.minX }
+        }
+        return lines
+    }
+
+    private static func belongs(_ region: OCRTextRegion, to line: Line) -> Bool {
+        let lineRect = line.rect
+        let verticalGap = region.imageRect.minY - lineRect.maxY
+        let overlap = min(region.imageRect.maxY, lineRect.maxY) - max(region.imageRect.minY, lineRect.minY)
+        let centerDistance = abs(region.imageRect.midY - lineRect.midY)
+        let allowedGap = max(region.imageRect.height, line.medianHeight) * 0.42
+        return (verticalGap <= allowedGap && centerDistance <= max(region.imageRect.height, lineRect.height) * 0.62)
+            || overlap > min(region.imageRect.height, lineRect.height) * 0.2
+    }
+
+    private static func fittedPointSize(for line: Line, globalMedianHeight: CGFloat, preferredTextWidth: CGFloat) -> CGFloat {
+        let basePointSize = max(11, min(28, 13 * (line.medianHeight / max(globalMedianHeight, 1))))
+        let weight = fontWeight(for: line, globalMedianHeight: globalMedianHeight)
+        let font = NSFont.systemFont(ofSize: basePointSize, weight: weight)
+        let lineText = composedLineString(for: line, globalMedianHeight: globalMedianHeight)
+        let measuredWidth = (lineText as NSString).size(withAttributes: [.font: font]).width
+        guard measuredWidth > preferredTextWidth, measuredWidth > 1 else {
+            return basePointSize
+        }
+
+        return max(11, floor(basePointSize * preferredTextWidth / measuredWidth))
+    }
+
+    private static func fontWeight(for line: Line, globalMedianHeight: CGFloat) -> NSFont.Weight {
+        let ratio = line.medianHeight / max(globalMedianHeight, 1)
+        if ratio >= 1.45 { return .bold }
+        if ratio >= 1.18 { return .semibold }
+        return .regular
+    }
+
+    private static func makeParagraphStyle(for line: Line, imageSize: CGSize, pointSize: CGFloat) -> NSParagraphStyle {
+        let style = NSMutableParagraphStyle()
+        style.alignment = alignment(for: line.rect, imageWidth: imageSize.width)
+        style.lineBreakMode = .byWordWrapping
+        style.lineSpacing = max(1, pointSize * 0.12)
+        style.defaultTabInterval = max(28, pointSize * 3.2)
+        return style
+    }
+
+    private static func alignment(for rect: CGRect, imageWidth: CGFloat) -> NSTextAlignment {
+        guard imageWidth > 1 else { return .left }
+        let horizontalCenterOffset = abs(rect.midX - imageWidth / 2) / imageWidth
+        if horizontalCenterOffset < 0.08 && rect.width < imageWidth * 0.72 {
+            return .center
+        }
+        if rect.midX > imageWidth * 0.68 && rect.minX > imageWidth * 0.28 {
+            return .right
+        }
+        return .left
+    }
+
+    private static func composedLineString(for line: Line, globalMedianHeight: CGFloat) -> String {
+        let sortedRegions = line.regions.sorted { $0.imageRect.minX < $1.imageRect.minX }
+        var result = ""
+        for regionIndex in sortedRegions.indices {
+            if regionIndex > 0 {
+                result += spacer(
+                    between: sortedRegions[regionIndex - 1],
+                    and: sortedRegions[regionIndex],
+                    medianHeight: globalMedianHeight
+                )
+            }
+            result += sortedRegions[regionIndex].original
+        }
+        return result
+    }
+
+    private static func spacer(between lhs: OCRTextRegion, and rhs: OCRTextRegion, medianHeight: CGFloat) -> String {
+        let gap = rhs.imageRect.minX - lhs.imageRect.maxX
+        if gap > medianHeight * 3.2 { return "\t" }
+        if gap > medianHeight * 1.15 { return "  " }
+        if gap > medianHeight * 0.32 { return " " }
+        return ""
+    }
+
+    private static func lineSeparator(between upper: Line, and lower: Line, globalMedianHeight: CGFloat) -> String {
+        let verticalGap = lower.rect.minY - upper.rect.maxY
+        if verticalGap > globalMedianHeight * 1.2 {
+            return "\n\n"
+        }
+        return "\n"
+    }
+
+    private static func foregroundColor(for region: OCRTextRegion) -> NSColor {
+        let foreground = region.foreground.usingColorSpace(.deviceRGB) ?? .labelColor
+        let background = region.background.usingColorSpace(.deviceRGB) ?? .textBackgroundColor
+        if contrastRatio(foreground, background) < 1.2 {
+            return .labelColor
+        }
+        return foreground
+    }
+
+    private static func backgroundHighlightColor(for region: OCRTextRegion) -> NSColor? {
+        let foreground = region.foreground.usingColorSpace(.deviceRGB) ?? .labelColor
+        guard contrastRatio(foreground, .textBackgroundColor) < 2.5 else { return nil }
+        let background = region.background.usingColorSpace(.deviceRGB) ?? .windowBackgroundColor
+        return background.withAlphaComponent(0.26)
+    }
+
+    private static func contrastRatio(_ lhs: NSColor, _ rhs: NSColor) -> CGFloat {
+        let left = lhs.usingColorSpace(.deviceRGB) ?? lhs
+        let right = rhs.usingColorSpace(.deviceRGB) ?? rhs
+        let lhsLum = relativeLuminance(of: left)
+        let rhsLum = relativeLuminance(of: right)
+        let brighter = max(lhsLum, rhsLum)
+        let darker = min(lhsLum, rhsLum)
+        return (brighter + 0.05) / (darker + 0.05)
+    }
+
+    private static func relativeLuminance(of color: NSColor) -> CGFloat {
+        func linearize(_ component: CGFloat) -> CGFloat {
+            if component <= 0.03928 {
+                return component / 12.92
+            }
+            return pow((component + 0.055) / 1.055, 2.4)
+        }
+
+        let red = linearize(color.redComponent)
+        let green = linearize(color.greenComponent)
+        let blue = linearize(color.blueComponent)
+        return 0.2126 * red + 0.7152 * green + 0.0722 * blue
+    }
+
+    private static func median(for values: [CGFloat]) -> CGFloat {
+        guard !values.isEmpty else { return 1 }
+        let sorted = values.sorted()
+        if sorted.count.isMultiple(of: 2) {
+            let upper = sorted[sorted.count / 2]
+            let lower = sorted[sorted.count / 2 - 1]
+            return (lower + upper) / 2
+        }
+        return sorted[sorted.count / 2]
+    }
 }
 
 @available(macOS 15.0, *)
@@ -2235,5 +2916,147 @@ private final class PixelSampler {
         } else {
             return (fg: lightColor, bg: darkColor)
         }
+    }
+}
+
+private final class OCRScanOverlayView: NSView {
+    private let dimLayer = CALayer()
+    private let bandLayer = CAGradientLayer()
+    private let lineLayer = CAGradientLayer()
+    private var isAnimating = false
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layer = CALayer()
+        layer?.masksToBounds = true
+        alphaValue = 0
+        setupLayers()
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    override var isOpaque: Bool { false }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
+    }
+
+    override func layout() {
+        super.layout()
+        guard let rootLayer = layer else { return }
+
+        rootLayer.frame = bounds
+        dimLayer.frame = bounds
+
+        let bandHeight = max(56, bounds.height * 0.14)
+        bandLayer.frame = CGRect(x: 0, y: bounds.height - bandHeight, width: bounds.width, height: bandHeight)
+
+        let lineHeight: CGFloat = 2
+        lineLayer.frame = CGRect(x: 0, y: bounds.height - lineHeight, width: bounds.width, height: lineHeight)
+    }
+
+    func startAnimating() {
+        guard !isAnimating else { return }
+
+        isAnimating = true
+        isHidden = false
+        alphaValue = 0
+        layoutSubtreeIfNeeded()
+
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.24
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            animator().alphaValue = 1
+        }
+
+        bandLayer.removeAllAnimations()
+        lineLayer.removeAllAnimations()
+
+        let duration: CFTimeInterval = 1.9
+
+        let bandAnimation = CABasicAnimation(keyPath: "position.y")
+        bandAnimation.fromValue = bounds.height + bandLayer.bounds.height / 2
+        bandAnimation.toValue = -bandLayer.bounds.height / 2
+        bandAnimation.duration = duration
+        bandAnimation.repeatCount = .infinity
+        bandAnimation.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        bandAnimation.isRemovedOnCompletion = false
+        bandLayer.add(bandAnimation, forKey: "scanBand")
+
+        let lineAnimation = CABasicAnimation(keyPath: "position.y")
+        lineAnimation.fromValue = bounds.height + lineLayer.bounds.height / 2
+        lineAnimation.toValue = -lineLayer.bounds.height / 2
+        lineAnimation.duration = duration
+        lineAnimation.repeatCount = .infinity
+        lineAnimation.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        lineAnimation.isRemovedOnCompletion = false
+        lineLayer.add(lineAnimation, forKey: "scanLine")
+
+        let pulseAnimation = CABasicAnimation(keyPath: "opacity")
+        pulseAnimation.fromValue = 0.82
+        pulseAnimation.toValue = 0.96
+        pulseAnimation.duration = 1.25
+        pulseAnimation.autoreverses = true
+        pulseAnimation.repeatCount = .infinity
+        pulseAnimation.isRemovedOnCompletion = false
+        bandLayer.add(pulseAnimation, forKey: "scanPulse")
+    }
+
+    func stopAnimating() {
+        guard isAnimating else {
+            alphaValue = 0
+            isHidden = true
+            return
+        }
+
+        isAnimating = false
+        bandLayer.removeAllAnimations()
+        lineLayer.removeAllAnimations()
+
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.22
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            animator().alphaValue = 0
+        } completionHandler: { [weak self] in
+            guard let self, !self.isAnimating else { return }
+            self.isHidden = true
+        }
+    }
+
+    private func setupLayers() {
+        let accentColor = NSColor.controlAccentColor.usingColorSpace(.deviceRGB) ?? .systemGreen
+
+        dimLayer.backgroundColor = NSColor.black.withAlphaComponent(0.04).cgColor
+
+        bandLayer.colors = [
+            accentColor.withAlphaComponent(0).cgColor,
+            accentColor.withAlphaComponent(0.025).cgColor,
+            accentColor.withAlphaComponent(0.10).cgColor,
+            accentColor.withAlphaComponent(0.025).cgColor,
+            accentColor.withAlphaComponent(0).cgColor,
+        ]
+        bandLayer.locations = [0, 0.3, 0.5, 0.7, 1]
+        bandLayer.startPoint = CGPoint(x: 0.5, y: 1)
+        bandLayer.endPoint = CGPoint(x: 0.5, y: 0)
+        bandLayer.opacity = 0.88
+
+        lineLayer.colors = [
+            accentColor.withAlphaComponent(0).cgColor,
+            accentColor.withAlphaComponent(0.24).cgColor,
+            NSColor.white.withAlphaComponent(0.72).cgColor,
+            accentColor.withAlphaComponent(0.24).cgColor,
+            accentColor.withAlphaComponent(0).cgColor,
+        ]
+        lineLayer.startPoint = CGPoint(x: 0, y: 0.5)
+        lineLayer.endPoint = CGPoint(x: 1, y: 0.5)
+        lineLayer.shadowColor = accentColor.withAlphaComponent(0.45).cgColor
+        lineLayer.shadowOpacity = 1
+        lineLayer.shadowRadius = 18
+        lineLayer.shadowOffset = .zero
+
+        layer?.addSublayer(dimLayer)
+        layer?.addSublayer(bandLayer)
+        layer?.addSublayer(lineLayer)
     }
 }

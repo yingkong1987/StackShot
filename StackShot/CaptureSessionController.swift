@@ -29,9 +29,28 @@ final class CaptureSessionController {
         annotationEditor?.close()
         annotationEditor = nil
         dismissHoverUI()
+
+        // 在显示遮罩前冻结全屏快照（供放大镜使用）和当前窗口顺序（供 hover 命中使用）。
+        let screenSnapshot = CGWindowListCreateImage(
+            .infinite, .optionOnScreenOnly, kCGNullWindowID, .bestResolution
+        )
+        let windowSnapshot = WindowUnderMouseService.captureSnapshot()
+        let windowInfo = WindowUnderMouseService.windowUnderMouse(snapshot: windowSnapshot)
+
         NSApp.activate(ignoringOtherApps: true)
-        beginHoverTracking()
-        refreshHoveredWindow(force: true)
+
+        let overlayWindow = RegionSelectionOverlay(
+            shape: .rectangle,
+            screenSnapshot: screenSnapshot,
+            windowSnapshot: windowSnapshot,
+            initialWindowRect: windowInfo?.bounds,
+            onComplete: { [weak self] rect, shape in
+                self?.handleCaptured(rect: rect, shape: shape, initialTool: nil)
+            },
+            onCancel: { [weak self] in self?.endSession() }
+        )
+        overlayWindow.prepareForCapture()
+        overlay = overlayWindow
     }
 
     // MARK: – Hover tracking
@@ -127,6 +146,23 @@ final class CaptureSessionController {
         guard ensureScreenCapturePermission(interactive: false) else { endSession(); return }
         guard let info = currentHoveredWindow ?? WindowUnderMouseService.windowUnderMouse() else { return }
 
+        if info.windowID == 0 {
+            let rect = Self.quartzRect(fromAppKitRect: info.bounds)
+            guard let cgImage = CGWindowListCreateImage(
+                rect, .optionOnScreenOnly, kCGNullWindowID, .bestResolution
+            ) else {
+                showCaptureFailedAlert(reason: "窗口截图失败，可能被系统隐私设置阻止。")
+                endSession()
+                return
+            }
+
+            let image = NSImage(cgImage: cgImage,
+                                size: NSSize(width: info.bounds.width, height: info.bounds.height))
+            dismissHoverUI()
+            showAnnotationEditor(for: image, initialTool: nil)
+            return
+        }
+
         guard let cgImage = CGWindowListCreateImage(
             .null, .optionIncludingWindow, info.windowID, .bestResolution
         ) else {
@@ -194,6 +230,9 @@ final class CaptureSessionController {
         // overlay/toolbar/highlight while the AnnotationEditorPanel is animating in; that causes
         // _NSWindowTransformAnimation to hold dangling pointers → crash in objc_release.
         guard rect.width >= 2, rect.height >= 2 else { endSession(); return }
+
+        // 先隐藏遮罩层，避免放大镜等 UI 出现在截图结果中。
+        overlay?.orderOut(nil)
 
         let scale = NSScreen.screens.map(\.backingScaleFactor).max() ?? 2.0
         let snappedAppKit = CGRect(
@@ -270,14 +309,6 @@ final class CaptureSessionController {
         // 非交互检查只返回权限状态，不主动弹系统权限请求和提示。
         guard interactive else { return false }
 
-        // CGRequestScreenCaptureAccess() registers the app in
-        // System Settings > Privacy & Security > Screen Recording
-        // (required before the user can see it in the list).
-        if !didRequestScreenCaptureThisLaunch {
-            CGRequestScreenCaptureAccess()
-            didRequestScreenCaptureThisLaunch = true
-        }
-
         // 同一次应用运行周期内只展示一次引导，避免每次截图都打断。
         if didShowScreenCaptureAlertThisLaunch {
             return false
@@ -300,6 +331,10 @@ final class CaptureSessionController {
 
         NSApp.activate(ignoringOtherApps: true)
         if alert.runModal() == .alertFirstButtonReturn {
+            if !didRequestScreenCaptureThisLaunch {
+                CGRequestScreenCaptureAccess()
+                didRequestScreenCaptureThisLaunch = true
+            }
             let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!
             NSWorkspace.shared.open(url)
         }
