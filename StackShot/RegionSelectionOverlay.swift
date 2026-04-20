@@ -16,6 +16,7 @@ final class RegionSelectionOverlay: NSWindow {
         windowSnapshot: WindowUnderMouseSnapshot? = nil,
         initialWindowRect: CGRect? = nil,
         initialDragStartGlobal: CGPoint? = nil,
+        commitSelectionImmediately: Bool = false,
         onComplete: @escaping (CGRect, RegionSelectionShape) -> Void,
         onCancel: @escaping () -> Void
     ) {
@@ -46,6 +47,7 @@ final class RegionSelectionOverlay: NSWindow {
             initialDragStartLocal: initialDragStartGlobal.map { global in
                 CGPoint(x: global.x - union.origin.x, y: global.y - union.origin.y)
             },
+            commitSelectionImmediately: commitSelectionImmediately,
             onFinish: { [weak self] localRect in
                 guard let self else { return }
                 let global = localRect.offsetBy(dx: self.frame.origin.x, dy: self.frame.origin.y)
@@ -74,14 +76,52 @@ final class RegionSelectionOverlay: NSWindow {
 // MARK: – Selection Overlay View
 
 private final class SelectionOverlayView: NSView {
+    private enum DragMode {
+        case creating
+        case moving
+        case resizing(SelectionEdge)
+    }
+
+    private enum SelectionEdge {
+        case left
+        case right
+        case top
+        case bottom
+
+        var cursor: NSCursor {
+            switch self {
+            case .left, .right:
+                return .resizeLeftRight
+            case .top, .bottom:
+                return .resizeUpDown
+            }
+        }
+    }
+
     private let shape: RegionSelectionShape
     private let onFinish: (CGRect) -> Void
     private let onAbort: () -> Void
+    private let commitSelectionImmediately: Bool
 
+    private var dragMode: DragMode?
     private var startPoint: NSPoint?
     private var currentPoint: NSPoint?
+    private var selectionRect: CGRect?
+    private var selectionRectAtDragStart: CGRect?
+    private var selectionRectBeforeCreating: CGRect?
+    private var didDragCurrentGesture = false
     private let initialDragStartLocal: NSPoint?
     private var externalDragTimer: Timer?
+    private var trackingArea: NSTrackingArea?
+
+    private let minimumSelectionSize: CGFloat = 12
+    private let committedSelectionThreshold: CGFloat = 4
+    private let edgeHitInset: CGFloat = 8
+    private let handleSize: CGFloat = 8
+    private let controlButtonSize: CGFloat = 32
+    private let controlStripPadding: CGFloat = 5
+    private let controlStripGap: CGFloat = 10
+    private let controlButtonSpacing: CGFloat = 8
 
     // Magnifier & auto-window-selection
     private let screenSnapshot: CGImage?
@@ -92,6 +132,10 @@ private final class SelectionOverlayView: NSView {
     private var mousePosition: NSPoint = .zero
     private var hasMagnifier: Bool { screenSnapshot != nil }
 
+    private let selectionControls = NSView(frame: .zero)
+    private let cancelButton = NSButton(frame: .zero)
+    private let confirmButton = NSButton(frame: .zero)
+
     init(
         frame frameRect: NSRect,
         shape: RegionSelectionShape,
@@ -100,6 +144,7 @@ private final class SelectionOverlayView: NSView {
         initialWindowRect: CGRect?,
         windowOrigin: CGPoint,
         initialDragStartLocal: NSPoint?,
+        commitSelectionImmediately: Bool,
         onFinish: @escaping (CGRect) -> Void,
         onAbort: @escaping () -> Void
     ) {
@@ -110,64 +155,110 @@ private final class SelectionOverlayView: NSView {
         self.windowOrigin = windowOrigin
         self.autoSelectedRect = initialWindowRect
         self.initialDragStartLocal = initialDragStartLocal
+        self.commitSelectionImmediately = commitSelectionImmediately
         self.onFinish = onFinish
         self.onAbort = onAbort
         super.init(frame: frameRect)
+        setupSelectionControls()
     }
 
     required init?(coder: NSCoder) { nil }
 
     override var acceptsFirstResponder: Bool { true }
 
+    override func updateTrackingAreas() {
+        if let trackingArea {
+            removeTrackingArea(trackingArea)
+        }
+
+        let area = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseMoved, .activeAlways, .inVisibleRect, .cursorUpdate],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(area)
+        trackingArea = area
+
+        super.updateTrackingAreas()
+    }
+
     override func viewDidMoveToWindow() {
         window?.makeFirstResponder(self)
 
-        if hasMagnifier {
-            let trackingArea = NSTrackingArea(
-                rect: bounds,
-                options: [.mouseMoved, .activeAlways, .inVisibleRect],
-                owner: self,
-                userInfo: nil
-            )
-            addTrackingArea(trackingArea)
-
-            if let window = window {
-                let mouse = NSEvent.mouseLocation
-                mousePosition = NSPoint(
+        if let window = window {
+            let mouse = NSEvent.mouseLocation
+            mousePosition = clampedPoint(
+                NSPoint(
                     x: mouse.x - window.frame.origin.x,
                     y: mouse.y - window.frame.origin.y
                 )
-            }
+            )
+        }
 
-            // 遮罩刚出现时立即同步一次鼠标下的窗口，恢复默认高亮。
+        if hasMagnifier {
             updateWindowUnderMouse()
         }
 
+        updateSelectionControls()
+        updateCursorAppearance(at: mousePosition)
         needsDisplay = true
 
         guard let initialDragStartLocal else { return }
-        startPoint = initialDragStartLocal
-        currentPoint = initialDragStartLocal
-        needsDisplay = true
+        beginCreatingSelection(at: clampedPoint(initialDragStartLocal), restoring: nil)
         beginExternalDragTracking()
     }
 
     // MARK: – Mouse events
 
     override func mouseMoved(with event: NSEvent) {
-        mousePosition = convert(event.locationInWindow, from: nil)
-        if hasMagnifier && startPoint == nil {
+        mousePosition = clampedPoint(convert(event.locationInWindow, from: nil))
+        if hasMagnifier, selectionRect == nil, dragMode == nil {
             updateWindowUnderMouse()
         }
+        updateCursorAppearance(at: mousePosition)
         needsDisplay = true
+    }
+
+    override func cursorUpdate(with event: NSEvent) {
+        let point = clampedPoint(convert(event.locationInWindow, from: nil))
+        updateCursorAppearance(at: point)
     }
 
     override func mouseDown(with event: NSEvent) {
         stopExternalDragTracking()
-        let p = convert(event.locationInWindow, from: nil)
+        window?.makeFirstResponder(self)
+        let p = clampedPoint(convert(event.locationInWindow, from: nil))
         mousePosition = p
-        startPoint = p
-        currentPoint = p
+        didDragCurrentGesture = false
+
+        if let selectionRect {
+            if let edge = resizeEdge(at: p, in: selectionRect) {
+                dragMode = .resizing(edge)
+                startPoint = p
+                currentPoint = p
+                selectionRectAtDragStart = selectionRect
+                updateCursorAppearance(at: p)
+                needsDisplay = true
+                return
+            }
+
+            if selectionRect.contains(p) {
+                dragMode = .moving
+                startPoint = p
+                currentPoint = p
+                selectionRectAtDragStart = selectionRect
+                updateCursorAppearance(at: p)
+                needsDisplay = true
+                return
+            }
+        }
+
+        beginCreatingSelection(at: p, restoring: selectionRect)
+        if hasMagnifier {
+            updateWindowUnderMouse()
+        }
+        updateCursorAppearance(at: p)
         needsDisplay = true
     }
 
@@ -184,36 +275,87 @@ private final class SelectionOverlayView: NSView {
     }
 
     override func mouseDragged(with event: NSEvent) {
-        let p = convert(event.locationInWindow, from: nil)
+        let p = clampedPoint(convert(event.locationInWindow, from: nil))
         mousePosition = p
         currentPoint = p
+
+        switch dragMode {
+        case .creating:
+            if let startPoint {
+                let delta = CGPoint(x: p.x - startPoint.x, y: p.y - startPoint.y)
+                didDragCurrentGesture = didDragCurrentGesture || hypot(delta.x, delta.y) >= 1
+            }
+        case .moving:
+            guard let startPoint, let baseRect = selectionRectAtDragStart else { break }
+            let deltaX = p.x - startPoint.x
+            let deltaY = p.y - startPoint.y
+            didDragCurrentGesture = didDragCurrentGesture || abs(deltaX) >= 0.5 || abs(deltaY) >= 0.5
+            selectionRect = moveSelectionRect(baseRect, by: CGPoint(x: deltaX, y: deltaY))
+            updateSelectionControls()
+        case .resizing(let edge):
+            guard let baseRect = selectionRectAtDragStart else { break }
+            let resized = resizeSelectionRect(baseRect, edge: edge, to: p)
+            didDragCurrentGesture = didDragCurrentGesture || resized != baseRect
+            selectionRect = resized
+            updateSelectionControls()
+        case nil:
+            break
+        }
+
+        updateCursorAppearance(at: p)
         needsDisplay = true
     }
 
     override func mouseUp(with event: NSEvent) {
         stopExternalDragTracking()
-        let p = convert(event.locationInWindow, from: nil)
+        let p = clampedPoint(convert(event.locationInWindow, from: nil))
         mousePosition = p
         currentPoint = p
-        defer { startPoint = nil; currentPoint = nil; needsDisplay = true }
 
-        guard let s = startPoint, let e = currentPoint else { return }
-        let r = normalizedRect(from: s, to: e)
-        if r.width >= 4, r.height >= 4 {
-            onFinish(r)
-        } else if hasMagnifier,
-                  let autoRect = autoSelectedRect,
-                  autoRect.width >= 4, autoRect.height >= 4 {
-            // 小范围点击 → 确认自动选中的窗口
-            onFinish(autoRect)
-        } else {
-            onAbort()
+        let activeDragMode = dragMode
+        dragMode = nil
+
+        switch activeDragMode {
+        case .creating:
+            finalizeCreatedSelection(orRestorePrevious: true)
+        case .moving:
+            if !didDragCurrentGesture,
+               let selectionRect,
+               selectionRect.contains(p),
+               event.clickCount >= 2 {
+                confirmCurrentSelection()
+                return
+            }
+            completeInteraction(at: p)
+        case .resizing:
+            completeInteraction(at: p)
+        case nil:
+            if let selectionRect,
+               selectionRect.contains(p),
+               event.clickCount >= 2 {
+                confirmCurrentSelection()
+                return
+            }
         }
+
+        needsDisplay = true
     }
 
     override func keyDown(with event: NSEvent) {
         if event.keyCode == 53 {
             onAbort()
+        } else if event.keyCode == 36 || event.keyCode == 76 {
+            if selectionRect == nil,
+               let autoRect = autoSelectedRect,
+               autoRect.width >= committedSelectionThreshold,
+               autoRect.height >= committedSelectionThreshold {
+                selectionRect = autoRect
+                updateSelectionControls()
+                updateCursorAppearance(at: mousePosition)
+                needsDisplay = true
+            } else {
+                confirmCurrentSelection()
+            }
         } else if hasMagnifier,
                   event.modifierFlags.contains(.command),
                   event.charactersIgnoringModifiers == "c" {
@@ -230,15 +372,9 @@ private final class SelectionOverlayView: NSView {
         NSBezierPath(rect: bounds).fill()
 
         // Determine active selection rect
-        let selectionRect: CGRect?
-        if let s = startPoint, let c = currentPoint {
-            let r = normalizedRect(from: s, to: c)
-            selectionRect = (r.width >= 2 && r.height >= 2) ? r : autoSelectedRect
-        } else {
-            selectionRect = autoSelectedRect
-        }
+        let activeSelectionRect = currentDisplaySelectionRect()
 
-        if let r = selectionRect {
+        if let r = activeSelectionRect {
             // Clear hole
             NSGraphicsContext.saveGraphicsState()
             if shape == .circle {
@@ -264,14 +400,16 @@ private final class SelectionOverlayView: NSView {
             path.stroke()
             NSGraphicsContext.restoreGraphicsState()
 
-            // Dimension label (top-left of selection)
-            if hasMagnifier {
-                drawDimensionLabel(for: r)
+            if selectionRect != nil {
+                drawSelectionHandles(for: r)
             }
+
+            // Dimension label (top-left of selection)
+            drawDimensionLabel(for: r)
         }
 
         // Magnifier
-        if hasMagnifier {
+        if shouldShowMagnifier {
             drawMagnifier()
         }
     }
@@ -291,12 +429,21 @@ private final class SelectionOverlayView: NSView {
         let textSize = (text as NSString).size(withAttributes: attrs)
         let hPad: CGFloat = 6
         let vPad: CGFloat = 3
-        let bgRect = CGRect(
+        var bgRect = CGRect(
             x: rect.minX,
             y: rect.maxY + 4,
             width: textSize.width + hPad * 2,
             height: textSize.height + vPad * 2
         )
+        if bgRect.maxY > bounds.maxY - 8 {
+            bgRect.origin.y = max(bounds.minY + 8, rect.minY - bgRect.height - 4)
+        }
+        if bgRect.maxX > bounds.maxX - 8 {
+            bgRect.origin.x = bounds.maxX - bgRect.width - 8
+        }
+        if bgRect.minX < bounds.minX + 8 {
+            bgRect.origin.x = bounds.minX + 8
+        }
         NSColor.black.withAlphaComponent(0.65).setFill()
         NSBezierPath(roundedRect: bgRect, xRadius: 4, yRadius: 4).fill()
         (text as NSString).draw(
@@ -453,6 +600,30 @@ private final class SelectionOverlayView: NSView {
         (hintText as NSString).draw(at: NSPoint(x: textX, y: textY), withAttributes: hintAttrs)
     }
 
+    // MARK: – Selection handles
+
+    private func drawSelectionHandles(for rect: CGRect) {
+        for handleRect in selectionHandleRects(for: rect) {
+            let path = NSBezierPath(roundedRect: handleRect, xRadius: 2, yRadius: 2)
+            NSColor.white.setFill()
+            path.fill()
+
+            NSColor.systemBlue.withAlphaComponent(0.95).setStroke()
+            path.lineWidth = 1.2
+            path.stroke()
+        }
+    }
+
+    private func selectionHandleRects(for rect: CGRect) -> [CGRect] {
+        let half = handleSize / 2
+        return [
+            CGRect(x: rect.midX - half, y: rect.maxY - half, width: handleSize, height: handleSize),
+            CGRect(x: rect.midX - half, y: rect.minY - half, width: handleSize, height: handleSize),
+            CGRect(x: rect.minX - half, y: rect.midY - half, width: handleSize, height: handleSize),
+            CGRect(x: rect.maxX - half, y: rect.midY - half, width: handleSize, height: handleSize)
+        ]
+    }
+
     // MARK: – Window tracking
 
     private func updateWindowUnderMouse() {
@@ -522,27 +693,319 @@ private final class SelectionOverlayView: NSView {
         guard let window else { return }
 
         let mouse = NSEvent.mouseLocation
-        let p = NSPoint(x: mouse.x - window.frame.origin.x, y: mouse.y - window.frame.origin.y)
+        let p = clampedPoint(NSPoint(x: mouse.x - window.frame.origin.x, y: mouse.y - window.frame.origin.y))
         mousePosition = p
         currentPoint = p
+        updateCursorAppearance(at: p)
         needsDisplay = true
 
         let leftPressed = (NSEvent.pressedMouseButtons & 1) == 1
         guard !leftPressed else { return }
 
         stopExternalDragTracking()
-        defer { startPoint = nil; currentPoint = nil; needsDisplay = true }
+        if case .creating = dragMode {
+            finalizeCreatedSelection(orRestorePrevious: false)
+        } else {
+            completeInteraction(at: p)
+        }
 
-        guard let s = startPoint, let e = currentPoint else {
-            onAbort()
+        needsDisplay = true
+    }
+
+    private var shouldShowMagnifier: Bool {
+        hasMagnifier && selectionRect == nil
+    }
+
+    private func currentDisplaySelectionRect() -> CGRect? {
+        if case .creating = dragMode,
+           let startPoint,
+           let currentPoint {
+            let draftRect = normalizedRect(from: startPoint, to: currentPoint)
+            if draftRect.width >= 2, draftRect.height >= 2 {
+                return draftRect
+            }
+        }
+
+        if let selectionRect {
+            return selectionRect
+        }
+
+        return autoSelectedRect
+    }
+
+    private func beginCreatingSelection(at point: NSPoint, restoring previousSelection: CGRect?) {
+        dragMode = .creating
+        startPoint = point
+        currentPoint = point
+        selectionRectAtDragStart = nil
+        selectionRectBeforeCreating = previousSelection
+        selectionRect = nil
+        didDragCurrentGesture = false
+        updateSelectionControls()
+    }
+
+    private func finalizeCreatedSelection(orRestorePrevious: Bool) {
+        defer {
+            completeInteraction(at: mousePosition)
+        }
+
+        if let draftRect = createdSelectionRectIfValid() {
+            if commitSelectionImmediately {
+                onFinish(draftRect)
+                return
+            }
+            selectionRect = draftRect
+            updateSelectionControls()
             return
         }
 
-        let r = normalizedRect(from: s, to: e)
-        if r.width >= 4, r.height >= 4 {
-            onFinish(r)
-        } else {
-            onAbort()
+        if hasMagnifier,
+           let autoRect = autoSelectedRect,
+           autoRect.width >= committedSelectionThreshold,
+           autoRect.height >= committedSelectionThreshold {
+            if commitSelectionImmediately {
+                onFinish(autoRect)
+                return
+            }
+            selectionRect = autoRect
+            updateSelectionControls()
+            return
         }
+
+        if orRestorePrevious,
+           let previousSelection = selectionRectBeforeCreating {
+            selectionRect = previousSelection
+            updateSelectionControls()
+            return
+        }
+
+        selectionRect = nil
+        updateSelectionControls()
+    }
+
+    private func createdSelectionRectIfValid() -> CGRect? {
+        guard let startPoint, let currentPoint else { return nil }
+        let rect = normalizedRect(from: startPoint, to: currentPoint)
+        guard rect.width >= committedSelectionThreshold, rect.height >= committedSelectionThreshold else {
+            return nil
+        }
+        return rect
+    }
+
+    private func completeInteraction(at point: NSPoint) {
+        dragMode = nil
+        startPoint = nil
+        currentPoint = nil
+        selectionRectAtDragStart = nil
+        selectionRectBeforeCreating = nil
+        didDragCurrentGesture = false
+        updateSelectionControls()
+        updateCursorAppearance(at: point)
+    }
+
+    private func confirmCurrentSelection() {
+        guard let selectionRect,
+              selectionRect.width >= committedSelectionThreshold,
+              selectionRect.height >= committedSelectionThreshold else {
+            return
+        }
+        onFinish(selectionRect)
+    }
+
+    private func resizeEdge(at point: CGPoint, in rect: CGRect) -> SelectionEdge? {
+        guard rect.insetBy(dx: -edgeHitInset, dy: -edgeHitInset).contains(point) else {
+            return nil
+        }
+
+        var candidates: [(SelectionEdge, CGFloat)] = []
+        if point.y >= rect.minY - edgeHitInset, point.y <= rect.maxY + edgeHitInset {
+            let leftDistance = abs(point.x - rect.minX)
+            if leftDistance <= edgeHitInset {
+                candidates.append((.left, leftDistance))
+            }
+
+            let rightDistance = abs(point.x - rect.maxX)
+            if rightDistance <= edgeHitInset {
+                candidates.append((.right, rightDistance))
+            }
+        }
+
+        if point.x >= rect.minX - edgeHitInset, point.x <= rect.maxX + edgeHitInset {
+            let bottomDistance = abs(point.y - rect.minY)
+            if bottomDistance <= edgeHitInset {
+                candidates.append((.bottom, bottomDistance))
+            }
+
+            let topDistance = abs(point.y - rect.maxY)
+            if topDistance <= edgeHitInset {
+                candidates.append((.top, topDistance))
+            }
+        }
+
+        return candidates.min(by: { $0.1 < $1.1 })?.0
+    }
+
+    private func moveSelectionRect(_ rect: CGRect, by delta: CGPoint) -> CGRect {
+        var moved = rect.offsetBy(dx: delta.x, dy: delta.y)
+
+        if moved.minX < bounds.minX {
+            moved.origin.x = bounds.minX
+        }
+        if moved.maxX > bounds.maxX {
+            moved.origin.x = bounds.maxX - moved.width
+        }
+        if moved.minY < bounds.minY {
+            moved.origin.y = bounds.minY
+        }
+        if moved.maxY > bounds.maxY {
+            moved.origin.y = bounds.maxY - moved.height
+        }
+
+        return moved
+    }
+
+    private func resizeSelectionRect(_ rect: CGRect, edge: SelectionEdge, to point: CGPoint) -> CGRect {
+        var resized = rect
+
+        switch edge {
+        case .left:
+            let maxLeft = rect.maxX - minimumSelectionSize
+            resized.origin.x = min(max(point.x, bounds.minX), maxLeft)
+            resized.size.width = rect.maxX - resized.minX
+        case .right:
+            let minRight = rect.minX + minimumSelectionSize
+            let clampedRight = max(min(point.x, bounds.maxX), minRight)
+            resized.size.width = clampedRight - rect.minX
+        case .bottom:
+            let maxBottom = rect.maxY - minimumSelectionSize
+            resized.origin.y = min(max(point.y, bounds.minY), maxBottom)
+            resized.size.height = rect.maxY - resized.minY
+        case .top:
+            let minTop = rect.minY + minimumSelectionSize
+            let clampedTop = max(min(point.y, bounds.maxY), minTop)
+            resized.size.height = clampedTop - rect.minY
+        }
+
+        return resized
+    }
+
+    private func clampedPoint(_ point: CGPoint) -> CGPoint {
+        CGPoint(
+            x: min(max(point.x, bounds.minX), bounds.maxX),
+            y: min(max(point.y, bounds.minY), bounds.maxY)
+        )
+    }
+
+    private func updateCursorAppearance(at point: CGPoint) {
+        if case .moving = dragMode {
+            NSCursor.closedHand.set()
+            return
+        }
+
+        if case let .resizing(edge) = dragMode {
+            edge.cursor.set()
+            return
+        }
+
+        if let selectionRect,
+           let edge = resizeEdge(at: point, in: selectionRect) {
+            edge.cursor.set()
+            return
+        }
+
+        if let selectionRect,
+           selectionRect.contains(point) {
+            NSCursor.openHand.set()
+            return
+        }
+
+        NSCursor.crosshair.set()
+    }
+
+    private func setupSelectionControls() {
+        selectionControls.wantsLayer = true
+        selectionControls.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.62).cgColor
+        selectionControls.layer?.cornerRadius = 11
+        selectionControls.layer?.borderColor = NSColor.white.withAlphaComponent(0.12).cgColor
+        selectionControls.layer?.borderWidth = 1
+        selectionControls.isHidden = true
+
+        configureControlButton(
+            cancelButton,
+            symbolName: "xmark",
+            tintColor: .systemRed,
+            action: #selector(handleCancelButton)
+        )
+        configureControlButton(
+            confirmButton,
+            symbolName: "checkmark",
+            tintColor: .systemGreen,
+            action: #selector(handleConfirmButton)
+        )
+
+        selectionControls.addSubview(cancelButton)
+        selectionControls.addSubview(confirmButton)
+        addSubview(selectionControls)
+    }
+
+    private func configureControlButton(
+        _ button: NSButton,
+        symbolName: String,
+        tintColor: NSColor,
+        action: Selector
+    ) {
+        button.isBordered = false
+        button.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)
+        button.imageScaling = .scaleProportionallyDown
+        button.contentTintColor = tintColor
+        button.target = self
+        button.action = action
+        button.wantsLayer = true
+        button.layer?.backgroundColor = tintColor.withAlphaComponent(0.16).cgColor
+        button.layer?.cornerRadius = 9
+        button.layer?.borderColor = tintColor.withAlphaComponent(0.28).cgColor
+        button.layer?.borderWidth = 1
+    }
+
+    private func updateSelectionControls() {
+        guard let selectionRect else {
+            selectionControls.isHidden = true
+            return
+        }
+
+        selectionControls.isHidden = false
+        let stripWidth = controlStripPadding * 2 + controlButtonSize * 2 + controlButtonSpacing
+        let stripHeight = controlStripPadding * 2 + controlButtonSize
+
+        let placeBelow = selectionRect.minY - stripHeight - controlStripGap >= bounds.minY + 8
+        let preferredY = placeBelow
+            ? selectionRect.minY - stripHeight - controlStripGap
+            : selectionRect.maxY + controlStripGap
+        let minX = bounds.minX + 8
+        let maxX = bounds.maxX - stripWidth - 8
+        let originX = min(max(selectionRect.midX - stripWidth / 2, minX), maxX)
+        let originY = min(max(preferredY, bounds.minY + 8), bounds.maxY - stripHeight - 8)
+
+        selectionControls.frame = CGRect(x: originX, y: originY, width: stripWidth, height: stripHeight)
+        cancelButton.frame = CGRect(
+            x: controlStripPadding,
+            y: controlStripPadding,
+            width: controlButtonSize,
+            height: controlButtonSize
+        )
+        confirmButton.frame = CGRect(
+            x: cancelButton.frame.maxX + controlButtonSpacing,
+            y: controlStripPadding,
+            width: controlButtonSize,
+            height: controlButtonSize
+        )
+    }
+
+    @objc private func handleCancelButton() {
+        onAbort()
+    }
+
+    @objc private func handleConfirmButton() {
+        confirmCurrentSelection()
     }
 }

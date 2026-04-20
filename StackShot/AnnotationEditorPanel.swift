@@ -59,6 +59,12 @@ private enum ToolbarDockPosition {
     case rightOfEditor
 }
 
+private enum AnnotationEditorOverlayLevels {
+    static let backdrop = NSWindow.Level.screenSaver
+    static let editor = NSWindow.Level(rawValue: backdrop.rawValue + 1)
+    static let toolbar = NSWindow.Level(rawValue: editor.rawValue + 1)
+}
+
 private struct OCRUIRestoreState {
     var sidebarVisible: Bool
     var attributedText: NSAttributedString
@@ -84,6 +90,7 @@ final class AnnotationEditorState: ObservableObject {
     ]
 
     @Published var selectedTool: AnnotationTool?
+    @Published var isSelectionAdjustmentMode = false
     @Published var isOCRRunning = false
     @Published var isOCRTranslationApplied = false
     @Published private var toolStyles: [AnnotationTool: AnnotationToolStyle] = [:]
@@ -202,10 +209,13 @@ private extension AnnotationTool {
 // MARK: – Annotation editor window
 
 final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
 
     private let canvas: AnnotationCanvasView
     private let state  = AnnotationEditorState()
     private let contentContainer = NSView()
+    private let selectionInteractionOverlay = AnnotationSelectionInteractionOverlayView(frame: .zero)
     private let ocrScanOverlay = OCRScanOverlayView()
     private let ocrResultSidebar = NSVisualEffectView()
     private let ocrResultScrollView = NSScrollView()
@@ -226,6 +236,9 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
     private var translateHUD: NSView?
     private var isOCRTranslating = false
     private var preTranslationScreenshot: NSImage?
+    private var editingBackdrop: AnnotationEditingBackdropPanel?
+    private let sourceScreenSnapshot: CGImage?
+    private let sourceDesktopBounds: CGRect?
     private var isOCRTranslationApplied: Bool {
         get { state.isOCRTranslationApplied }
         set { state.isOCRTranslationApplied = newValue }
@@ -241,8 +254,230 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
 
     // MARK: Init
 
-    init(screenshot: NSImage, initialTool: AnnotationTool? = nil, captureRect: CGRect? = nil) {
-        // 按图片比例适配；结合工具栏可能停靠在下方/右侧预留空间，避免被屏幕裁切。
+    init(
+        screenshot: NSImage,
+        initialTool: AnnotationTool? = nil,
+        captureRect: CGRect? = nil,
+        sourceScreenSnapshot: CGImage? = nil,
+        sourceDesktopBounds: CGRect? = nil
+    ) {
+        let initialFrame = Self.initialEditorFrame(for: screenshot, captureRect: captureRect)
+        self.sourceScreenSnapshot = sourceScreenSnapshot
+        self.sourceDesktopBounds = sourceDesktopBounds
+
+        self.canvas = AnnotationCanvasView(
+            frame: CGRect(origin: .zero, size: initialFrame.size),
+            screenshot: screenshot
+        )
+
+        super.init(
+            contentRect: initialFrame,
+            styleMask: [.borderless, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+
+        level = AnnotationEditorOverlayLevels.editor
+        collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
+        isOpaque = false
+        backgroundColor = .clear
+        hasShadow = false
+        hidesOnDeactivate = false
+        isFloatingPanel = true
+        title = EditorL10n.tr(.editorWindowTitle)
+        isMovable = false
+        isMovableByWindowBackground = false
+        minSize = NSSize(width: 80, height: 60)
+        delegate = self
+
+        self.originalCaptureRect = captureRect
+        state.isSelectionAdjustmentMode = initialTool == nil
+            && sourceScreenSnapshot != nil
+            && sourceDesktopBounds != nil
+        setupContent(canvasW: initialFrame.width, canvasH: initialFrame.height)
+        editingBackdrop = AnnotationEditingBackdropPanel(level: AnnotationEditorOverlayLevels.backdrop)
+        editingBackdrop?.onSelectionFrameChange = { [weak self] newFrame in
+            self?.applyAdjustedSelectionFrame(newFrame)
+        }
+
+        // Apply initial tool (e.g. pre-selected from the hover toolbar)
+        state.selectedTool = initialTool
+        canvas.styleProvider = { [weak state] tool in
+            state?.style(for: tool) ?? .default(for: tool)
+        }
+
+        // For OCR tools triggered from the hover toolbar, fire OCR automatically
+        // after the window has appeared (short delay lets the window settle).
+        if initialTool == .ocr || initialTool == .ocrTranslate {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+                self?.performOCR(translate: initialTool == .ocrTranslate)
+            }
+        }
+
+        // Observe tool selection: keep canvas in sync
+        state.$selectedTool
+            .sink { [weak self] tool in
+                if tool != nil, self?.state.isSelectionAdjustmentMode == true {
+                    self?.state.isSelectionAdjustmentMode = false
+                }
+                self?.canvas.currentTool = tool
+                self?.updateSelectionAdjustmentAvailability()
+            }
+            .store(in: &cancellables)
+
+        state.objectWillChange
+            .sink { [weak self] _ in
+                DispatchQueue.main.async { [weak self] in
+                    self?.canvas.applyCurrentTextStyleIfNeeded()
+                    self?.canvas.needsDisplay = true
+                }
+            }
+            .store(in: &cancellables)
+
+        // Crop callback: resize the window
+        canvas.onCropCompleted = { [weak self] newSize in
+            self?.resizeAfterCrop(newSize: newSize)
+        }
+
+    }
+
+    // MARK: Layout
+
+    private func setupContent(canvasW: CGFloat, canvasH: CGFloat) {
+        contentContainer.frame = CGRect(x: 0, y: 0, width: canvasW, height: canvasH)
+        contentContainer.autoresizingMask = [.width, .height]
+        contentContainer.wantsLayer = true
+        contentContainer.layer?.backgroundColor = NSColor.clear.cgColor
+        contentContainer.layer?.borderColor = NSColor.systemBlue.withAlphaComponent(0.92).cgColor
+        contentContainer.layer?.borderWidth = 2
+        contentContainer.layer?.masksToBounds = true
+        contentView = contentContainer
+        windowController?.window?.acceptsMouseMovedEvents = true
+        acceptsMouseMovedEvents = true
+
+        selectionInteractionOverlay.translatesAutoresizingMaskIntoConstraints = false
+        selectionInteractionOverlay.onFrameChange = { [weak self] newFrame in
+            self?.applyAdjustedSelectionFrame(newFrame)
+        }
+
+        // Canvas
+        canvas.translatesAutoresizingMaskIntoConstraints = false
+        contentContainer.addSubview(canvas)
+
+        setupOCRScanOverlay()
+        contentContainer.addSubview(ocrScanOverlay)
+
+        setupOCRResultSidebar()
+        contentContainer.addSubview(ocrResultSidebar)
+        contentContainer.addSubview(selectionInteractionOverlay)
+
+        let sidebarWidthConstraint = ocrResultSidebar.widthAnchor.constraint(equalToConstant: 0)
+        ocrSidebarWidthConstraint = sidebarWidthConstraint
+
+        NSLayoutConstraint.activate([
+            canvas.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
+            canvas.topAnchor.constraint(equalTo: contentContainer.topAnchor),
+            canvas.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor),
+            canvas.trailingAnchor.constraint(equalTo: ocrResultSidebar.leadingAnchor),
+
+            ocrScanOverlay.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
+            ocrScanOverlay.topAnchor.constraint(equalTo: contentContainer.topAnchor),
+            ocrScanOverlay.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor),
+            ocrScanOverlay.trailingAnchor.constraint(equalTo: ocrResultSidebar.leadingAnchor),
+
+            ocrResultSidebar.topAnchor.constraint(equalTo: contentContainer.topAnchor),
+            ocrResultSidebar.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor),
+            ocrResultSidebar.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
+            sidebarWidthConstraint,
+
+            selectionInteractionOverlay.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
+            selectionInteractionOverlay.topAnchor.constraint(equalTo: contentContainer.topAnchor),
+            selectionInteractionOverlay.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor),
+            selectionInteractionOverlay.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
+        ])
+
+        updateSelectionAdjustmentAvailability()
+    }
+
+    private func resizeAfterCrop(newSize: NSSize) {
+        let newW = max(newSize.width, 80)
+        let newH = max(newSize.height, 60)
+        let current = frame
+        let sidebarWidth = currentOCRSidebarWidth
+        let newFrame = CGRect(
+            x: current.midX - (newW + sidebarWidth) / 2,
+            y: current.midY - newH / 2,
+            width: newW + sidebarWidth, height: newH
+        )
+        setFrame(newFrame, display: true, animate: true)
+        originalCaptureRect = newFrame
+        syncBackdropSelectionFrame()
+    }
+
+    private var canAdjustSelectionInline: Bool {
+        sourceScreenSnapshot != nil && sourceDesktopBounds != nil && state.isSelectionAdjustmentMode
+    }
+
+    private func updateSelectionAdjustmentAvailability() {
+        selectionInteractionOverlay.isInteractionEnabled = canAdjustSelectionInline
+        editingBackdrop?.allowsSelectionCreation = canAdjustSelectionInline
+    }
+
+    private func applyAdjustedSelectionFrame(_ newFrame: CGRect) {
+        let normalized = CGRect(
+            x: round(newFrame.origin.x),
+            y: round(newFrame.origin.y),
+            width: round(newFrame.width),
+            height: round(newFrame.height)
+        )
+        guard normalized.width >= 2, normalized.height >= 2 else { return }
+        guard frame != normalized else { return }
+
+        setFrame(normalized, display: true, animate: false)
+        originalCaptureRect = normalized
+                syncBackdropSelectionFrame()
+
+        guard let snapshot = sourceScreenSnapshot,
+              let desktopBounds = sourceDesktopBounds,
+              let image = Self.cropSnapshot(snapshot, desktopBounds: desktopBounds, captureRect: normalized) else {
+            return
+        }
+
+        canvas.screenshot = image
+    }
+
+    private static func cropSnapshot(
+        _ snapshot: CGImage,
+        desktopBounds: CGRect,
+        captureRect: CGRect
+    ) -> NSImage? {
+        guard desktopBounds.width > 0, desktopBounds.height > 0 else { return nil }
+
+        let scaleX = CGFloat(snapshot.width) / desktopBounds.width
+        let scaleY = CGFloat(snapshot.height) / desktopBounds.height
+        let pixelRect = CGRect(
+            x: (captureRect.minX - desktopBounds.minX) * scaleX,
+            y: (desktopBounds.maxY - captureRect.maxY) * scaleY,
+            width: captureRect.width * scaleX,
+            height: captureRect.height * scaleY
+        ).integral.intersection(CGRect(x: 0, y: 0, width: snapshot.width, height: snapshot.height))
+
+        guard pixelRect.width >= 1,
+              pixelRect.height >= 1,
+              let cropped = snapshot.cropping(to: pixelRect) else {
+            return nil
+        }
+
+        return NSImage(cgImage: cropped, size: captureRect.size)
+    }
+
+    private static func initialEditorFrame(for screenshot: NSImage, captureRect: CGRect?) -> CGRect {
+        if let captureRect,
+           captureRect.width > 1,
+           captureRect.height > 1 {
+            return captureRect
+        }
+
         let activeScreen = NSScreen.screens.first(where: { $0.visibleFrame.contains(NSEvent.mouseLocation) })
             ?? NSScreen.main
         let screen = activeScreen?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1440, height: 900)
@@ -268,135 +503,26 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
         let fitScale = min(maxW / rw, maxH / rh)
         let canvasW = rw * fitScale
         let canvasH = rh * fitScale
-        let winW = canvasW
-        let winH = canvasH
 
-        // Centre on screen（工具栏单独吸附在窗口下方，不占用内容区高度）
-        let origin = CGPoint(
-            x: screen.midX - winW / 2,
-            y: screen.midY - winH / 2
+        return CGRect(
+            x: screen.midX - canvasW / 2,
+            y: screen.midY - canvasH / 2,
+            width: canvasW,
+            height: canvasH
         )
-
-        self.canvas = AnnotationCanvasView(
-            frame: CGRect(x: 0, y: 0, width: canvasW, height: canvasH),
-            screenshot: screenshot
-        )
-
-        super.init(
-            contentRect: CGRect(origin: origin, size: CGSize(width: winW, height: winH)),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
-            backing: .buffered,
-            defer: false
-        )
-
-        // 恢复标准窗口边框与交通灯按钮，同时保持窗口固定在中心位置。
-        // Keep the editor in the active space with a stable normal-level z-order.
-        // It should come to front after capture, but not keep forcing top-most priority.
-        level = .normal
-        collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
-        isOpaque = true
-        backgroundColor = NSColor(white: 0.12, alpha: 1)
-        hasShadow = true
-        // NSPanel 默认在失焦时可能自动隐藏，这会导致“截图后编辑窗口不见了”的感知。
-        hidesOnDeactivate = false
-        isFloatingPanel = false
-        title = EditorL10n.tr(.editorWindowTitle)
-        isMovable = true
-        isMovableByWindowBackground = false
-        minSize = NSSize(width: 80, height: 60)
-        delegate = self
-
-        self.originalCaptureRect = captureRect
-        setupContent(canvasW: canvasW, canvasH: canvasH)
-
-        // Apply initial tool (e.g. pre-selected from the hover toolbar)
-        state.selectedTool = initialTool
-        canvas.styleProvider = { [weak state] tool in
-            state?.style(for: tool) ?? .default(for: tool)
-        }
-
-        // For OCR tools triggered from the hover toolbar, fire OCR automatically
-        // after the window has appeared (short delay lets the window settle).
-        if initialTool == .ocr || initialTool == .ocrTranslate {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
-                self?.performOCR(translate: initialTool == .ocrTranslate)
-            }
-        }
-
-        // Observe tool selection: keep canvas in sync
-        state.$selectedTool
-            .sink { [weak self] tool in
-                self?.canvas.currentTool = tool
-            }
-            .store(in: &cancellables)
-
-        state.objectWillChange
-            .sink { [weak self] _ in
-                DispatchQueue.main.async { [weak self] in
-                    self?.canvas.applyCurrentTextStyleIfNeeded()
-                    self?.canvas.needsDisplay = true
-                }
-            }
-            .store(in: &cancellables)
-
-        // Crop callback: resize the window
-        canvas.onCropCompleted = { [weak self] newSize in
-            self?.resizeAfterCrop(newSize: newSize)
-        }
-
     }
 
-    // MARK: Layout
-
-    private func setupContent(canvasW: CGFloat, canvasH: CGFloat) {
-        contentContainer.frame = CGRect(x: 0, y: 0, width: canvasW, height: canvasH)
-        contentContainer.autoresizingMask = [.width, .height]
-        contentView = contentContainer
-        windowController?.window?.acceptsMouseMovedEvents = true
-        acceptsMouseMovedEvents = true
-
-        // Canvas
-        canvas.translatesAutoresizingMaskIntoConstraints = false
-        contentContainer.addSubview(canvas)
-
-        setupOCRScanOverlay()
-        contentContainer.addSubview(ocrScanOverlay)
-
-        setupOCRResultSidebar()
-        contentContainer.addSubview(ocrResultSidebar)
-
-        let sidebarWidthConstraint = ocrResultSidebar.widthAnchor.constraint(equalToConstant: 0)
-        ocrSidebarWidthConstraint = sidebarWidthConstraint
-
-        NSLayoutConstraint.activate([
-            canvas.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
-            canvas.topAnchor.constraint(equalTo: contentContainer.topAnchor),
-            canvas.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor),
-            canvas.trailingAnchor.constraint(equalTo: ocrResultSidebar.leadingAnchor),
-
-            ocrScanOverlay.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
-            ocrScanOverlay.topAnchor.constraint(equalTo: contentContainer.topAnchor),
-            ocrScanOverlay.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor),
-            ocrScanOverlay.trailingAnchor.constraint(equalTo: ocrResultSidebar.leadingAnchor),
-
-            ocrResultSidebar.topAnchor.constraint(equalTo: contentContainer.topAnchor),
-            ocrResultSidebar.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor),
-            ocrResultSidebar.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
-            sidebarWidthConstraint,
-        ])
+    private func showEditingBackdrop() {
+        syncBackdropSelectionFrame()
+        editingBackdrop?.orderFrontRegardless()
     }
 
-    private func resizeAfterCrop(newSize: NSSize) {
-        let newW = max(newSize.width, 80)
-        let newH = max(newSize.height, 60)
-        let current = frame
-        let sidebarWidth = currentOCRSidebarWidth
-        let newFrame = CGRect(
-            x: current.midX - (newW + sidebarWidth) / 2,
-            y: current.midY - newH / 2,
-            width: newW + sidebarWidth, height: newH
-        )
-        setFrame(newFrame, display: true, animate: true)
+    private func hideEditingBackdrop() {
+        editingBackdrop?.orderOut(nil)
+    }
+
+    private func syncBackdropSelectionFrame() {
+        editingBackdrop?.setSelectionFrame(frame)
     }
 
     private var currentOCRSidebarWidth: CGFloat {
@@ -668,8 +794,31 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
         close()
     }
 
+    private func enterSelectionAdjustmentMode() {
+        _ = canvas.commitActiveTextEditingIfNeeded()
+        state.isSelectionAdjustmentMode = true
+        state.selectedTool = nil
+        AnnotationStylePopoverSession.closeActive()
+        emojiPopover?.performClose(nil)
+        emojiPopover = nil
+        updateSelectionAdjustmentAvailability()
+        makeKeyAndOrderFront(nil)
+    }
+
+    override func makeKeyAndOrderFront(_ sender: Any?) {
+        showEditingBackdrop()
+        super.makeKeyAndOrderFront(sender)
+        orderFrontRegardless()
+        syncFloatingToolbarVisibility()
+    }
+
     override func cancelOperation(_ sender: Any?) {
         if canvas.cancelActiveTextEditingIfNeeded() {
+            return
+        }
+
+        if state.selectedTool != nil {
+            enterSelectionAdjustmentMode()
             return
         }
 
@@ -681,6 +830,9 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
     override func close() {
         cancelPendingOCRCompletion()
         hideFloatingToolbar()
+        hideEditingBackdrop()
+        editingBackdrop?.close()
+        editingBackdrop = nil
         emojiPopover?.performClose(nil)
         emojiPopover = nil
         toolbarPanel?.close()
@@ -718,10 +870,12 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
     }
 
     func windowDidMove(_ notification: Notification) {
+        syncBackdropSelectionFrame()
         toolbarPanel?.refreshAnchorFrame(editorFrame: frame)
     }
 
     func windowDidResize(_ notification: Notification) {
+        syncBackdropSelectionFrame()
         toolbarPanel?.refreshAnchorFrame(editorFrame: frame)
     }
 
@@ -734,6 +888,7 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
 
         let toolbarView = AnnotationToolbarView(
             state: state,
+            onAdjustSelection: { [weak self] in self?.enterSelectionAdjustmentMode() },
             onUndo:         { [weak self] in self?.canvas.undo() },
             onSave:         { [weak self] in self?.saveToFile() },
             onPin:          { [weak self] in self?.pinToScreen() },
@@ -746,7 +901,11 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
             onScrollCapture:{ [weak self] in self?.performScrollCapture() }
         )
 
-        let panel = AnnotationToolbarFloatingPanel(editorFrame: frame, toolbarView: toolbarView)
+        let panel = AnnotationToolbarFloatingPanel(
+            editorFrame: frame,
+            toolbarView: toolbarView,
+            windowLevel: AnnotationEditorOverlayLevels.toolbar
+        )
         panel.orderFrontRegardless()
         toolbarPanel = panel
     }
@@ -767,6 +926,7 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
 
     override func orderOut(_ sender: Any?) {
         hideFloatingToolbar()
+        hideEditingBackdrop()
         super.orderOut(sender)
     }
 
@@ -1113,6 +1273,7 @@ private enum EditorL10nKey {
     case toolOCR
     case toolCrop
     case toolScrollCapture
+    case actionAdjustSelection
     case actionUndo
     case actionSave
     case actionPin
@@ -1167,6 +1328,7 @@ private enum EditorL10n {
         .toolOCR: "识别文字",
         .toolCrop: "裁剪",
         .toolScrollCapture: "滚动截图",
+        .actionAdjustSelection: "调整选区",
         .actionUndo: "撤销",
         .actionSave: "保存",
         .actionPin: "钉图",
@@ -1206,6 +1368,7 @@ private enum EditorL10n {
         .toolOCR: "辨識文字",
         .toolCrop: "裁剪",
         .toolScrollCapture: "捲動截圖",
+        .actionAdjustSelection: "調整選區",
         .actionUndo: "復原",
         .actionSave: "儲存",
         .actionPin: "釘圖",
@@ -1245,6 +1408,7 @@ private enum EditorL10n {
         .toolOCR: "Recognize Text",
         .toolCrop: "Crop",
         .toolScrollCapture: "Scroll Capture",
+        .actionAdjustSelection: "Adjust Selection",
         .actionUndo: "Undo",
         .actionSave: "Save",
         .actionPin: "Pin",
@@ -1284,6 +1448,7 @@ private enum EditorL10n {
         .toolOCR: "テキスト認識",
         .toolCrop: "切り取り",
         .toolScrollCapture: "スクロールキャプチャ",
+        .actionAdjustSelection: "選択範囲を調整",
         .actionUndo: "元に戻す",
         .actionSave: "保存",
         .actionPin: "ピン留め",
@@ -1300,6 +1465,549 @@ private enum EditorL10n {
 private extension String {
     var nilIfEmpty: String? {
         isEmpty ? nil : self
+    }
+}
+
+private final class AnnotationSelectionInteractionOverlayView: NSView {
+    private enum DragMode {
+        case moving
+        case resizing(SelectionEdge)
+    }
+
+    private enum SelectionEdge {
+        case left
+        case right
+        case top
+        case bottom
+        case topLeft
+        case topRight
+        case bottomLeft
+        case bottomRight
+
+        var cursor: NSCursor {
+            switch self {
+            case .left, .right:
+                return .resizeLeftRight
+            case .top, .bottom:
+                return .resizeUpDown
+            case .topLeft, .bottomRight:
+                return .crosshair
+            case .topRight, .bottomLeft:
+                return .crosshair
+            }
+        }
+    }
+
+    var onFrameChange: ((CGRect) -> Void)?
+    var isInteractionEnabled = false {
+        didSet {
+            if !isInteractionEnabled {
+                dragMode = nil
+                initialMouseLocation = nil
+                initialWindowFrame = nil
+            }
+            isHidden = !isInteractionEnabled
+            needsDisplay = true
+        }
+    }
+
+    private var dragMode: DragMode?
+    private var initialMouseLocation: CGPoint?
+    private var initialWindowFrame: CGRect?
+    private var trackingAreaRef: NSTrackingArea?
+
+    private let edgeHitInset: CGFloat = 8
+    private let handleSize: CGFloat = 8
+    private let minimumWidth: CGFloat = 80
+    private let minimumHeight: CGFloat = 60
+    private let snapThreshold: CGFloat = 10
+
+    override var acceptsFirstResponder: Bool { true }
+
+    override func updateTrackingAreas() {
+        if let trackingAreaRef {
+            removeTrackingArea(trackingAreaRef)
+        }
+
+        let trackingArea = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseMoved, .activeAlways, .inVisibleRect, .cursorUpdate],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(trackingArea)
+        trackingAreaRef = trackingArea
+        super.updateTrackingAreas()
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        guard isInteractionEnabled, !isHidden, alphaValue > 0.01, bounds.contains(point) else { return nil }
+        return self
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        guard isInteractionEnabled else { return }
+
+        for handle in handleRects() {
+            let path = NSBezierPath(roundedRect: handle, xRadius: 2, yRadius: 2)
+            NSColor.white.setFill()
+            path.fill()
+            NSColor.systemBlue.withAlphaComponent(0.95).setStroke()
+            path.lineWidth = 1.2
+            path.stroke()
+        }
+
+        drawSelectionInfoLabel()
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        guard isInteractionEnabled else { return }
+        updateCursor(at: convert(event.locationInWindow, from: nil))
+    }
+
+    override func cursorUpdate(with event: NSEvent) {
+        guard isInteractionEnabled else { return }
+        updateCursor(at: convert(event.locationInWindow, from: nil))
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        guard isInteractionEnabled, let window else {
+            super.mouseDown(with: event)
+            return
+        }
+
+        window.makeFirstResponder(self)
+        let localPoint = convert(event.locationInWindow, from: nil)
+        if let edge = resizeEdge(at: localPoint) {
+            dragMode = .resizing(edge)
+        } else {
+            dragMode = .moving
+        }
+        initialMouseLocation = NSEvent.mouseLocation
+        initialWindowFrame = window.frame
+        updateCursor(at: localPoint)
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard isInteractionEnabled,
+              let dragMode,
+              let initialMouseLocation,
+              let initialWindowFrame else {
+            super.mouseDragged(with: event)
+            return
+        }
+
+        let currentMouseLocation = NSEvent.mouseLocation
+        let deltaX = currentMouseLocation.x - initialMouseLocation.x
+        let deltaY = currentMouseLocation.y - initialMouseLocation.y
+
+        let updatedFrame: CGRect
+        switch dragMode {
+        case .moving:
+            updatedFrame = moveFrame(initialWindowFrame, deltaX: deltaX, deltaY: deltaY)
+        case .resizing(let edge):
+            updatedFrame = resizeFrame(initialWindowFrame, edge: edge, deltaX: deltaX, deltaY: deltaY)
+        }
+
+        onFrameChange?(updatedFrame)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        guard isInteractionEnabled else {
+            super.mouseUp(with: event)
+            return
+        }
+
+        dragMode = nil
+        initialMouseLocation = nil
+        initialWindowFrame = nil
+        updateCursor(at: convert(event.locationInWindow, from: nil))
+    }
+
+    private func handleRects() -> [CGRect] {
+        let half = handleSize / 2
+        return [
+            CGRect(x: bounds.minX - half, y: bounds.maxY - half, width: handleSize, height: handleSize),
+            CGRect(x: bounds.midX - half, y: bounds.maxY - half, width: handleSize, height: handleSize),
+            CGRect(x: bounds.maxX - half, y: bounds.maxY - half, width: handleSize, height: handleSize),
+            CGRect(x: bounds.minX - half, y: bounds.midY - half, width: handleSize, height: handleSize),
+            CGRect(x: bounds.maxX - half, y: bounds.midY - half, width: handleSize, height: handleSize),
+            CGRect(x: bounds.minX - half, y: bounds.minY - half, width: handleSize, height: handleSize),
+            CGRect(x: bounds.midX - half, y: bounds.minY - half, width: handleSize, height: handleSize),
+            CGRect(x: bounds.maxX - half, y: bounds.minY - half, width: handleSize, height: handleSize)
+        ]
+    }
+
+    private func resizeEdge(at point: CGPoint) -> SelectionEdge? {
+        let isNearLeft = abs(point.x - bounds.minX) <= edgeHitInset
+        let isNearRight = abs(point.x - bounds.maxX) <= edgeHitInset
+        let isNearBottom = abs(point.y - bounds.minY) <= edgeHitInset
+        let isNearTop = abs(point.y - bounds.maxY) <= edgeHitInset
+
+        if isNearLeft && isNearTop {
+            return .topLeft
+        }
+        if isNearRight && isNearTop {
+            return .topRight
+        }
+        if isNearLeft && isNearBottom {
+            return .bottomLeft
+        }
+        if isNearRight && isNearBottom {
+            return .bottomRight
+        }
+
+        var candidates: [(SelectionEdge, CGFloat)] = []
+
+        if point.y >= bounds.minY - edgeHitInset, point.y <= bounds.maxY + edgeHitInset {
+            let leftDistance = abs(point.x - bounds.minX)
+            if leftDistance <= edgeHitInset {
+                candidates.append((.left, leftDistance))
+            }
+
+            let rightDistance = abs(point.x - bounds.maxX)
+            if rightDistance <= edgeHitInset {
+                candidates.append((.right, rightDistance))
+            }
+        }
+
+        if point.x >= bounds.minX - edgeHitInset, point.x <= bounds.maxX + edgeHitInset {
+            let bottomDistance = abs(point.y - bounds.minY)
+            if bottomDistance <= edgeHitInset {
+                candidates.append((.bottom, bottomDistance))
+            }
+
+            let topDistance = abs(point.y - bounds.maxY)
+            if topDistance <= edgeHitInset {
+                candidates.append((.top, topDistance))
+            }
+        }
+
+        return candidates.min(by: { $0.1 < $1.1 })?.0
+    }
+
+    private func moveFrame(_ frame: CGRect, deltaX: CGFloat, deltaY: CGFloat) -> CGRect {
+        var moved = frame.offsetBy(dx: deltaX, dy: deltaY)
+        let desktopBounds = NSScreen.screens.reduce(CGRect.null) { partial, screen in
+            partial.union(screen.frame)
+        }
+
+        if moved.minX < desktopBounds.minX {
+            moved.origin.x = desktopBounds.minX
+        }
+        if moved.maxX > desktopBounds.maxX {
+            moved.origin.x = desktopBounds.maxX - moved.width
+        }
+        if moved.minY < desktopBounds.minY {
+            moved.origin.y = desktopBounds.minY
+        }
+        if moved.maxY > desktopBounds.maxY {
+            moved.origin.y = desktopBounds.maxY - moved.height
+        }
+
+        return snappedMovedFrame(moved, within: desktopBounds)
+    }
+
+    private func resizeFrame(_ frame: CGRect, edge: SelectionEdge, deltaX: CGFloat, deltaY: CGFloat) -> CGRect {
+        let desktopBounds = NSScreen.screens.reduce(CGRect.null) { partial, screen in
+            partial.union(screen.frame)
+        }
+        var resized = frame
+
+        switch edge {
+        case .left:
+            let proposedMinX = min(max(frame.minX + deltaX, desktopBounds.minX), frame.maxX - minimumWidth)
+            let snappedMinX = snapCoordinate(proposedMinX, target: desktopBounds.minX)
+            resized.origin.x = snappedMinX
+            resized.size.width = frame.maxX - snappedMinX
+        case .right:
+            let proposedMaxX = max(min(frame.maxX + deltaX, desktopBounds.maxX), frame.minX + minimumWidth)
+            let snappedMaxX = snapCoordinate(proposedMaxX, target: desktopBounds.maxX)
+            resized.size.width = snappedMaxX - frame.minX
+        case .bottom:
+            let proposedMinY = min(max(frame.minY + deltaY, desktopBounds.minY), frame.maxY - minimumHeight)
+            let snappedMinY = snapCoordinate(proposedMinY, target: desktopBounds.minY)
+            resized.origin.y = snappedMinY
+            resized.size.height = frame.maxY - snappedMinY
+        case .top:
+            let proposedMaxY = max(min(frame.maxY + deltaY, desktopBounds.maxY), frame.minY + minimumHeight)
+            let snappedMaxY = snapCoordinate(proposedMaxY, target: desktopBounds.maxY)
+            resized.size.height = snappedMaxY - frame.minY
+        case .topLeft:
+            let proposedMinX = min(max(frame.minX + deltaX, desktopBounds.minX), frame.maxX - minimumWidth)
+            let proposedMaxY = max(min(frame.maxY + deltaY, desktopBounds.maxY), frame.minY + minimumHeight)
+            let snappedMinX = snapCoordinate(proposedMinX, target: desktopBounds.minX)
+            let snappedMaxY = snapCoordinate(proposedMaxY, target: desktopBounds.maxY)
+            resized.origin.x = snappedMinX
+            resized.size.width = frame.maxX - snappedMinX
+            resized.size.height = snappedMaxY - frame.minY
+        case .topRight:
+            let proposedMaxX = max(min(frame.maxX + deltaX, desktopBounds.maxX), frame.minX + minimumWidth)
+            let proposedMaxY = max(min(frame.maxY + deltaY, desktopBounds.maxY), frame.minY + minimumHeight)
+            let snappedMaxX = snapCoordinate(proposedMaxX, target: desktopBounds.maxX)
+            let snappedMaxY = snapCoordinate(proposedMaxY, target: desktopBounds.maxY)
+            resized.size.width = snappedMaxX - frame.minX
+            resized.size.height = snappedMaxY - frame.minY
+        case .bottomLeft:
+            let proposedMinX = min(max(frame.minX + deltaX, desktopBounds.minX), frame.maxX - minimumWidth)
+            let proposedMinY = min(max(frame.minY + deltaY, desktopBounds.minY), frame.maxY - minimumHeight)
+            let snappedMinX = snapCoordinate(proposedMinX, target: desktopBounds.minX)
+            let snappedMinY = snapCoordinate(proposedMinY, target: desktopBounds.minY)
+            resized.origin.x = snappedMinX
+            resized.size.width = frame.maxX - snappedMinX
+            resized.origin.y = snappedMinY
+            resized.size.height = frame.maxY - snappedMinY
+        case .bottomRight:
+            let proposedMaxX = max(min(frame.maxX + deltaX, desktopBounds.maxX), frame.minX + minimumWidth)
+            let proposedMinY = min(max(frame.minY + deltaY, desktopBounds.minY), frame.maxY - minimumHeight)
+            let snappedMaxX = snapCoordinate(proposedMaxX, target: desktopBounds.maxX)
+            let snappedMinY = snapCoordinate(proposedMinY, target: desktopBounds.minY)
+            resized.size.width = snappedMaxX - frame.minX
+            resized.origin.y = snappedMinY
+            resized.size.height = frame.maxY - snappedMinY
+        }
+
+        return resized
+    }
+
+    private func snappedMovedFrame(_ frame: CGRect, within desktopBounds: CGRect) -> CGRect {
+        var snapped = frame
+
+        if abs(snapped.minX - desktopBounds.minX) <= snapThreshold {
+            snapped.origin.x = desktopBounds.minX
+        } else if abs(snapped.maxX - desktopBounds.maxX) <= snapThreshold {
+            snapped.origin.x = desktopBounds.maxX - snapped.width
+        }
+
+        if abs(snapped.minY - desktopBounds.minY) <= snapThreshold {
+            snapped.origin.y = desktopBounds.minY
+        } else if abs(snapped.maxY - desktopBounds.maxY) <= snapThreshold {
+            snapped.origin.y = desktopBounds.maxY - snapped.height
+        }
+
+        return snapped
+    }
+
+    private func snapCoordinate(_ value: CGFloat, target: CGFloat) -> CGFloat {
+        abs(value - target) <= snapThreshold ? target : value
+    }
+
+    private func drawSelectionInfoLabel() {
+        let text = "\(Int(bounds.width.rounded())) × \(Int(bounds.height.rounded()))"
+        let font = NSFont.monospacedSystemFont(ofSize: 13, weight: .semibold)
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: NSColor.white
+        ]
+        let textSize = (text as NSString).size(withAttributes: attributes)
+        let hPad: CGFloat = 10
+        let vPad: CGFloat = 5
+        let labelRect = CGRect(
+            x: 10,
+            y: max(10, bounds.maxY - textSize.height - vPad * 2 - 10),
+            width: textSize.width + hPad * 2,
+            height: textSize.height + vPad * 2
+        )
+
+        NSColor.black.withAlphaComponent(0.62).setFill()
+        NSBezierPath(roundedRect: labelRect, xRadius: 8, yRadius: 8).fill()
+        (text as NSString).draw(
+            at: CGPoint(x: labelRect.minX + hPad, y: labelRect.minY + vPad),
+            withAttributes: attributes
+        )
+    }
+
+    private func updateCursor(at point: CGPoint) {
+        if case .moving = dragMode {
+            NSCursor.closedHand.set()
+            return
+        }
+
+        if case let .resizing(edge) = dragMode {
+            edge.cursor.set()
+            return
+        }
+
+        if let edge = resizeEdge(at: point) {
+            edge.cursor.set()
+            return
+        }
+
+        NSCursor.openHand.set()
+    }
+}
+
+private final class AnnotationEditingBackdropPanel: NSPanel {
+    private let backdropView: AnnotationEditingBackdropView
+
+    var onSelectionFrameChange: ((CGRect) -> Void)? {
+        get { backdropView.onSelectionFrameChange }
+        set { backdropView.onSelectionFrameChange = newValue }
+    }
+
+    var allowsSelectionCreation: Bool {
+        get { backdropView.allowsSelectionCreation }
+        set { backdropView.allowsSelectionCreation = newValue }
+    }
+
+    init(level: NSWindow.Level) {
+        let union = NSScreen.screens.reduce(CGRect.null) { partial, screen in
+            partial.union(screen.frame)
+        }
+        backdropView = AnnotationEditingBackdropView(
+            frame: CGRect(origin: .zero, size: union.size),
+            windowOrigin: union.origin
+        )
+
+        super.init(
+            contentRect: union,
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+
+        isOpaque = false
+        backgroundColor = .clear
+        self.level = level
+        collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
+        hasShadow = false
+        hidesOnDeactivate = false
+        isFloatingPanel = true
+        worksWhenModal = true
+        ignoresMouseEvents = false
+        contentView = backdropView
+    }
+
+    func setSelectionFrame(_ frame: CGRect) {
+        backdropView.selectionFrame = frame.offsetBy(dx: -self.frame.origin.x, dy: -self.frame.origin.y)
+    }
+}
+
+private final class AnnotationEditingBackdropView: NSView {
+    var onSelectionFrameChange: ((CGRect) -> Void)?
+    var allowsSelectionCreation = false
+    var selectionFrame: CGRect = .zero {
+        didSet { needsDisplay = true }
+    }
+
+    private let windowOrigin: CGPoint
+    private var dragStartPoint: CGPoint?
+    private var draftSelectionRect: CGRect?
+    private let snapThreshold: CGFloat = 10
+
+    init(frame frameRect: NSRect, windowOrigin: CGPoint) {
+        self.windowOrigin = windowOrigin
+        super.init(frame: frameRect)
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    override func draw(_ dirtyRect: NSRect) {
+        NSColor.black.withAlphaComponent(0.42).setFill()
+        bounds.fill()
+
+        if let guideRect = activeGuideRect() {
+            drawSnapGuides(for: guideRect)
+        }
+
+        if let draftSelectionRect {
+            let border = NSBezierPath(rect: draftSelectionRect)
+            border.lineWidth = 2
+            NSColor.systemBlue.withAlphaComponent(0.92).setStroke()
+            border.stroke()
+        }
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        guard allowsSelectionCreation else { return }
+        dragStartPoint = convert(event.locationInWindow, from: nil)
+        draftSelectionRect = nil
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard allowsSelectionCreation, let dragStartPoint else { return }
+        let point = convert(event.locationInWindow, from: nil)
+        let rect = snappedSelectionRect(from: dragStartPoint, to: point)
+        draftSelectionRect = rect
+        needsDisplay = true
+
+        guard rect.width >= 2, rect.height >= 2 else { return }
+        onSelectionFrameChange?(rect.offsetBy(dx: windowOrigin.x, dy: windowOrigin.y))
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        guard allowsSelectionCreation else { return }
+        if let dragStartPoint {
+            let point = convert(event.locationInWindow, from: nil)
+            let rect = snappedSelectionRect(from: dragStartPoint, to: point)
+            if rect.width >= 2, rect.height >= 2 {
+                onSelectionFrameChange?(rect.offsetBy(dx: windowOrigin.x, dy: windowOrigin.y))
+            }
+        }
+        dragStartPoint = nil
+        draftSelectionRect = nil
+        needsDisplay = true
+    }
+
+    override func rightMouseDown(with event: NSEvent) {}
+
+    private func normalizedRect(from a: CGPoint, to b: CGPoint) -> CGRect {
+        CGRect(
+            x: min(a.x, b.x),
+            y: min(a.y, b.y),
+            width: abs(b.x - a.x),
+            height: abs(b.y - a.y)
+        )
+    }
+
+    private func snappedSelectionRect(from a: CGPoint, to b: CGPoint) -> CGRect {
+        var rect = normalizedRect(from: a, to: b)
+        if abs(rect.minX - bounds.minX) <= snapThreshold {
+            rect.origin.x = bounds.minX
+        }
+        if abs(rect.maxX - bounds.maxX) <= snapThreshold {
+            rect.size.width = bounds.maxX - rect.minX
+        }
+        if abs(rect.minY - bounds.minY) <= snapThreshold {
+            rect.origin.y = bounds.minY
+        }
+        if abs(rect.maxY - bounds.maxY) <= snapThreshold {
+            rect.size.height = bounds.maxY - rect.minY
+        }
+        return rect
+    }
+
+    private func activeGuideRect() -> CGRect? {
+        let candidate = draftSelectionRect ?? selectionFrame
+        guard candidate.width > 1, candidate.height > 1 else { return nil }
+        return candidate
+    }
+
+    private func drawSnapGuides(for rect: CGRect) {
+        NSColor.systemBlue.withAlphaComponent(0.78).setStroke()
+
+        if abs(rect.minX - bounds.minX) <= 0.5 {
+            drawGuideLine(from: CGPoint(x: rect.minX, y: bounds.minY), to: CGPoint(x: rect.minX, y: bounds.maxY))
+        }
+        if abs(rect.maxX - bounds.maxX) <= 0.5 {
+            drawGuideLine(from: CGPoint(x: rect.maxX, y: bounds.minY), to: CGPoint(x: rect.maxX, y: bounds.maxY))
+        }
+        if abs(rect.minY - bounds.minY) <= 0.5 {
+            drawGuideLine(from: CGPoint(x: bounds.minX, y: rect.minY), to: CGPoint(x: bounds.maxX, y: rect.minY))
+        }
+        if abs(rect.maxY - bounds.maxY) <= 0.5 {
+            drawGuideLine(from: CGPoint(x: bounds.minX, y: rect.maxY), to: CGPoint(x: bounds.maxX, y: rect.maxY))
+        }
+    }
+
+    private func drawGuideLine(from start: CGPoint, to end: CGPoint) {
+        let path = NSBezierPath()
+        path.move(to: start)
+        path.line(to: end)
+        path.lineWidth = 1.6
+        let dash: [CGFloat] = [6, 4]
+        path.setLineDash(dash, count: dash.count, phase: 0)
+        path.stroke()
     }
 }
 
@@ -1574,7 +2282,7 @@ private final class AnnotationToolbarFloatingPanel: NSPanel {
     private var currentDock: ToolbarDockPosition = .belowEditor
     private weak var host: DraggableToolbarHostingView<AnnotationToolbarView>?
 
-    init(editorFrame: CGRect, toolbarView: AnnotationToolbarView) {
+    init(editorFrame: CGRect, toolbarView: AnnotationToolbarView, windowLevel: NSWindow.Level) {
         let layout = Self.layout(for: editorFrame)
         currentDock = layout.dock
         let initialRoot = toolbarView.withDock(layout.dock)
@@ -1586,8 +2294,8 @@ private final class AnnotationToolbarFloatingPanel: NSPanel {
         )
 
         isFloatingPanel = true
-        level = .floating
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        level = windowLevel
+        collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         isOpaque = false
         backgroundColor = .clear
         hasShadow = true
@@ -2046,6 +2754,7 @@ private struct OCRTranslationAppliedBadge: View {
 private struct AnnotationToolbarView: View {
     @ObservedObject var state: AnnotationEditorState
     var dock: ToolbarDockPosition = .belowEditor
+    var onAdjustSelection: () -> Void
     var onUndo:         () -> Void
     var onSave:         () -> Void
     var onPin:          () -> Void
@@ -2059,11 +2768,12 @@ private struct AnnotationToolbarView: View {
 
     private let configurableTools: Set<AnnotationTool> = [.rectangle, .circle, .arrow, .pen, .mosaic, .text]
     private let orderedTokens: [ToolbarToken] = [
-        .rectangle, .circle, .emoji, .arrow, .pen, .mosaic, .text, .ocrTranslate,
+        .adjustSelection, .rectangle, .circle, .emoji, .arrow, .pen, .mosaic, .text, .ocrTranslate,
         .ocr, .scrollCapture, .crop, .undo, .save, .pin, .share, .cancel, .confirm
     ]
 
     private enum ToolbarToken: String {
+        case adjustSelection
         case rectangle, circle, emoji, arrow, pen, mosaic, text, ocrTranslate, ocr, scrollCapture, crop
         case undo, save, pin, share
         case cancel, confirm
@@ -2113,6 +2823,8 @@ private struct AnnotationToolbarView: View {
     @ViewBuilder
     private func renderToken(_ token: ToolbarToken) -> some View {
         switch token {
+        case .adjustSelection:
+            adjustSelectionButton
         case .rectangle:
             drawTool(.rectangle, "square", EditorL10n.tr(.toolRectangle))
         case .circle:
@@ -2164,6 +2876,21 @@ private struct AnnotationToolbarView: View {
         case .confirm:
             confirmButton
         }
+    }
+
+    private var adjustSelectionButton: some View {
+        Button(action: onAdjustSelection) {
+            Image(systemName: "viewfinder")
+                .font(.system(size: 16, weight: .medium))
+                .frame(width: AnnotationEditorMetrics.toolbarButtonSize,
+                       height: AnnotationEditorMetrics.toolbarButtonSize)
+        }
+        .buttonStyle(.plain)
+        .background(
+            state.isSelectionAdjustmentMode ? Color.accentColor.opacity(0.28) : Color.primary.opacity(0.08),
+            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+        )
+        .help(EditorL10n.tr(.actionAdjustSelection))
     }
 
     @ViewBuilder

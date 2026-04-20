@@ -13,6 +13,8 @@ final class CaptureSessionController {
     private var hoverTimer: Timer?
     private var globalClickMonitor: Any?
     private var dragAnchorPoint: CGPoint?
+    private var preparedScreenSnapshot: CGImage?
+    private var preparedDesktopBounds: CGRect?
     private var didRequestScreenCaptureThisLaunch = false
     private var didShowScreenCaptureAlertThisLaunch = false
 
@@ -31,9 +33,7 @@ final class CaptureSessionController {
         dismissHoverUI()
 
         // 在显示遮罩前冻结全屏快照（供放大镜使用）和当前窗口顺序（供 hover 命中使用）。
-        let screenSnapshot = CGWindowListCreateImage(
-            .infinite, .optionOnScreenOnly, kCGNullWindowID, .bestResolution
-        )
+        let screenSnapshot = prepareSessionSnapshot()
         let windowSnapshot = WindowUnderMouseService.captureSnapshot()
         let windowInfo = WindowUnderMouseService.windowUnderMouse(snapshot: windowSnapshot)
 
@@ -44,6 +44,7 @@ final class CaptureSessionController {
             screenSnapshot: screenSnapshot,
             windowSnapshot: windowSnapshot,
             initialWindowRect: windowInfo?.bounds,
+            commitSelectionImmediately: true,
             onComplete: { [weak self] rect, shape in
                 self?.handleCaptured(rect: rect, shape: shape, initialTool: nil)
             },
@@ -191,9 +192,13 @@ final class CaptureSessionController {
         highlight?.orderOut(nil)
         toolbar?.orderOut(nil)
 
+        let screenSnapshot = prepareSessionSnapshot()
+
         let overlayWindow = RegionSelectionOverlay(
             shape: shape,
+            screenSnapshot: screenSnapshot,
             initialDragStartGlobal: initialDragStart,
+            commitSelectionImmediately: true,
             onComplete: { [weak self] rect, sh in
                 let tool = useShapeDefaultTool ? (initialTool ?? shapeDefaultTool(sh)) : initialTool
                 self?.handleCaptured(rect: rect, shape: sh, initialTool: tool)
@@ -211,8 +216,12 @@ final class CaptureSessionController {
         highlight?.orderOut(nil)
         toolbar?.orderOut(nil)
 
+        let screenSnapshot = prepareSessionSnapshot()
+
         let overlayWindow = RegionSelectionOverlay(
             shape: .rectangle,
+            screenSnapshot: screenSnapshot,
+            commitSelectionImmediately: true,
             onComplete: { [weak self] rect, _ in
                 self?.handleCaptured(rect: rect, shape: .rectangle, initialTool: initialTool)
             },
@@ -270,9 +279,17 @@ final class CaptureSessionController {
     private func showAnnotationEditor(for image: NSImage,
                                       initialTool: AnnotationTool? = nil,
                                       captureRect: CGRect? = nil) {
-        let editor = AnnotationEditorPanel(screenshot: image, initialTool: initialTool, captureRect: captureRect)
+        let editor = AnnotationEditorPanel(
+            screenshot: image,
+            initialTool: initialTool,
+            captureRect: captureRect,
+            sourceScreenSnapshot: preparedScreenSnapshot,
+            sourceDesktopBounds: preparedDesktopBounds
+        )
         editor.onConfirm = { [weak self] _ in self?.annotationEditor = nil }
         editor.onCancel  = { [weak self] in   self?.annotationEditor = nil }
+        preparedScreenSnapshot = nil
+        preparedDesktopBounds = nil
         NSApp.activate(ignoringOtherApps: true)
         editor.orderFrontRegardless()
         editor.makeKeyAndOrderFront(nil)
@@ -302,7 +319,21 @@ final class CaptureSessionController {
 
     func endSession() {
         dismissHoverUI()
+        preparedScreenSnapshot = nil
+        preparedDesktopBounds = nil
         // Annotation editor manages its own lifecycle via onConfirm / onCancel.
+    }
+
+    private func prepareSessionSnapshot() -> CGImage? {
+        let snapshot = CGWindowListCreateImage(
+            .infinite,
+            .optionOnScreenOnly,
+            kCGNullWindowID,
+            .bestResolution
+        )
+        preparedScreenSnapshot = snapshot
+        preparedDesktopBounds = Self.desktopBounds()
+        return snapshot
     }
 
     private func ensureScreenCapturePermission(interactive: Bool) -> Bool {
@@ -363,9 +394,7 @@ final class CaptureSessionController {
     }
 
     private static func quartzRect(fromAppKitRect rect: CGRect) -> CGRect {
-        let desktopBounds = NSScreen.screens.reduce(CGRect.null) { partial, screen in
-            partial.union(screen.frame)
-        }
+        let desktopBounds = desktopBounds()
         guard desktopBounds.isNull == false else { return rect }
 
         return CGRect(
@@ -374,6 +403,12 @@ final class CaptureSessionController {
             width: rect.width,
             height: rect.height
         )
+    }
+
+    private static func desktopBounds() -> CGRect {
+        NSScreen.screens.reduce(CGRect.null) { partial, screen in
+            partial.union(screen.frame)
+        }
     }
 
     private func showCaptureFailedAlert(reason: String) {

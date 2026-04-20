@@ -728,6 +728,13 @@ final class AnnotationCanvasView: NSView {
     }
 
     @discardableResult
+    func commitActiveTextEditingIfNeeded() -> Bool {
+        guard activeTextField != nil else { return false }
+        commitActiveTextField()
+        return true
+    }
+
+    @discardableResult
     func cancelActiveTextEditingIfNeeded() -> Bool {
         guard activeTextField != nil else { return false }
         discardActiveTextEditing()
