@@ -11,6 +11,7 @@ enum AnnotationTool: Hashable {
     case text
     case ocr
     case ocrTranslate
+    case scrollCapture   // scrolling long-screenshot
     case crop        // "resize / crop" button
 }
 

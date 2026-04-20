@@ -193,6 +193,7 @@ private extension AnnotationTool {
         case .text: return "text"
         case .ocr: return "ocr"
         case .ocrTranslate: return "ocrTranslate"
+        case .scrollCapture: return "scrollCapture"
         case .crop: return "crop"
         }
     }
@@ -229,6 +230,9 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
         get { state.isOCRTranslationApplied }
         set { state.isOCRTranslationApplied = newValue }
     }
+    /// Original screen-space capture rect (AppKit coords), used by scroll capture.
+    private var originalCaptureRect: CGRect?
+    private var scrollCaptureSession: ScrollCaptureSession?
 
     /// Called when the user confirms or shares; passes the final annotated image.
     var onConfirm: ((NSImage) -> Void)?
@@ -237,7 +241,7 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
 
     // MARK: Init
 
-    init(screenshot: NSImage, initialTool: AnnotationTool? = nil) {
+    init(screenshot: NSImage, initialTool: AnnotationTool? = nil, captureRect: CGRect? = nil) {
         // 按图片比例适配；结合工具栏可能停靠在下方/右侧预留空间，避免被屏幕裁切。
         let activeScreen = NSScreen.screens.first(where: { $0.visibleFrame.contains(NSEvent.mouseLocation) })
             ?? NSScreen.main
@@ -302,6 +306,7 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
         minSize = NSSize(width: 80, height: 60)
         delegate = self
 
+        self.originalCaptureRect = captureRect
         setupContent(canvasW: canvasW, canvasH: canvasH)
 
         // Apply initial tool (e.g. pre-selected from the hover toolbar)
@@ -737,7 +742,8 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
             onConfirm:      { [weak self] in self?.confirmEditor() },
             onEmoji:        { [weak self] anchorView in self?.presentEmojiPicker(anchorView: anchorView) },
             onOCR:          { [weak self] in self?.performOCR(translate: false) },
-            onOCRTranslate: { [weak self] in self?.performOCR(translate: true) }
+            onOCRTranslate: { [weak self] in self?.performOCR(translate: true) },
+            onScrollCapture:{ [weak self] in self?.performScrollCapture() }
         )
 
         let panel = AnnotationToolbarFloatingPanel(editorFrame: frame, toolbarView: toolbarView)
@@ -838,6 +844,40 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
         let image = canvas.renderToImage()
         PinWindowStore.shared.pin(image)
         close()
+    }
+
+    // MARK: Scroll Capture
+
+    private func performScrollCapture() {
+        guard let captureRect = originalCaptureRect else { return }
+        // Hide the annotation editor & toolbar so they don't appear in captures.
+        hideFloatingToolbar()
+        orderOut(nil)
+
+        let session = ScrollCaptureSession(captureRect: captureRect)
+        session.onFinish = { [weak self] image in
+            guard let self else { return }
+            self.scrollCaptureSession = nil
+            if let image {
+                // Open a new editor with the stitched long image.
+                let editor = AnnotationEditorPanel(screenshot: image)
+                editor.onConfirm = self.onConfirm
+                editor.onCancel  = self.onCancel
+                NSApp.activate(ignoringOtherApps: true)
+                editor.orderFrontRegardless()
+                editor.makeKeyAndOrderFront(nil)
+                // Replace ourselves in the capture controller.
+                CaptureSessionController.shared.replaceEditor(editor)
+            } else {
+                // Cancelled – restore original editor.
+                NSApp.activate(ignoringOtherApps: true)
+                self.orderFrontRegardless()
+                self.makeKeyAndOrderFront(nil)
+                self.showFloatingToolbar()
+            }
+        }
+        scrollCaptureSession = session
+        session.start()
     }
 
     // MARK: OCR
@@ -1072,6 +1112,7 @@ private enum EditorL10nKey {
     case toolOCRTranslate
     case toolOCR
     case toolCrop
+    case toolScrollCapture
     case actionUndo
     case actionSave
     case actionPin
@@ -1092,6 +1133,9 @@ private enum EditorL10n {
         }
         if locale == "zh-Hans" {
             return zhHans[key] ?? en[key] ?? ""
+        }
+        if locale == "ja" {
+            return ja[key] ?? en[key] ?? ""
         }
         return en[key] ?? ""
     }
@@ -1122,6 +1166,7 @@ private enum EditorL10n {
         .toolOCRTranslate: "OCR 翻译",
         .toolOCR: "识别文字",
         .toolCrop: "裁剪",
+        .toolScrollCapture: "滚动截图",
         .actionUndo: "撤销",
         .actionSave: "保存",
         .actionPin: "钉图",
@@ -1160,6 +1205,7 @@ private enum EditorL10n {
         .toolOCRTranslate: "OCR 翻譯",
         .toolOCR: "辨識文字",
         .toolCrop: "裁剪",
+        .toolScrollCapture: "捲動截圖",
         .actionUndo: "復原",
         .actionSave: "儲存",
         .actionPin: "釘圖",
@@ -1198,6 +1244,7 @@ private enum EditorL10n {
         .toolOCRTranslate: "OCR Translate",
         .toolOCR: "Recognize Text",
         .toolCrop: "Crop",
+        .toolScrollCapture: "Scroll Capture",
         .actionUndo: "Undo",
         .actionSave: "Save",
         .actionPin: "Pin",
@@ -1208,6 +1255,45 @@ private enum EditorL10n {
         .textStyleFont: "Font",
         .textStyleSize: "Size",
         .mosaicRadius: "Radius"
+    ]
+
+    private static let ja: [EditorL10nKey: String] = [
+        .editorWindowTitle: "スクリーンショットを編集",
+        .saveFailedTitle: "保存に失敗しました",
+        .saveFailedMessagePrefix: "画像を保存できませんでした。もう一度お試しください。",
+        .ocrEmptyTitle: "テキストが検出されませんでした",
+        .ocrEmptyMessage: "画像に認識可能なテキストが見つかりませんでした。",
+        .ocrDoneTitle: "テキスト認識完了",
+        .ocrDoneMessageFormat: "%d 文字を認識しクリップボードにコピーしました。",
+        .ocrTranslatableEmptyMessage: "画像に翻訳可能なテキストが見つかりませんでした。",
+        .ocrTranslateInProgress: "翻訳中…",
+        .ocrTranslateFailedTitle: "翻訳に失敗しました",
+        .ocrTranslateFailedMessagePrefix: "テキストを翻訳できませんでした：",
+        .exportReadImageDataFailed: "画像データを読み取れませんでした。",
+        .exportUnsupportedType: "このファイル形式はサポートされていません。",
+        .exportWriteFailed: "ファイルの書き込みに失敗しました。",
+        .okButton: "OK",
+        .toolRectangle: "四角形",
+        .toolCircle: "円形",
+        .toolEmoji: "絵文字と記号",
+        .toolArrow: "矢印",
+        .toolPen: "ペン",
+        .toolMosaic: "モザイク",
+        .toolText: "テキスト",
+        .toolOCRTranslate: "OCR 翻訳",
+        .toolOCR: "テキスト認識",
+        .toolCrop: "切り取り",
+        .toolScrollCapture: "スクロールキャプチャ",
+        .actionUndo: "元に戻す",
+        .actionSave: "保存",
+        .actionPin: "ピン留め",
+        .actionShare: "共有",
+        .actionCancel: "キャンセル",
+        .actionConfirmCopy: "確認してコピー",
+        .emojiPickerTitle: "Emoji",
+        .textStyleFont: "フォント",
+        .textStyleSize: "サイズ",
+        .mosaicRadius: "半径"
     ]
 }
 
@@ -1969,15 +2055,16 @@ private struct AnnotationToolbarView: View {
     var onEmoji:        (NSView) -> Void
     var onOCR:          () -> Void
     var onOCRTranslate: () -> Void
+    var onScrollCapture:() -> Void
 
     private let configurableTools: Set<AnnotationTool> = [.rectangle, .circle, .arrow, .pen, .mosaic, .text]
     private let orderedTokens: [ToolbarToken] = [
         .rectangle, .circle, .emoji, .arrow, .pen, .mosaic, .text, .ocrTranslate,
-        .ocr, .crop, .undo, .save, .pin, .share, .cancel, .confirm
+        .ocr, .scrollCapture, .crop, .undo, .save, .pin, .share, .cancel, .confirm
     ]
 
     private enum ToolbarToken: String {
-        case rectangle, circle, emoji, arrow, pen, mosaic, text, ocrTranslate, ocr, crop
+        case rectangle, circle, emoji, arrow, pen, mosaic, text, ocrTranslate, ocr, scrollCapture, crop
         case undo, save, pin, share
         case cancel, confirm
     }
@@ -2062,6 +2149,8 @@ private struct AnnotationToolbarView: View {
             ocrToolButton(EditorL10n.tr(.toolOCR))
         case .crop:
             drawTool(.crop, "crop", EditorL10n.tr(.toolCrop))
+        case .scrollCapture:
+            actionButton("rectangle.bottomhalf.inset.filled", EditorL10n.tr(.toolScrollCapture), action: onScrollCapture)
         case .undo:
             actionButton("arrow.uturn.left", EditorL10n.tr(.actionUndo), action: onUndo)
         case .save:

@@ -264,17 +264,26 @@ final class CaptureSessionController {
         }
 
         dismissHoverUI()
-        showAnnotationEditor(for: nsImage, initialTool: initialTool)
+        showAnnotationEditor(for: nsImage, initialTool: initialTool, captureRect: snappedAppKit)
     }
 
     private func showAnnotationEditor(for image: NSImage,
-                                      initialTool: AnnotationTool? = nil) {
-        let editor = AnnotationEditorPanel(screenshot: image, initialTool: initialTool)
+                                      initialTool: AnnotationTool? = nil,
+                                      captureRect: CGRect? = nil) {
+        let editor = AnnotationEditorPanel(screenshot: image, initialTool: initialTool, captureRect: captureRect)
         editor.onConfirm = { [weak self] _ in self?.annotationEditor = nil }
         editor.onCancel  = { [weak self] in   self?.annotationEditor = nil }
         NSApp.activate(ignoringOtherApps: true)
         editor.orderFrontRegardless()
         editor.makeKeyAndOrderFront(nil)
+        annotationEditor = editor
+    }
+
+    /// Replace the current annotation editor (used by scroll capture to swap in the stitched result).
+    func replaceEditor(_ editor: AnnotationEditorPanel) {
+        annotationEditor?.orderOut(nil)
+        editor.onConfirm = { [weak self] _ in self?.annotationEditor = nil }
+        editor.onCancel  = { [weak self] in   self?.annotationEditor = nil }
         annotationEditor = editor
     }
 

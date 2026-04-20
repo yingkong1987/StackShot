@@ -25,6 +25,7 @@
 		AA111111111111111111111002 /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA111111111111111111111001 /* Localization.swift */; };
 		K0B00000000000000000000003 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = K0B00000000000000000000002 /* KeyboardShortcuts */; };
 		K0B00000000000000000000004 /* HotkeyShortcutConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = K0B00000000000000000000005 /* HotkeyShortcutConfiguration.swift */; };
+		SC000000000000000000000002 /* ScrollCaptureSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = SC000000000000000000000001 /* ScrollCaptureSession.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -46,6 +47,7 @@
 		AA000000000000000000000007 /* SettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStore.swift; sourceTree = "<group>"; };
 		AA111111111111111111111001 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
 		K0B00000000000000000000005 /* HotkeyShortcutConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyShortcutConfiguration.swift; sourceTree = "<group>"; };
+		SC000000000000000000000001 /* ScrollCaptureSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollCaptureSession.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -87,6 +89,7 @@
 				AA000000000000000000000003 /* AnnotationCanvasView.swift */,
 				AA000000000000000000000005 /* AnnotationEditorPanel.swift */,
 				K0B00000000000000000000005 /* HotkeyShortcutConfiguration.swift */,
+				SC000000000000000000000001 /* ScrollCaptureSession.swift */,
 				02E87FFC300641C8A715FFEF50E /* Assets.xcassets */,
 			);
 			path = StackShot;
@@ -187,6 +190,7 @@
 				AA000000000000000000000004 /* AnnotationCanvasView.swift in Sources */,
 				AA000000000000000000000006 /* AnnotationEditorPanel.swift in Sources */,
 				K0B00000000000000000000004 /* HotkeyShortcutConfiguration.swift in Sources */,
+				SC000000000000000000000002 /* ScrollCaptureSession.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
