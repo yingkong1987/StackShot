@@ -7,6 +7,11 @@ final class MenuBarController: NSObject, NSWindowDelegate {
     private weak var mainWindow: NSWindow?
     private var didSetup = false
 
+    /// UserDefaults key marking that the welcome / settings window has been
+    /// shown at least once. After the first launch we keep it hidden so the
+    /// menu-bar app behaves like a true menu-bar utility.
+    private static let mainWindowShownBeforeKey = "StackShotMainWindowShownBefore"
+
     private override init() {}
 
     func setup() {
@@ -64,8 +69,21 @@ final class MenuBarController: NSObject, NSWindowDelegate {
         guard window !== mainWindow else { return }
         mainWindow = window
         window.delegate = self
-        // 启动时首次挂载主窗口，主动把 App 切到最前，避免被其他窗口覆盖。
-        bringMainWindowToFront()
+
+        // 仅在「首次启动」时把主窗口呈现给用户作为欢迎/设置面板；之后启动
+        // 一律保持隐藏，由菜单栏入口或快捷键唤出。这样可以避免每次开机自启
+        // 时主窗口都跳出来打断用户。
+        //
+        // 注意：SwiftUI 的 WindowGroup 在 macOS 13 上没有 .defaultLaunchBehavior
+        // 可用，窗口在 SwiftUI 创建时已经被显示出来；我们只能在 WindowAccessor
+        // 拿到引用后立即 orderOut。视觉上有极短一瞬的闪烁，无法完全避免。
+        let defaults = UserDefaults.standard
+        if defaults.bool(forKey: Self.mainWindowShownBeforeKey) {
+            window.orderOut(nil)
+        } else {
+            defaults.set(true, forKey: Self.mainWindowShownBeforeKey)
+            bringMainWindowToFront()
+        }
     }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {

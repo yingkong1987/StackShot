@@ -1009,10 +1009,50 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
     // MARK: Scroll Capture
 
     private func performScrollCapture() {
-        guard let captureRect = originalCaptureRect else { return }
+        // 🛠 Diagnostic: verify the toolbar button is actually firing AND
+        //    carrying a real cropping rect. If you don't see this line in
+        //    Console after clicking 「滚动截图」, the button binding itself
+        //    is broken (check the AnnotationToolbarView `onScrollCapture:`
+        //    wiring). If you DO see it but the HUD never appears, the new
+        //    ScrollStitchingCoordinator files aren't in the Xcode target —
+        //    see the checklist in ScrollStitchingFlow.swift's header.
+        print("👉 触发滚动截图，当前裁剪区域: \(String(describing: originalCaptureRect))")
+
+        guard let captureRect = originalCaptureRect else {
+            print("⚠️ originalCaptureRect 为 nil,中止滚动截图。")
+            return
+        }
+        print("🟢 即将进入 ScrollCapture pipeline, captureRect=\(captureRect)")
+
         // Hide the annotation editor & toolbar so they don't appear in captures.
         hideFloatingToolbar()
         orderOut(nil)
+
+        // ──────────────────────────────────────────────────────────────────
+        // TODO(scroll-stitching-v2): 切换到 ScreenCaptureKit + OpenCV pipeline
+        // ──────────────────────────────────────────────────────────────────
+        // 切换前必须先把以下文件加入 Xcode target:
+        //   • StackShot/OpenCVWrapper.h
+        //   • StackShot/OpenCVWrapper.mm          (Type = Objective-C++ Source)
+        //   • StackShot/StackShot-Bridging-Header.h
+        //   • StackShot/ScreenCaptureManager.swift
+        //   • StackShot/ScrollStitchingFlow.swift
+        // 并把 Build Settings 里 SWIFT_OBJC_BRIDGING_HEADER 设为上面那个桥接头;
+        // 把 opencv2.framework 拖进 Frameworks/ 并 Embed & Sign。
+        //
+        // 完成后,把下面这段 legacy block 整块换成:
+        //
+        //     ScrollStitchingCoordinator.shared.start(selectedCropRect: captureRect) { [weak self] image in
+        //         guard let self else { return }
+        //         if image == nil {
+        //             NSApp.activate(ignoringOtherApps: true)
+        //             self.orderFrontRegardless()
+        //             self.makeKeyAndOrderFront(nil)
+        //             self.showFloatingToolbar()
+        //         }
+        //     }
+        //     return
+        // ──────────────────────────────────────────────────────────────────
 
         let session = ScrollCaptureSession(captureRect: captureRect)
         session.onFinish = { [weak self] image in
@@ -2648,11 +2688,42 @@ private struct EmojiToolbarButton: NSViewRepresentable {
 }
 
 private struct ToolbarActionButton: NSViewRepresentable {
-    let systemName: String
+    enum Glyph {
+        case symbol(String)
+        /// Custom template image already sized for SF-Symbol-equivalent
+        /// rendering (~16pt point size, medium weight).
+        case custom(NSImage)
+    }
+
+    let glyph: Glyph
     let help: String
     let tintColor: NSColor?
     let backgroundColor: NSColor?
     let onClick: () -> Void
+
+    init(systemName: String,
+         help: String,
+         tintColor: NSColor? = nil,
+         backgroundColor: NSColor? = nil,
+         onClick: @escaping () -> Void) {
+        self.glyph = .symbol(systemName)
+        self.help = help
+        self.tintColor = tintColor
+        self.backgroundColor = backgroundColor
+        self.onClick = onClick
+    }
+
+    init(customImage: NSImage,
+         help: String,
+         tintColor: NSColor? = nil,
+         backgroundColor: NSColor? = nil,
+         onClick: @escaping () -> Void) {
+        self.glyph = .custom(customImage)
+        self.help = help
+        self.tintColor = tintColor
+        self.backgroundColor = backgroundColor
+        self.onClick = onClick
+    }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(onClick: onClick)
@@ -2679,7 +2750,7 @@ private struct ToolbarActionButton: NSViewRepresentable {
         context.coordinator.container = container
         context.coordinator.button = button
         context.coordinator.update(
-            systemName: systemName,
+            glyph: glyph,
             help: help,
             tintColor: tintColor,
             backgroundColor: backgroundColor
@@ -2691,7 +2762,7 @@ private struct ToolbarActionButton: NSViewRepresentable {
 
     func updateNSView(_ nsView: NSView, context: Context) {
         context.coordinator.update(
-            systemName: systemName,
+            glyph: glyph,
             help: help,
             tintColor: tintColor,
             backgroundColor: backgroundColor
@@ -2708,15 +2779,23 @@ private struct ToolbarActionButton: NSViewRepresentable {
         }
 
         func update(
-            systemName: String,
+            glyph: Glyph,
             help: String,
             tintColor: NSColor?,
             backgroundColor: NSColor?
         ) {
             guard let container, let button else { return }
-            let config = NSImage.SymbolConfiguration(pointSize: 16, weight: .medium)
-            button.image = NSImage(systemSymbolName: systemName, accessibilityDescription: help)?
-                .withSymbolConfiguration(config)
+            switch glyph {
+            case .symbol(let name):
+                let config = NSImage.SymbolConfiguration(pointSize: 16, weight: .medium)
+                button.image = NSImage(systemSymbolName: name, accessibilityDescription: help)?
+                    .withSymbolConfiguration(config)
+            case .custom(let image):
+                // Template rendering lets `contentTintColor` recolor it
+                // exactly the way SF Symbols are recolored.
+                image.isTemplate = true
+                button.image = image
+            }
             button.contentTintColor = tintColor ?? NSColor.labelColor
             button.toolTip = help
             container.layer?.backgroundColor = (backgroundColor ?? NSColor.labelColor.withAlphaComponent(0.08)).cgColor
@@ -2727,6 +2806,15 @@ private struct ToolbarActionButton: NSViewRepresentable {
             onClick()
         }
     }
+}
+
+/// Factory for custom toolbar glyphs drawn at SF-Symbol-equivalent
+/// dimensions so they slot into the toolbar with identical visual
+/// weight to the system symbols.
+enum ToolbarGlyphImage {
+    // (no entries currently — `ScrollCaptureGlyph` lives as a SwiftUI
+    // view in FloatingToolbarPanel.swift so it can share the OCR
+    // glyph's stroke recipe.)
 }
 
 // MARK: – SwiftUI Annotation Toolbar
@@ -2862,7 +2950,7 @@ private struct AnnotationToolbarView: View {
         case .crop:
             drawTool(.crop, "crop", EditorL10n.tr(.toolCrop))
         case .scrollCapture:
-            actionButton("rectangle.bottomhalf.inset.filled", EditorL10n.tr(.toolScrollCapture), action: onScrollCapture)
+            scrollCaptureButton
         case .undo:
             actionButton("arrow.uturn.left", EditorL10n.tr(.actionUndo), action: onUndo)
         case .save:
@@ -2980,6 +3068,26 @@ private struct AnnotationToolbarView: View {
         )
         .frame(width: AnnotationEditorMetrics.toolbarButtonSize,
                height: AnnotationEditorMetrics.toolbarButtonSize)
+    }
+
+    /// Custom scroll-capture button: rounded portrait rectangle (with
+    /// dashed vertical sides) wrapping a vertical double-headed arrow.
+    /// Stroke width matches the OCR glyph (`size * 0.09`) and the
+    /// inner glyph is rendered at 18×18 like OCR for visual parity.
+    private var scrollCaptureButton: some View {
+        Button(action: onScrollCapture) {
+            ScrollCaptureGlyph()
+                .frame(width: 18, height: 18)
+                .frame(width: AnnotationEditorMetrics.toolbarButtonSize,
+                       height: AnnotationEditorMetrics.toolbarButtonSize)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(
+            Color.primary.opacity(0.08),
+            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+        )
+        .help(EditorL10n.tr(.toolScrollCapture))
     }
 
     private var confirmButton: some View {

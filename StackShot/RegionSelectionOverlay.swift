@@ -197,7 +197,15 @@ private final class SelectionOverlayView: NSView {
         }
 
         if hasMagnifier {
-            updateWindowUnderMouse()
+            // Only auto-detect on mount when the caller didn't already seed
+            // an `autoSelectedRect` (via `initialWindowRect`). At this moment
+            // our overlay window is on top of every other window, so an AX
+            // hit-test against the live system would resolve to the overlay
+            // itself (filtered by PID → nil) and the snapshot fallback can
+            // also miss for points sitting outside any normal window.
+            // Trust the caller's seed rect; mouseMoved will refresh as soon
+            // as the cursor actually moves.
+            updateWindowUnderMouse(preservePreviousIfMissed: true)
         }
 
         updateSelectionControls()
@@ -626,7 +634,7 @@ private final class SelectionOverlayView: NSView {
 
     // MARK: – Window tracking
 
-    private func updateWindowUnderMouse() {
+    private func updateWindowUnderMouse(preservePreviousIfMissed: Bool = false) {
         let globalPoint = CGPoint(x: mousePosition.x + windowOrigin.x, y: mousePosition.y + windowOrigin.y)
         let info = WindowUnderMouseService.window(at: globalPoint, snapshot: windowSnapshot)
         if let b = info?.bounds {
@@ -636,7 +644,7 @@ private final class SelectionOverlayView: NSView {
                 width: b.width,
                 height: b.height
             )
-        } else {
+        } else if !preservePreviousIfMissed {
             autoSelectedRect = nil
         }
     }

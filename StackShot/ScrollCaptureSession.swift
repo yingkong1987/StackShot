@@ -43,9 +43,11 @@ final class ScrollCaptureSession {
 
     private var overlay: ScrollCaptureOverlay?
     private var preview: ScrollCapturePreview?
-    private var stitcher = ScrollImageStitcher()
+    private var controls: ScrollCaptureControlPanel?
+    private var stitcher: ScrollImageStitcher
     private var captureTimer: Timer?
     private var isRunning = false
+    private var keyMonitor: Any?
 
     /// IDs of our own windows – excluded from captures so they never
     /// appear in the stitched result.
@@ -57,6 +59,7 @@ final class ScrollCaptureSession {
             .first(where: { $0.frame.contains(captureRect.center) })?
             .backingScaleFactor ?? 2.0
         self.quartzCaptureRect = Self.quartzRect(from: captureRect, scale: backingScale)
+        self.stitcher = ScrollImageStitcher(backingScale: backingScale)
     }
 
     // MARK: Lifecycle
@@ -65,28 +68,50 @@ final class ScrollCaptureSession {
         guard !isRunning else { return }
         isRunning = true
 
-        // 1. Create overlay (dimmed region with bright cut-out).
+        // 1. Visual-only overlay (mouse events pass through entirely so
+        //    the user can click / scroll the underlying app naturally).
         let ov = ScrollCaptureOverlay(captureRect: captureRect)
-        ov.onDone = { [weak self] in self?.finish() }
-        ov.onCancel = { [weak self] in self?.cancel() }
         ov.orderFrontRegardless()
         overlay = ov
 
-        // 2. Preview panel to the right of the capture rect.
+        // 2. Preview panel beside the capture rect.
         let pv = ScrollCapturePreview(anchorRect: captureRect)
         pv.orderFrontRegardless()
         preview = pv
 
-        // Record our own window IDs so we can exclude them.
-        ownWindowIDs = []
-        if let ovNum = ov.windowNumber as? Int, ovNum > 0 {
-            ownWindowIDs.insert(CGWindowID(ovNum))
-        }
-        if let pvNum = pv.windowNumber as? Int, pvNum > 0 {
-            ownWindowIDs.insert(CGWindowID(pvNum))
+        // 3. Floating Done / Cancel controls. This is a separate
+        //    `nonactivatingPanel` so it can receive its own clicks
+        //    without stealing focus from the underlying app being
+        //    scrolled.
+        let ctl = ScrollCaptureControlPanel(
+            anchorRect: captureRect,
+            onDone:   { [weak self] in self?.finish() },
+            onCancel: { [weak self] in self?.cancel() }
+        )
+        ctl.orderFrontRegardless()
+        controls = ctl
+
+        // Local key monitor (Esc → cancel, Return → finish) – only
+        // fires when our app happens to be active. We deliberately
+        // don't register a global monitor because that would require
+        // the user to grant Accessibility permission.
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
+            guard let self, self.isRunning else { return event }
+            switch event.keyCode {
+            case 36, 76: self.finish();  return nil
+            case 53:     self.cancel();  return nil
+            default:     return event
+            }
         }
 
-        // 3. Capture the initial frame immediately, then start a timer.
+        // Record our own window IDs so we can exclude them.
+        ownWindowIDs = []
+        for win in [ov, pv, ctl] {
+            let num = win.windowNumber
+            if num > 0 { ownWindowIDs.insert(CGWindowID(num)) }
+        }
+
+        // 4. Capture the initial frame immediately, then start a timer.
         captureFrame()
         captureTimer = Timer.scheduledTimer(withTimeInterval: 0.35, repeats: true) { [weak self] _ in
             self?.captureFrame()
@@ -96,11 +121,7 @@ final class ScrollCaptureSession {
     func finish() {
         guard isRunning else { return }
         isRunning = false
-        captureTimer?.invalidate()
-        captureTimer = nil
-        overlay?.orderOut(nil); overlay = nil
-        preview?.orderOut(nil); preview = nil
-
+        teardownSessionWindows()
         let image = stitcher.result
         onFinish?(image)
     }
@@ -108,11 +129,20 @@ final class ScrollCaptureSession {
     func cancel() {
         guard isRunning else { return }
         isRunning = false
+        teardownSessionWindows()
+        onFinish?(nil)
+    }
+
+    private func teardownSessionWindows() {
         captureTimer?.invalidate()
         captureTimer = nil
-        overlay?.orderOut(nil); overlay = nil
-        preview?.orderOut(nil); preview = nil
-        onFinish?(nil)
+        if let monitor = keyMonitor {
+            NSEvent.removeMonitor(monitor)
+            keyMonitor = nil
+        }
+        overlay?.orderOut(nil);  overlay  = nil
+        preview?.orderOut(nil);  preview  = nil
+        controls?.orderOut(nil); controls = nil
     }
 
     // MARK: Frame capture
@@ -145,8 +175,8 @@ final class ScrollCaptureSession {
 
         guard cgImage.width > 1, cgImage.height > 1 else { return }
 
-        let changed = stitcher.appendFrame(cgImage)
-        if changed, let result = stitcher.result {
+        let outcome = stitcher.appendFrame(cgImage)
+        if outcome == .appended, let result = stitcher.result {
             preview?.updateImage(result)
         }
     }
@@ -171,17 +201,15 @@ final class ScrollCaptureSession {
 
 // MARK: - Overlay window
 
-/// Full-screen borderless overlay: everything dimmed except the capture
-/// rectangle, which is punched out (fully transparent) so the user sees
-/// the underlying app at normal brightness and can interact with it
-/// (scroll, click, etc.).
+/// Full-screen borderless overlay drawn purely for visual feedback:
+/// dims everything except the capture rectangle so the user can see
+/// exactly which region is being captured.
 ///
-/// A small "Done" / "Cancel" control strip is drawn just below the
-/// cut-out region.
+/// The window is **completely transparent to mouse events** – it does
+/// not interfere with clicking, dragging or scrolling any underlying
+/// app. The Done / Cancel controls live in a separate
+/// `ScrollCaptureControlPanel`.
 private final class ScrollCaptureOverlay: NSPanel {
-
-    var onDone:   (() -> Void)?
-    var onCancel: (() -> Void)?
 
     private let captureRect: CGRect // AppKit screen coords
 
@@ -201,50 +229,37 @@ private final class ScrollCaptureOverlay: NSPanel {
         hasShadow = false
         hidesOnDeactivate = false
         isFloatingPanel = true
-        worksWhenModal = true
-        // The overlay lets mouse events pass through the bright region.
-        ignoresMouseEvents = false
+        worksWhenModal = false
+        // Crucial: every mouse event flows straight through to whatever
+        // is underneath, so the user can scroll / click target windows.
+        ignoresMouseEvents = true
 
-        let overlayView = ScrollCaptureOverlayView(
+        let view = ScrollCaptureOverlayView(
             frame: NSRect(origin: .zero, size: unionFrame.size),
             captureRect: captureRect.offsetBy(
                 dx: -unionFrame.origin.x,
                 dy: -unionFrame.origin.y
-            ),
-            onDone: { [weak self] in self?.onDone?() },
-            onCancel: { [weak self] in self?.onCancel?() }
+            )
         )
-        contentView = overlayView
+        contentView = view
     }
 }
 
-/// Custom view that draws a dimmed overlay with a punched-out bright
-/// rectangle and a control strip.
+/// Static visual: dimmed area + bright cut-out + thin blue border.
 private final class ScrollCaptureOverlayView: NSView {
-    private let captureRect: CGRect   // in view-local coords
-    private let onDone:   () -> Void
-    private let onCancel: () -> Void
-    private var doneButton: NSButton?
-    private var cancelButton: NSButton?
-    private var controlStrip: NSView?
+    private let captureRect: CGRect
 
-    init(frame: NSRect,
-         captureRect: CGRect,
-         onDone: @escaping () -> Void,
-         onCancel: @escaping () -> Void) {
+    init(frame: NSRect, captureRect: CGRect) {
         self.captureRect = captureRect
-        self.onDone = onDone
-        self.onCancel = onCancel
         super.init(frame: frame)
         wantsLayer = true
-        setupControls()
     }
 
     required init?(coder: NSCoder) { nil }
 
     override func draw(_ dirtyRect: NSRect) {
         // 1. Dim the entire screen.
-        NSColor.black.withAlphaComponent(0.35).setFill()
+        NSColor.black.withAlphaComponent(0.30).setFill()
         NSBezierPath(rect: bounds).fill()
 
         // 2. Punch out the capture region (clear).
@@ -255,104 +270,94 @@ private final class ScrollCaptureOverlayView: NSView {
         // 3. Draw a thin blue border around the capture region.
         let borderPath = NSBezierPath(rect: captureRect.insetBy(dx: -1.5, dy: -1.5))
         borderPath.lineWidth = 2
-        NSColor.systemBlue.withAlphaComponent(0.8).setStroke()
+        NSColor.systemBlue.withAlphaComponent(0.85).setStroke()
         borderPath.stroke()
     }
 
-    // Mouse events: forward clicks inside the capture region to the
-    // underlying app. Block clicks outside (they land on our overlay).
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        // Let buttons handle their own hits.
-        if let btn = doneButton, btn.frame.contains(point) { return btn }
-        if let btn = cancelButton, btn.frame.contains(point) { return btn }
-        // Inside the capture rect → pass through.
-        if captureRect.contains(point) { return nil }
-        // Outside → absorb (don't forward).
-        return self
-    }
+    // We never want this view (or its window) to absorb anything.
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+}
 
-    override func mouseDown(with event: NSEvent) {
-        // Absorb clicks on the dimmed area – do nothing.
-    }
+// MARK: - Control panel (Done / Cancel)
 
-    override func keyDown(with event: NSEvent) {
-        switch event.keyCode {
-        case 36, 76: // Return, Enter
-            onDone()
-        case 53:     // Escape
-            onCancel()
-        default:
-            super.keyDown(with: event)
-        }
-    }
+/// Small floating panel, positioned just outside the capture rect,
+/// containing the Done / Cancel buttons. Lives in a separate window
+/// from the overlay so the overlay can be 100% mouse-transparent.
+private final class ScrollCaptureControlPanel: NSPanel {
 
-    override var acceptsFirstResponder: Bool { true }
+    private let onDone:   () -> Void
+    private let onCancel: () -> Void
 
-    // MARK: Control strip
+    init(anchorRect: CGRect,
+         onDone:   @escaping () -> Void,
+         onCancel: @escaping () -> Void) {
+        self.onDone = onDone
+        self.onCancel = onCancel
 
-    private func setupControls() {
-        let strip = NSView(frame: .zero)
-        strip.wantsLayer = true
-        strip.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.55).cgColor
-        strip.layer?.cornerRadius = 8
-
-        let done = makeButton(
-            title: ScrollCaptureL10n.tr(.done),
-            color: .systemBlue,
-            action: #selector(doneTapped)
+        let frame = Self.frame(for: anchorRect)
+        super.init(
+            contentRect: frame,
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
         )
-        let cancel = makeButton(
+        isOpaque = false
+        backgroundColor = .clear
+        level = .screenSaver
+        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        hasShadow = true
+        hidesOnDeactivate = false
+        isFloatingPanel = true
+        ignoresMouseEvents = false
+        worksWhenModal = false
+
+        let container = NSView(frame: NSRect(origin: .zero, size: frame.size))
+        container.wantsLayer = true
+        container.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.65).cgColor
+        container.layer?.cornerRadius = 10
+
+        let cancelBtn = makeButton(
             title: ScrollCaptureL10n.tr(.cancel),
             color: .systemRed,
             action: #selector(cancelTapped)
         )
-
-        let stack = NSStackView(views: [cancel, done])
+        let doneBtn = makeButton(
+            title: ScrollCaptureL10n.tr(.done),
+            color: .systemBlue,
+            action: #selector(doneTapped)
+        )
+        let stack = NSStackView(views: [cancelBtn, doneBtn])
         stack.orientation = .horizontal
-        stack.spacing = 10
+        stack.spacing = 12
         stack.translatesAutoresizingMaskIntoConstraints = false
-
-        strip.addSubview(stack)
-        strip.translatesAutoresizingMaskIntoConstraints = false
-
+        container.addSubview(stack)
         NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: strip.leadingAnchor, constant: 12),
-            stack.trailingAnchor.constraint(equalTo: strip.trailingAnchor, constant: -12),
-            stack.topAnchor.constraint(equalTo: strip.topAnchor, constant: 6),
-            stack.bottomAnchor.constraint(equalTo: strip.bottomAnchor, constant: -6),
+            stack.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+            stack.centerYAnchor.constraint(equalTo: container.centerYAnchor),
         ])
-
-        addSubview(strip)
-        NSLayoutConstraint.activate([
-            strip.centerXAnchor.constraint(equalTo: leadingAnchor, constant: captureRect.midX),
-            strip.topAnchor.constraint(equalTo: bottomAnchor,
-                                       constant: -(captureRect.minY - 12)),
-        ])
-
-        // The strip sits just below the capture rect in flipped-ish layout.
-        // Since NSView is not flipped, captureRect.minY is the bottom edge.
-        let stripY = captureRect.minY - 48
-        strip.frame = CGRect(x: captureRect.midX - 80, y: stripY, width: 160, height: 36)
-
-        self.doneButton = done
-        self.cancelButton = cancel
-        self.controlStrip = strip
+        contentView = container
     }
 
-    override func layout() {
-        super.layout()
-        // Re-position the strip below the capture rect.
-        if let strip = controlStrip {
-            let fitted = strip.fittingSize
-            let w = max(fitted.width + 24, 160)
-            let h = max(fitted.height + 12, 36)
-            strip.frame = CGRect(
-                x: captureRect.midX - w / 2,
-                y: captureRect.minY - h - 10,
-                width: w,
-                height: h
-            )
+    /// Compute the on-screen frame for the control bar: directly under
+    /// the capture rect, falling back to above when there's no room.
+    private static func frame(for anchor: CGRect) -> CGRect {
+        let w: CGFloat = 200
+        let h: CGFloat = 40
+        let screenFrame = NSScreen.screens
+            .first(where: { $0.frame.intersects(anchor) })?
+            .visibleFrame
+            ?? NSScreen.main?.visibleFrame
+            ?? anchor
+        var x = anchor.midX - w / 2
+        x = max(screenFrame.minX + 8, min(x, screenFrame.maxX - w - 8))
+        var y = anchor.minY - h - 12
+        if y < screenFrame.minY + 8 {
+            y = anchor.maxY + 12
         }
+        if y + h > screenFrame.maxY - 8 {
+            y = screenFrame.maxY - h - 8
+        }
+        return CGRect(x: x, y: y, width: w, height: h)
     }
 
     private func makeButton(title: String, color: NSColor, action: Selector) -> NSButton {
@@ -366,172 +371,423 @@ private final class ScrollCaptureOverlayView: NSView {
 
     @objc private func doneTapped()   { onDone() }
     @objc private func cancelTapped() { onCancel() }
+
+    // Never become key – we don't want to steal focus from the app the
+    // user is actively scrolling.
+    override var canBecomeKey: Bool  { false }
+    override var canBecomeMain: Bool { false }
 }
 
 // MARK: - Preview panel
 
-/// Floating preview of the growing long screenshot, displayed to the
-/// right of the capture region.
+/// Floating preview of the growing long screenshot. Tries to sit to the
+/// right of the capture rect; falls back to the left side if that goes
+/// off-screen.
 private final class ScrollCapturePreview: NSPanel {
 
     private let imageView: NSImageView
     private let scrollView: NSScrollView
+    private let titleLabel: NSTextField
+    private let containerView: NSView
     private let anchorRect: CGRect
-    private static let previewWidth: CGFloat = 180
-    private static let maxHeight: CGFloat = 600
+
+    private static let previewWidth: CGFloat = 200
+    private static let titleBarHeight: CGFloat = 22
+    private static let maxHeight: CGFloat = 640
+    private static let minHeight: CGFloat = 140
+    private static let spacing: CGFloat = 16
 
     init(anchorRect: CGRect) {
         self.anchorRect = anchorRect
 
-        let previewFrame = Self.previewFrame(for: anchorRect, imageAspect: 1)
+        let initial = Self.previewFrame(for: anchorRect, imageAspect: 1)
+        let contentSize = initial.size
+        let scrollHeight = max(0, contentSize.height - Self.titleBarHeight)
+        let scrollFrame = NSRect(x: 0, y: 0,
+                                 width: contentSize.width,
+                                 height: scrollHeight)
 
-        imageView = NSImageView(frame: NSRect(origin: .zero, size: previewFrame.size))
+        imageView = NSImageView(frame: scrollFrame)
         imageView.imageScaling = .scaleProportionallyUpOrDown
+        imageView.imageAlignment = .alignTop
         imageView.translatesAutoresizingMaskIntoConstraints = false
 
-        scrollView = NSScrollView(frame: NSRect(origin: .zero, size: previewFrame.size))
+        scrollView = NSScrollView(frame: scrollFrame)
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
         scrollView.autohidesScrollers = true
         scrollView.documentView = imageView
         scrollView.backgroundColor = .clear
         scrollView.drawsBackground = false
+        scrollView.autoresizingMask = [.width, .height]
+
+        titleLabel = NSTextField(labelWithString: ScrollCaptureL10n.tr(.previewTitle))
+        titleLabel.font = .systemFont(ofSize: 11, weight: .semibold)
+        titleLabel.textColor = NSColor.white.withAlphaComponent(0.9)
+        titleLabel.alignment = .center
+        titleLabel.backgroundColor = .clear
+        titleLabel.drawsBackground = false
+        titleLabel.frame = NSRect(
+            x: 0, y: contentSize.height - Self.titleBarHeight,
+            width: contentSize.width, height: Self.titleBarHeight
+        )
+        titleLabel.autoresizingMask = [.width, .minYMargin]
+
+        containerView = NSView(frame: NSRect(origin: .zero, size: contentSize))
+        containerView.wantsLayer = true
+        containerView.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.65).cgColor
+        containerView.layer?.cornerRadius = 10
+        containerView.addSubview(scrollView)
+        containerView.addSubview(titleLabel)
 
         super.init(
-            contentRect: previewFrame,
+            contentRect: initial,
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
         isOpaque = false
-        backgroundColor = NSColor.black.withAlphaComponent(0.65)
+        backgroundColor = .clear
         level = .screenSaver
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         hasShadow = true
         hidesOnDeactivate = false
         ignoresMouseEvents = false
         isFloatingPanel = true
-        worksWhenModal = true
+        worksWhenModal = false
 
-        contentView = scrollView
+        contentView = containerView
     }
 
     func updateImage(_ image: NSImage) {
         imageView.image = image
 
-        // Resize so the preview stays within bounds.
         let aspect = image.size.height / max(1, image.size.width)
         let newFrame = Self.previewFrame(for: anchorRect, imageAspect: aspect)
         setFrame(newFrame, display: true, animate: false)
 
-        // Update document view size so scrolling works.
+        // Re-layout sub-views for the new size.
+        containerView.frame = NSRect(origin: .zero, size: newFrame.size)
+        let scrollH = max(0, newFrame.height - Self.titleBarHeight)
+        scrollView.frame = NSRect(x: 0, y: 0, width: newFrame.width, height: scrollH)
+        titleLabel.frame = NSRect(x: 0, y: scrollH,
+                                  width: newFrame.width,
+                                  height: Self.titleBarHeight)
+
         let docW = newFrame.width
         let docH = docW * aspect
         imageView.frame = NSRect(x: 0, y: 0, width: docW, height: docH)
-        scrollView.documentView?.frame = imageView.frame
 
-        // Auto-scroll to the bottom to show the latest content.
+        // Auto-scroll to the bottom so the latest content stays visible.
         if let docView = scrollView.documentView {
-            let bottomPoint = NSPoint(x: 0, y: docView.frame.height - scrollView.contentSize.height)
+            let bottomPoint = NSPoint(
+                x: 0,
+                y: max(0, docView.frame.height - scrollView.contentSize.height)
+            )
             scrollView.contentView.scroll(to: bottomPoint)
+            scrollView.reflectScrolledClipView(scrollView.contentView)
         }
     }
 
+    /// Try right-of-anchor first; if it would leave the visible frame
+    /// of any screen, place it to the left instead. As a last resort,
+    /// dock it inside the right edge of the screen the anchor lives on.
     private static func previewFrame(for anchor: CGRect, imageAspect: CGFloat) -> CGRect {
         let pw = previewWidth
-        let ph = min(maxHeight, max(120, pw * imageAspect))
-        let x = anchor.maxX + 16
-        let y = anchor.midY - ph / 2
+        let imgH = pw * max(0.1, imageAspect)
+        let ph = min(maxHeight, max(minHeight, imgH + titleBarHeight))
+
+        let screenFrame = NSScreen.screens
+            .first(where: { $0.frame.intersects(anchor) })?
+            .visibleFrame
+            ?? NSScreen.main?.visibleFrame
+            ?? CGRect(x: 0, y: 0, width: 1920, height: 1080)
+
+        var y = anchor.midY - ph / 2
+        y = max(screenFrame.minY + 8, min(y, screenFrame.maxY - ph - 8))
+
+        let rightX = anchor.maxX + spacing
+        let leftX  = anchor.minX - spacing - pw
+        let x: CGFloat
+        if rightX + pw <= screenFrame.maxX - 8 {
+            x = rightX
+        } else if leftX >= screenFrame.minX + 8 {
+            x = leftX
+        } else {
+            // No room either side — pin to the inside of the right edge.
+            x = screenFrame.maxX - pw - 8
+        }
         return CGRect(x: x, y: y, width: pw, height: ph)
     }
+
+    override var canBecomeKey: Bool  { false }
+    override var canBecomeMain: Bool { false }
 }
 
 // MARK: - Image stitcher
 
-/// Detects overlap between consecutive frames of the same region and
-/// builds a growing "long screenshot" by appending only the new
-/// (non-overlapping) portion of each new frame.
+/// Outcome of `appendFrame`.
+enum ScrollStitchOutcome {
+    /// New content was appended below the current accumulation
+    /// (downward scrolling).
+    case appended
+    /// New content was prepended above the current accumulation
+    /// (upward scrolling – user scrolled back up to a new region).
+    case prepended
+    /// Frame is essentially identical to the current edge — no motion.
+    case duplicate
+    /// Match was ambiguous; frame intentionally dropped to avoid
+    /// inserting duplicated/misaligned content.
+    case skipped
+}
+
+/// Two-stage stitcher:
 ///
-/// **Algorithm overview** (vertical scrolling, the common case):
+/// 1. **Coarse pass** — compares lightweight per-row luminance
+///    "fingerprints" between the cached edge of the accumulated image
+///    and the new frame, producing the *top few* candidate overlaps.
+/// 2. **Fine pass** — for each top candidate, performs pixel-precise
+///    mean-absolute-difference on the actual RGBA bytes of the overlap
+///    region. Only accepts when fine MAD ≤ `pixelMADThreshold`.
 ///
-/// 1. Compare the bottom `N` rows of the **accumulated image** with
-///    the top `N` rows of the **new frame** to find the best-matching
-///    vertical offset. A row is compared by a fast "signature" (sample
-///    ~40 evenly-spaced pixel luminances, pack into [UInt8]).
-/// 2. If the best match score exceeds a threshold, treat the
-///    corresponding offset as the overlap amount.
-/// 3. Slice the new frame below the overlap and append it to the
-///    accumulated image.
-///
-/// All work happens on the **caller's thread** (synchronous). The
-/// capture timer fires on the main thread at ~3 fps, which is fast
-/// enough for a smooth experience and light enough to avoid frame drops.
+/// **Properties:**
+/// - Detects both downward and upward scrolling. The new frame is
+///   compared against both the cached bottom (scroll-down) and cached
+///   top (scroll-up) strips of the accumulation; whichever side
+///   produces the higher fine-verified score wins.
+/// - **Never** falls back to "append the whole frame" when no overlap
+///   is found. That branch was the source of duplicated regions in
+///   the previous implementation; missing a frame is always preferable.
+/// - O(W · stripRows) per frame — independent of the accumulated long
+///   image height. Cached edges are updated from the new frame after
+///   every append/prepend, so the accumulated image is never
+///   re-rasterised.
 struct ScrollImageStitcher {
 
     /// The accumulated long image so far.
     private(set) var result: NSImage?
 
-    /// Raw accumulated CGImage (for pixel comparison).
     private var accumulatedCG: CGImage?
 
-    /// Signature of the bottom rows of the accumulated image, cached to
-    /// avoid re-computing every frame.
-    private var tailSignatures: [RowSignature] = []
+    /// Bottom edge of the accumulation (used for scroll-down detection).
+    /// Up to `stripRows` rows tall, full image width.
+    private var bottomStrip: RGBAFrameBuffer?
+    private var bottomStripSigs: [RowSignature] = []
 
-    /// How many rows at the bottom of the accumulated image / top of a
-    /// new frame to compare.
-    private let overlapSearchRows = 200
+    /// Top edge of the accumulation (used for scroll-up detection).
+    private var topStrip: RGBAFrameBuffer?
+    private var topStripSigs: [RowSignature] = []
 
-    /// Minimum match score (0-1) to accept an overlap. Below this the
-    /// frame is either identical or completely different.
-    private let matchThreshold: Double = 0.92
+    /// How many rows on each edge we keep cached for matching.
+    private let stripRows = 220
 
-    /// Number of sample pixels per row for the signature.
-    private let samplesPerRow = 40
+    /// Mean-absolute-difference threshold (per channel, 0–255) for
+    /// accepting a fine-verified overlap. Empirically ~6 captures
+    /// anti-aliased text scrolling cleanly while rejecting unrelated
+    /// content (which typically shows MAD > 30).
+    private let pixelMADThreshold: Double = 6.0
 
-    /// Returns `true` if the result changed (i.e. new content was
-    /// appended).
+    /// Coarse-pass score below which we don't even bother running the
+    /// fine pass (saves work on completely unrelated frames).
+    private let coarseGate: Double = 0.55
+
+    /// Number of evenly-spaced sample columns per row used for the
+    /// coarse signature.
+    private let samplesPerRow = 64
+
+    /// How many top coarse candidates to verify per direction.
+    private let candidatesPerDirection = 4
+
+    /// Practical CGContext height ceiling.
+    private let maxStitchedHeight = 16_000
+
+    let backingScale: CGFloat
+
+    init(backingScale: CGFloat = 2.0) {
+        self.backingScale = max(1, backingScale)
+    }
+
     @discardableResult
-    mutating func appendFrame(_ frame: CGImage) -> Bool {
+    mutating func appendFrame(_ frame: CGImage) -> ScrollStitchOutcome {
+        let frameW = frame.width
+        let frameH = frame.height
+        guard frameW > 1, frameH > 1 else { return .skipped }
+
+        // Render the new frame into RGBA exactly once.
+        guard let newBuffer = RGBAFrameBuffer.render(frame) else { return .skipped }
+
+        // First frame – seed the accumulation.
         guard let accumulated = accumulatedCG else {
-            // First frame – just store it.
             accumulatedCG = frame
-            result = nsImage(from: frame)
-            tailSignatures = bottomSignatures(of: frame, rows: overlapSearchRows)
-            return true
+            result = makeNSImage(frame)
+            seedEdges(from: newBuffer)
+            return .appended
+        }
+        guard frameW == accumulated.width else { return .skipped }
+        if accumulated.height >= maxStitchedHeight { return .skipped }
+
+        let newTopSigs    = signatures(in: newBuffer, rowRange: 0..<min(frameH, stripRows))
+        let newBottomStart = max(0, frameH - stripRows)
+        let newBottomSigs = signatures(in: newBuffer,
+                                       rowRange: newBottomStart..<frameH)
+
+        // ---- Direction A: user scrolled DOWN
+        // → the top of the new frame should match somewhere inside the
+        //   cached bottom strip of the accumulation.
+        var bestDown: VerifiedMatch? = nil
+        if let strip = bottomStrip {
+            bestDown = bestMatch(
+                refStrip: strip,
+                refStripSigs: bottomStripSigs,
+                refIsBottom: true,
+                newBuffer: newBuffer,
+                newEdgeSigs: newTopSigs,
+                newEdgeIsTop: true
+            )
         }
 
-        // Width must match (we're capturing the same region).
-        guard frame.width == accumulated.width else { return false }
-
-        let newTopSigs = topSignatures(of: frame, rows: overlapSearchRows)
-
-        // Find the overlap: compare tail of accumulated with top of new.
-        let overlap = findOverlap(tailSigs: tailSignatures, newTopSigs: newTopSigs)
-
-        if let overlap, overlap >= frame.height {
-            // Completely duplicate frame.
-            return false
+        // ---- Direction B: user scrolled UP
+        // → the bottom of the new frame matches inside the cached top
+        //   strip of the accumulation.
+        var bestUp: VerifiedMatch? = nil
+        if let strip = topStrip {
+            bestUp = bestMatch(
+                refStrip: strip,
+                refStripSigs: topStripSigs,
+                refIsBottom: false,
+                newBuffer: newBuffer,
+                newEdgeSigs: newBottomSigs,
+                newEdgeIsTop: false
+            )
         }
 
-        let newRows: Int
-        if let overlap {
-            newRows = frame.height - overlap
-        } else {
-            // No overlap detected – append entirely (user might have
-            // scrolled a full page or more in one go).
-            newRows = frame.height
+        // Pick whichever direction got a better fine MAD (lower = better).
+        let down = bestDown
+        let up   = bestUp
+        let pick: (VerifiedMatch, ScrollStitchOutcome.Direction)?
+        switch (down, up) {
+        case (nil, nil):                pick = nil
+        case (let d?, nil):             pick = (d, .down)
+        case (nil, let u?):             pick = (u, .up)
+        case (let d?, let u?):
+            // Prefer the smaller MAD; on a tie, prefer the larger overlap.
+            if d.mad < u.mad - 0.5 {
+                pick = (d, .down)
+            } else if u.mad < d.mad - 0.5 {
+                pick = (u, .up)
+            } else if d.overlap >= u.overlap {
+                pick = (d, .down)
+            } else {
+                pick = (u, .up)
+            }
         }
 
-        guard newRows > 0 else { return false }
+        guard let (match, direction) = pick else { return .skipped }
 
-        // Crop the new slice from the bottom of the frame.
-        let sliceRect = CGRect(x: 0, y: frame.height - newRows, width: frame.width, height: newRows)
-        guard let slice = frame.cropping(to: sliceRect) else { return false }
+        // Same image as before → no motion.
+        if match.overlap >= frameH { return .duplicate }
 
-        // Append slice below the accumulated image.
-        let totalHeight = accumulated.height + newRows
-        let width = accumulated.width
+        switch direction {
+        case .down:
+            // New rows are at the BOTTOM of the new frame, beyond the
+            // overlap that lines up with the accumulation's bottom.
+            let newRows = frameH - match.overlap
+            return appendBelow(
+                newBuffer: newBuffer,
+                frame: frame,
+                newRows: newRows,
+                accumulated: accumulated,
+                newBottomSigs: newBottomSigs
+            )
+        case .up:
+            // New rows are at the TOP of the new frame.
+            let newRows = frameH - match.overlap
+            return prependAbove(
+                newBuffer: newBuffer,
+                frame: frame,
+                newRows: newRows,
+                accumulated: accumulated,
+                newTopSigs: newTopSigs
+            )
+        }
+    }
+
+    // MARK: Append / Prepend
+
+    private mutating func appendBelow(
+        newBuffer: RGBAFrameBuffer,
+        frame: CGImage,
+        newRows: Int,
+        accumulated: CGImage,
+        newBottomSigs: [RowSignature]
+    ) -> ScrollStitchOutcome {
+        guard newRows > 0 else { return .skipped }
+        let frameW = frame.width
+        let frameH = frame.height
+        let totalH = accumulated.height + newRows
+        if totalH > maxStitchedHeight { return .skipped }
+
+        let sliceRect = CGRect(x: 0, y: frameH - newRows,
+                               width: frameW, height: newRows)
+        guard let slice = frame.cropping(to: sliceRect) else { return .skipped }
+
+        guard let combined = composite(
+            width: frameW, totalHeight: totalH,
+            top: accumulated, topY: newRows,
+            bottom: slice,    bottomY: 0
+        ) else { return .skipped }
+
+        accumulatedCG = combined
+        result = makeNSImage(combined)
+
+        // Bottom strip of the new accumulation == bottom strip of the
+        // new frame (which is what we just appended). Reuse signatures
+        // and pixel rows directly to avoid re-rasterising.
+        bottomStrip = makeBottomStrip(of: newBuffer)
+        bottomStripSigs = newBottomSigs
+        // Top strip of accumulation hasn't changed; keep it as-is.
+        return .appended
+    }
+
+    private mutating func prependAbove(
+        newBuffer: RGBAFrameBuffer,
+        frame: CGImage,
+        newRows: Int,
+        accumulated: CGImage,
+        newTopSigs: [RowSignature]
+    ) -> ScrollStitchOutcome {
+        guard newRows > 0 else { return .skipped }
+        let frameW = frame.width
+        let totalH = accumulated.height + newRows
+        if totalH > maxStitchedHeight { return .skipped }
+
+        // The new top rows (above the overlap) are at the TOP of the new
+        // frame, i.e. y in [0, newRows).
+        let sliceRect = CGRect(x: 0, y: 0, width: frameW, height: newRows)
+        guard let slice = frame.cropping(to: sliceRect) else { return .skipped }
+
+        // Composite: new slice at the top, existing accumulation below.
+        guard let combined = composite(
+            width: frameW, totalHeight: totalH,
+            top: slice,        topY: accumulated.height,
+            bottom: accumulated, bottomY: 0
+        ) else { return .skipped }
+
+        accumulatedCG = combined
+        result = makeNSImage(combined)
+
+        // Top strip of new accumulation == top strip of the new frame.
+        topStrip = makeTopStrip(of: newBuffer)
+        topStripSigs = newTopSigs
+        // Bottom strip unchanged.
+        return .prepended
+    }
+
+    private func composite(
+        width: Int, totalHeight: Int,
+        top: CGImage, topY: Int,
+        bottom: CGImage, bottomY: Int
+    ) -> CGImage? {
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
         guard let ctx = CGContext(
@@ -542,123 +798,194 @@ struct ScrollImageStitcher {
             bytesPerRow: width * 4,
             space: colorSpace,
             bitmapInfo: bitmapInfo
-        ) else { return false }
+        ) else { return nil }
+        ctx.interpolationQuality = .none
+        ctx.draw(top,    in: CGRect(x: 0, y: topY,
+                                    width: width, height: top.height))
+        ctx.draw(bottom, in: CGRect(x: 0, y: bottomY,
+                                    width: width, height: bottom.height))
+        return ctx.makeImage()
+    }
 
-        // CGContext has bottom-left origin. The accumulated image goes
-        // at the top (i.e. at y = newRows), the new slice at y = 0.
-        ctx.draw(accumulated, in: CGRect(x: 0, y: newRows, width: width, height: accumulated.height))
-        ctx.draw(slice, in: CGRect(x: 0, y: 0, width: width, height: newRows))
+    // MARK: Edge caches
 
-        guard let combined = ctx.makeImage() else { return false }
-        accumulatedCG = combined
-        result = nsImage(from: combined)
-        tailSignatures = bottomSignatures(of: combined, rows: overlapSearchRows)
-        return true
+    private mutating func seedEdges(from buf: RGBAFrameBuffer) {
+        bottomStrip = makeBottomStrip(of: buf)
+        topStrip    = makeTopStrip(of: buf)
+        bottomStripSigs = signatures(
+            in: bottomStrip!,
+            rowRange: 0..<bottomStrip!.height
+        )
+        topStripSigs = signatures(
+            in: topStrip!,
+            rowRange: 0..<topStrip!.height
+        )
+    }
+
+    private func makeBottomStrip(of buf: RGBAFrameBuffer) -> RGBAFrameBuffer {
+        let rows = min(stripRows, buf.height)
+        let startRow = buf.height - rows
+        return buf.copy(rowRange: startRow..<buf.height)
+    }
+
+    private func makeTopStrip(of buf: RGBAFrameBuffer) -> RGBAFrameBuffer {
+        let rows = min(stripRows, buf.height)
+        return buf.copy(rowRange: 0..<rows)
+    }
+
+    // MARK: Match search
+
+    /// One verified candidate overlap.
+    private struct VerifiedMatch {
+        /// Number of rows that overlap between reference strip and new edge.
+        let overlap: Int
+        /// Mean absolute pixel difference (per channel) in the overlap.
+        let mad: Double
+    }
+
+    /// Search for the best overlap between a reference strip (cached
+    /// edge of accumulated image) and the new frame's matching edge.
+    ///
+    /// - Parameter refIsBottom: `true` when the reference strip is the
+    ///   accumulated image's bottom edge (= scroll-down case). The
+    ///   overlap is anchored at the **bottom** of `refStrip` and the
+    ///   **top** of the new edge. When `false`, it's anchored at the
+    ///   **top** of `refStrip` and the **bottom** of the new edge.
+    /// - Parameter newEdgeIsTop: which side of the new frame the edge
+    ///   buffer represents. (Used only to decide where the new edge
+    ///   sits inside `newBuffer`.)
+    private func bestMatch(
+        refStrip: RGBAFrameBuffer,
+        refStripSigs: [RowSignature],
+        refIsBottom: Bool,
+        newBuffer: RGBAFrameBuffer,
+        newEdgeSigs: [RowSignature],
+        newEdgeIsTop: Bool
+    ) -> VerifiedMatch? {
+        let maxOverlap = min(refStripSigs.count, newEdgeSigs.count, newBuffer.height)
+        guard maxOverlap > 4 else { return nil }
+        let minOverlap = max(6, maxOverlap / 30)
+
+        // Coarse pass: keep top-N candidates by signature score.
+        var coarse: [(overlap: Int, score: Double)] = []
+        coarse.reserveCapacity(maxOverlap)
+        for k in stride(from: maxOverlap, through: minOverlap, by: -1) {
+            let aStart = refIsBottom ? (refStripSigs.count - k) : 0
+            let bStart = newEdgeIsTop ? 0 : (newEdgeSigs.count - k)
+            let s = compareRows(
+                a: refStripSigs, aStart: aStart,
+                b: newEdgeSigs,  bStart: bStart,
+                count: k
+            )
+            if s >= coarseGate {
+                coarse.append((k, s))
+            }
+        }
+        guard !coarse.isEmpty else { return nil }
+        coarse.sort { $0.score > $1.score }
+        let top = coarse.prefix(candidatesPerDirection)
+
+        // Fine pass: pixel-precise MAD on each candidate overlap region.
+        var best: VerifiedMatch?
+        for cand in top {
+            let mad = pixelMAD(
+                refStrip: refStrip, refIsBottom: refIsBottom,
+                newBuffer: newBuffer, newEdgeIsTop: newEdgeIsTop,
+                overlap: cand.overlap
+            )
+            if mad <= pixelMADThreshold {
+                if best == nil || mad < best!.mad - 0.25 {
+                    best = VerifiedMatch(overlap: cand.overlap, mad: mad)
+                } else if let b = best, mad <= b.mad + 0.25, cand.overlap > b.overlap {
+                    best = VerifiedMatch(overlap: cand.overlap, mad: mad)
+                }
+            }
+        }
+        return best
+    }
+
+    /// Compute mean absolute pixel difference (RGB averaged) over the
+    /// `overlap` rows lined up at the chosen edges.
+    private func pixelMAD(
+        refStrip: RGBAFrameBuffer,
+        refIsBottom: Bool,
+        newBuffer: RGBAFrameBuffer,
+        newEdgeIsTop: Bool,
+        overlap: Int
+    ) -> Double {
+        let w = refStrip.width
+        guard newBuffer.width == w, overlap > 0 else { return .infinity }
+
+        // Subsample columns for speed (every ~4 px). For 1200-px-wide
+        // frames this is ~300 columns × overlap rows of work, which on
+        // a Retina capture takes well under a millisecond.
+        let colStep = max(1, w / 256)
+
+        let refStartRow = refIsBottom ? (refStrip.height - overlap) : 0
+        let newStartRow = newEdgeIsTop ? 0 : (newBuffer.height - overlap)
+
+        var total: UInt64 = 0
+        var samples: UInt64 = 0
+        for r in 0..<overlap {
+            let refBase = (refStartRow + r) * refStrip.bytesPerRow
+            let newBase = (newStartRow + r) * newBuffer.bytesPerRow
+            var x = 0
+            while x < w {
+                let ri = refBase + x * 4
+                let ni = newBase + x * 4
+                let dr = abs(Int(refStrip.data[ri])     - Int(newBuffer.data[ni]))
+                let dg = abs(Int(refStrip.data[ri + 1]) - Int(newBuffer.data[ni + 1]))
+                let db = abs(Int(refStrip.data[ri + 2]) - Int(newBuffer.data[ni + 2]))
+                total &+= UInt64(dr + dg + db)
+                samples &+= 3
+                x += colStep
+            }
+        }
+        guard samples > 0 else { return .infinity }
+        return Double(total) / Double(samples)
     }
 
     // MARK: Row signatures
 
     private typealias RowSignature = [UInt8]
 
-    /// Generate signatures for the bottom `rows` of an image.
-    private func bottomSignatures(of image: CGImage, rows: Int) -> [RowSignature] {
-        guard let data = pixelData(of: image) else { return [] }
-        let h = image.height
-        let w = image.width
-        let startRow = max(0, h - rows)
-        return (startRow..<h).map { row in
-            rowSignature(data: data, row: row, width: w)
-        }
-    }
-
-    /// Generate signatures for the top `rows` of an image.
-    private func topSignatures(of image: CGImage, rows: Int) -> [RowSignature] {
-        guard let data = pixelData(of: image) else { return [] }
-        let w = image.width
-        let endRow = min(image.height, rows)
-        return (0..<endRow).map { row in
-            rowSignature(data: data, row: row, width: w)
-        }
-    }
-
-    /// Sample ~`samplesPerRow` evenly-spaced pixel luminances from one
-    /// row, producing a lightweight "fingerprint".
-    private func rowSignature(data: UnsafePointer<UInt8>, row: Int, width: Int) -> RowSignature {
-        let bpp = 4 // RGBA
-        let rowOffset = row * width * bpp
-        let step = max(1, width / samplesPerRow)
-        var sig = RowSignature()
-        sig.reserveCapacity(samplesPerRow)
-        var x = 0
-        while x < width, sig.count < samplesPerRow {
-            let idx = rowOffset + x * bpp
-            // Luminance ≈ 0.299R + 0.587G + 0.114B, quantised to UInt8.
-            let r = Int(data[idx])
-            let g = Int(data[idx + 1])
-            let b = Int(data[idx + 2])
-            let lum = UInt8(clamping: (r * 77 + g * 150 + b * 29) >> 8)
-            sig.append(lum)
-            x += step
-        }
-        return sig
-    }
-
-    /// Find the vertical overlap between the tail of the accumulated
-    /// image (bottom N rows) and the top of a new frame.
-    ///
-    /// Returns `nil` if no confident match is found.
-    private func findOverlap(
-        tailSigs: [RowSignature],
-        newTopSigs: [RowSignature]
-    ) -> Int? {
-        // `tailSigs` is bottom rows of accumulated (index 0 = topmost of those rows).
-        // `newTopSigs` is top rows of new frame   (index 0 = topmost row of new frame).
-        //
-        // An overlap of `k` means: tail's last `k` rows match new's first `k` rows.
-        // That is: tailSigs[tailSigs.count - k ..< tailSigs.count] ≈ newTopSigs[0 ..< k].
-
-        let maxOverlap = min(tailSigs.count, newTopSigs.count)
-        guard maxOverlap > 0 else { return nil }
-
-        var bestOverlap = 0
-        var bestScore: Double = 0
-
-        // Start from larger overlaps (more reliable) and short-circuit.
-        let minOverlap = max(4, maxOverlap / 20) // need at least a few rows
-        for k in stride(from: maxOverlap, through: minOverlap, by: -1) {
-            let score = compareRows(
-                a: tailSigs, aStart: tailSigs.count - k,
-                b: newTopSigs, bStart: 0,
-                count: k
-            )
-            if score > bestScore {
-                bestScore = score
-                bestOverlap = k
+    private func signatures(in buf: RGBAFrameBuffer, rowRange: Range<Int>) -> [RowSignature] {
+        let w = buf.width
+        let bpr = buf.bytesPerRow
+        let step = max(1, w / samplesPerRow)
+        var sigs: [RowSignature] = []
+        sigs.reserveCapacity(rowRange.count)
+        for row in rowRange {
+            var sig = RowSignature()
+            sig.reserveCapacity(samplesPerRow)
+            let base = row * bpr
+            var x = 0
+            while x < w, sig.count < samplesPerRow {
+                let idx = base + x * 4
+                let r = Int(buf.data[idx])
+                let g = Int(buf.data[idx + 1])
+                let b = Int(buf.data[idx + 2])
+                sig.append(UInt8(clamping: (r * 77 + g * 150 + b * 29) >> 8))
+                x += step
             }
-            // Early exit: a very high score at a large overlap is
-            // almost certainly the correct one.
-            if bestScore > 0.97 { break }
+            sigs.append(sig)
         }
-
-        return bestScore >= matchThreshold ? bestOverlap : nil
+        return sigs
     }
 
-    /// Average row-level similarity score for `count` pairs of rows.
     private func compareRows(
         a: [RowSignature], aStart: Int,
         b: [RowSignature], bStart: Int,
         count: Int
     ) -> Double {
         guard count > 0 else { return 0 }
-        var total: Double = 0
+        var total = 0.0
         for i in 0..<count {
             total += rowSimilarity(a[aStart + i], b[bStart + i])
         }
         return total / Double(count)
     }
 
-    /// Similarity of two row signatures. Returns 1.0 for identical, 0.0
-    /// for maximally different.
     private func rowSimilarity(_ a: RowSignature, _ b: RowSignature) -> Double {
         let n = min(a.count, b.count)
         guard n > 0 else { return 0 }
@@ -672,33 +999,76 @@ struct ScrollImageStitcher {
 
     // MARK: Helpers
 
-    /// Read raw RGBA pixel data from a CGImage. The returned pointer is
-    /// only valid for the duration of the enclosing scope (backed by a
-    /// `CFData` we retain as long as the caller holds the reference).
-    private func pixelData(of image: CGImage) -> UnsafePointer<UInt8>? {
-        // Render into a known RGBA layout.
+    private func makeNSImage(_ cg: CGImage) -> NSImage {
+        let pointSize = NSSize(
+            width:  CGFloat(cg.width)  / backingScale,
+            height: CGFloat(cg.height) / backingScale
+        )
+        return NSImage(cgImage: cg, size: pointSize)
+    }
+}
+
+extension ScrollStitchOutcome {
+    fileprivate enum Direction { case down, up }
+}
+
+/// RAII wrapper around a manually-allocated RGBA pixel buffer so the
+/// memory is freed automatically when the buffer goes out of scope.
+private final class RGBAFrameBuffer {
+    let data: UnsafeMutablePointer<UInt8>
+    let width: Int
+    let height: Int
+    let bytesPerRow: Int
+
+    init(data: UnsafeMutablePointer<UInt8>,
+         width: Int, height: Int, bytesPerRow: Int) {
+        self.data = data
+        self.width = width
+        self.height = height
+        self.bytesPerRow = bytesPerRow
+    }
+
+    deinit { data.deallocate() }
+
+    /// Render a CGImage into a freshly-allocated RGBA buffer.
+    static func render(_ image: CGImage) -> RGBAFrameBuffer? {
         let w = image.width
         let h = image.height
+        guard w > 0, h > 0 else { return nil }
         let bpr = w * 4
+        let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: h * bpr)
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
         guard let ctx = CGContext(
-            data: nil,
+            data: buffer,
             width: w, height: h,
             bitsPerComponent: 8,
             bytesPerRow: bpr,
             space: colorSpace,
             bitmapInfo: bitmapInfo
-        ) else { return nil }
+        ) else {
+            buffer.deallocate()
+            return nil
+        }
+        ctx.interpolationQuality = .none
         ctx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
-        guard let data = ctx.data else { return nil }
-        return UnsafePointer(data.assumingMemoryBound(to: UInt8.self))
+        return RGBAFrameBuffer(
+            data: buffer, width: w, height: h, bytesPerRow: bpr
+        )
     }
 
-    private func nsImage(from cg: CGImage) -> NSImage {
-        NSImage(
-            cgImage: cg,
-            size: NSSize(width: cg.width, height: cg.height)
+    /// Copy a contiguous range of rows into a new standalone buffer.
+    func copy(rowRange: Range<Int>) -> RGBAFrameBuffer {
+        let lo = max(0, rowRange.lowerBound)
+        let hi = min(height, rowRange.upperBound)
+        let h = max(0, hi - lo)
+        let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: h * bytesPerRow)
+        if h > 0 {
+            buffer.update(from: data.advanced(by: lo * bytesPerRow),
+                          count: h * bytesPerRow)
+        }
+        return RGBAFrameBuffer(
+            data: buffer, width: width, height: h, bytesPerRow: bytesPerRow
         )
     }
 }
@@ -709,6 +1079,7 @@ fileprivate enum ScrollCaptureL10nKey {
     case done
     case cancel
     case toolScrollCapture
+    case previewTitle
 }
 
 enum ScrollCaptureL10n {
@@ -726,21 +1097,25 @@ enum ScrollCaptureL10n {
         .done: "完成",
         .cancel: "取消",
         .toolScrollCapture: "滚动截图",
+        .previewTitle: "实时预览",
     ]
     private static let zhHant: [ScrollCaptureL10nKey: String] = [
         .done: "完成",
         .cancel: "取消",
         .toolScrollCapture: "捲動截圖",
+        .previewTitle: "即時預覽",
     ]
     private static let en: [ScrollCaptureL10nKey: String] = [
         .done: "Done",
         .cancel: "Cancel",
         .toolScrollCapture: "Scroll Capture",
+        .previewTitle: "Live Preview",
     ]
     private static let ja: [ScrollCaptureL10nKey: String] = [
         .done: "完了",
         .cancel: "キャンセル",
         .toolScrollCapture: "スクロールキャプチャ",
+        .previewTitle: "ライブプレビュー",
     ]
 }
 

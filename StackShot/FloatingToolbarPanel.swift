@@ -86,6 +86,151 @@ private struct OCRViewfinderShape: Shape {
     }
 }
 
+/// Toolbar glyph for "scroll capture": rounded portrait rectangle
+/// (with **dashed vertical sides**) wrapping a vertical double-headed
+/// arrow. Stroke width is computed from the same recipe as
+/// `OCRToolbarGlyph` so the two buttons read with identical visual
+/// weight when displayed at the same point size.
+struct ScrollCaptureGlyph: View {
+    var color: Color = .primary
+
+    var body: some View {
+        GeometryReader { proxy in
+            let size = min(proxy.size.width, proxy.size.height)
+            let stroke = max(1.35, size * 0.09)            // ← matches OCR
+            // Portrait phone-frame proportions, sized to roughly fill
+            // the same bounds as the OCR viewfinder's outer corners.
+            let frameW = size * 0.78
+            let frameH = size * 0.96
+            let cornerR = frameW * 0.22
+
+            ZStack {
+                // Top + bottom edges with all four rounded corners — solid.
+                ScrollCaptureFrameSolidShape(cornerRadius: cornerR)
+                    .stroke(
+                        color,
+                        style: StrokeStyle(lineWidth: stroke,
+                                           lineCap: .round,
+                                           lineJoin: .round)
+                    )
+                    .frame(width: frameW, height: frameH)
+
+                // Just the two vertical sides — dashed.
+                ScrollCaptureFrameDashedSidesShape(cornerRadius: cornerR)
+                    .stroke(
+                        color,
+                        style: StrokeStyle(
+                            lineWidth: stroke,
+                            lineCap: .butt,
+                            dash: [stroke * 1.0, stroke * 0.85]
+                        )
+                    )
+                    .frame(width: frameW, height: frameH)
+
+                // Inner double-headed arrow.
+                ScrollCaptureArrowShape()
+                    .stroke(
+                        color,
+                        style: StrokeStyle(lineWidth: stroke,
+                                           lineCap: .round,
+                                           lineJoin: .round)
+                    )
+                    .frame(width: frameW * 0.46, height: frameH * 0.58)
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+        }
+        .aspectRatio(1, contentMode: .fit)
+        .accessibilityHidden(true)
+    }
+}
+
+/// Outline of the portrait rectangle without its two vertical sides:
+/// the top edge with both upper corner arcs, plus the bottom edge with
+/// both lower corner arcs. Drawn solid.
+private struct ScrollCaptureFrameSolidShape: Shape {
+    let cornerRadius: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let r = min(cornerRadius, min(rect.width, rect.height) / 2)
+        var p = Path()
+
+        // Top half (SwiftUI: y grows downward, so "top" = small y).
+        p.move(to: CGPoint(x: rect.minX, y: rect.minY + r))
+        p.addArc(
+            center: CGPoint(x: rect.minX + r, y: rect.minY + r),
+            radius: r,
+            startAngle: .degrees(180),
+            endAngle: .degrees(270),
+            clockwise: false
+        )
+        p.addLine(to: CGPoint(x: rect.maxX - r, y: rect.minY))
+        p.addArc(
+            center: CGPoint(x: rect.maxX - r, y: rect.minY + r),
+            radius: r,
+            startAngle: .degrees(270),
+            endAngle: .degrees(0),
+            clockwise: false
+        )
+
+        // Bottom half.
+        p.move(to: CGPoint(x: rect.minX, y: rect.maxY - r))
+        p.addArc(
+            center: CGPoint(x: rect.minX + r, y: rect.maxY - r),
+            radius: r,
+            startAngle: .degrees(180),
+            endAngle: .degrees(90),
+            clockwise: true
+        )
+        p.addLine(to: CGPoint(x: rect.maxX - r, y: rect.maxY))
+        p.addArc(
+            center: CGPoint(x: rect.maxX - r, y: rect.maxY - r),
+            radius: r,
+            startAngle: .degrees(90),
+            endAngle: .degrees(0),
+            clockwise: true
+        )
+        return p
+    }
+}
+
+/// The two vertical sides between the corner arcs. Drawn dashed.
+private struct ScrollCaptureFrameDashedSidesShape: Shape {
+    let cornerRadius: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let r = min(cornerRadius, min(rect.width, rect.height) / 2)
+        var p = Path()
+        p.move(to: CGPoint(x: rect.minX, y: rect.minY + r))
+        p.addLine(to: CGPoint(x: rect.minX, y: rect.maxY - r))
+        p.move(to: CGPoint(x: rect.maxX, y: rect.minY + r))
+        p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - r))
+        return p
+    }
+}
+
+/// Vertical double-headed arrow used inside the scroll-capture glyph.
+private struct ScrollCaptureArrowShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        let midX = rect.midX
+        let headHalfW = rect.width / 2
+        let headLen = rect.height * 0.22
+
+        // Shaft.
+        p.move(to: CGPoint(x: midX, y: rect.minY))
+        p.addLine(to: CGPoint(x: midX, y: rect.maxY))
+        // Top arrowhead.
+        p.move(to: CGPoint(x: midX - headHalfW, y: rect.minY + headLen))
+        p.addLine(to: CGPoint(x: midX, y: rect.minY))
+        p.addLine(to: CGPoint(x: midX + headHalfW, y: rect.minY + headLen))
+        // Bottom arrowhead.
+        p.move(to: CGPoint(x: midX - headHalfW, y: rect.maxY - headLen))
+        p.addLine(to: CGPoint(x: midX, y: rect.maxY))
+        p.addLine(to: CGPoint(x: midX + headHalfW, y: rect.maxY - headLen))
+        return p
+    }
+}
+
 // MARK: – Panel
 
 /// 悬浮工具条：激活后完整展示所有 18 个功能按钮。
