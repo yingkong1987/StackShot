@@ -5,28 +5,28 @@ const uiCopy = {
     home: "主页",
     privacy: "隐私政策",
     support: "支持",
-    footer: "StackShot 是一款本地优先的 macOS 截图工具，页面托管于 GitHub Pages。",
+    footer: "StackShot 是一款面向 macOS 的本地优先截图工具，覆盖捕获、标注与 OCR 工作流。",
     languageLabel: "切换语言"
   },
   "zh-Hant": {
     home: "首頁",
     privacy: "隱私政策",
     support: "支援",
-    footer: "StackShot 是一款本機優先的 macOS 截圖工具，頁面託管於 GitHub Pages。",
+    footer: "StackShot 是一款面向 macOS 的本機優先截圖工具，涵蓋擷取、標註與 OCR 工作流。",
     languageLabel: "切換語言"
   },
   en: {
     home: "Home",
     privacy: "Privacy",
     support: "Support",
-    footer: "StackShot is a local-first macOS screenshot tool. This site is hosted on GitHub Pages.",
+    footer: "StackShot is a local-first macOS screenshot tool for capture, annotation, and OCR workflows.",
     languageLabel: "Switch language"
   },
   ja: {
     home: "ホーム",
     privacy: "プライバシー",
     support: "サポート",
-    footer: "StackShot はローカル処理中心の macOS スクリーンショットツールです。このサイトは GitHub Pages で公開されています。",
+    footer: "StackShot はキャプチャ、注釈、OCR をひとつにまとめた macOS 向けローカル優先ツールです。",
     languageLabel: "言語を切り替える"
   }
 };
