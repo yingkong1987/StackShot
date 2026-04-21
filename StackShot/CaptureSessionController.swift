@@ -2,6 +2,7 @@ import AppKit
 import CoreGraphics
 
 /// 协调高亮边框、工具条与区域选取流程。
+@MainActor
 final class CaptureSessionController {
     static let shared = CaptureSessionController()
 
@@ -27,6 +28,8 @@ final class CaptureSessionController {
             endSession()
             return
         }
+        // 快捷键进入截图流程时不要把设置主窗口也带到前台，否则会干扰截图和窗口层级。
+        MenuBarController.shared.hideMainWindow()
         annotationEditor?.orderOut(nil)
         annotationEditor?.close()
         annotationEditor = nil
@@ -359,6 +362,8 @@ final class CaptureSessionController {
         let alert = NSAlert()
         alert.messageText     = "需要屏幕录制权限"
         alert.informativeText = """
+            StackShot 使用该权限来执行截图、滚动长截图，以及对已捕获画面进行编辑、OCR、保存和导出。
+
             请按以下步骤操作：
             1. 点击「打开系统设置」
             2. 在「屏幕录制」列表中找到 StackShot，开启开关
@@ -375,8 +380,7 @@ final class CaptureSessionController {
                 CGRequestScreenCaptureAccess()
                 didRequestScreenCaptureThisLaunch = true
             }
-            let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!
-            NSWorkspace.shared.open(url)
+            AppPermissionSupport.openScreenRecordingSettings()
         }
 
         return false

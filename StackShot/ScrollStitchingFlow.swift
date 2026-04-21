@@ -6,9 +6,9 @@
 //
 //      RegionSelection ──▶ ScrollStitchingCoordinator
 //                              │
-//                              ├─▶ ScreenCaptureManager (SCStream @ 12 FPS)
-//                              ├─▶ OpenCVWrapper (CVPixelBuffer ➜ Mat ➜ crop)
-//                              ├─▶ VerticalScrollStitcher (phaseCorrelate)
+//                              ├─▶ CGWindowListCreateImage (region capture)
+//                              ├─▶ ScrollImageStitcher      (frame stitching)
+//                              ├─▶ ScrollStitchingOverlayPanel
 //                              ├─▶ ScrollStitchingHUDPanel  ("正在监控滚动…")
 //                              └─▶ ScrollStitchingResultWindow (preview / save / copy)
 //
@@ -21,7 +21,7 @@
 //
 //  Stop conditions (all wired below):
 //      • User clicks "完成" on the floating HUD panel
-//      • User presses Esc anywhere on the system (global monitor)
+//      • User clicks "取消" or "完成" on the floating HUD panel
 //      • Coordinator times out after a hard cap (safety, default 5 minutes)
 //
 //  This file is intentionally self-contained — it does not modify the
@@ -32,7 +32,6 @@ import AppKit
 import SwiftUI
 import Combine
 import CoreGraphics
-import ScreenCaptureKit
 import UniformTypeIdentifiers
 import OSLog
 
@@ -55,10 +54,10 @@ private enum ScrollFlowL10n {
            en:     "Monitoring scroll…")
     }
     static var hudHint: String {
-        tr(zhHans: "把鼠标移到目标窗口慢慢滚动；按 Esc 或点击「完成」结束。",
-           zhHant: "把滑鼠移到目標視窗慢慢捲動；按 Esc 或點擊「完成」結束。",
-           ja:     "対象ウィンドウにカーソルを移動してスクロール。Esc か「完了」で停止。",
-           en:     "Hover the target window and scroll slowly. Press Esc or click Done to stop.")
+        tr(zhHans: "把鼠标移到目标窗口慢慢滚动；点击「完成」或「取消」结束。",
+           zhHant: "把滑鼠移到目標視窗慢慢捲動；點擊「完成」或「取消」結束。",
+           ja:     "対象ウィンドウにカーソルを移動してスクロール。「完了」または「キャンセル」で停止。",
+           en:     "Hover the target window and scroll slowly. Click Done or Cancel to stop.")
     }
     static var hudDone: String {
         tr(zhHans: "完成", zhHant: "完成", ja: "完了", en: "Done")
@@ -71,6 +70,9 @@ private enum ScrollFlowL10n {
            zhHant: "已拼接 \(pixels)px · 幀 \(accepted)/\(total)",
            ja:     "縫合 \(pixels)px · フレーム \(accepted)/\(total)",
            en:     "Stitched \(pixels)px · Frames \(accepted)/\(total)")
+    }
+    static var previewTitle: String {
+        tr(zhHans: "实时预览", zhHant: "即時預覽", ja: "ライブプレビュー", en: "Live Preview")
     }
     static var resultTitle: String {
         tr(zhHans: "滚动长截图", zhHant: "捲動長截圖", ja: "スクロール長尺スクリーンショット", en: "Scrolling Screenshot")
@@ -111,32 +113,38 @@ final class ScrollStitchingCoordinator {
 
     static let shared = ScrollStitchingCoordinator()
 
-    // Shared infra. Created lazily on the main actor so SwiftUI bindings work.
-    private let captureManager = ScreenCaptureManager()
-    /// `nonisolated(unsafe)` because the C++ stitcher is single-threaded by
-    /// contract — we feed it only from the SCK frame queue, and the
-    /// main-actor methods (`start`/`finish`) only touch it before frames
-    /// start flowing or after `captureManager.stop()` has returned.
-    nonisolated(unsafe) private let stitcher = VerticalScrollStitcher()
+    private static let hudSpacing: CGFloat = 12
+    private static let hudScreenMargin: CGFloat = 8
+
     private let log = Logger(subsystem: "com.stackshot.capture", category: "ScrollStitchingFlow")
+    private let processingQueue = DispatchQueue(label: "com.stackshot.scroll.capture", qos: .userInitiated)
+    private var worker: ScrollStitchingWorker?
+    private var isProcessingFrame = false
+    private var latestStitchedCGImage: CGImage?
+    private var lastPreviewRefreshTimestamp: CFTimeInterval = 0
+    private let previewRefreshInterval: CFTimeInterval = 0.10
+    private var sessionGeneration: Int = 0
 
     // Live UI surfaces.
     private var hudPanel: ScrollStitchingHUDPanel?
     private var hudViewModel: ScrollStitchingHUDViewModel?
+    private var overlayPanel: ScrollStitchingOverlayPanel?
+    private var previewPanel: ScrollStitchingPreviewPanel?
 
     // Region & geometry recorded at start time.
     private var selectedCropRect: CGRect = .zero
-    private var sourceDisplay: SCDisplay?
     private var screenForCrop: NSScreen?
-    private var pixelCropRect: CGRect = .zero   // in source-Mat pixel coords
+    private var quartzCaptureRect: CGRect = .zero
+    private var backingScale: CGFloat = 2.0
+    private var captureFrameLogCount = 0
 
-    // Global Esc monitor.
-    private var globalEscMonitor: Any?
-    private var localEscMonitor: Any?
+    private var captureLoopTask: Task<Void, Never>?
 
     // Hard timeout safety net.
     private var timeoutTask: Task<Void, Never>?
     private var maxCaptureDuration: TimeInterval = 5 * 60
+    private var shouldPresentResultWindow = true
+    private let captureInterval: TimeInterval = 0.09
 
     // Re-entry guard.
     private var isActive = false
@@ -150,153 +158,194 @@ final class ScrollStitchingCoordinator {
     /// screen coordinates — origin bottom-left, the same coord system the
     /// region-selection overlay returns).
     ///
-    /// The coordinator handles all UI: HUD, Esc handling, result window.
-    /// `completion` fires *after* the result window has been shown (or
-    /// immediately with `nil` on cancel/empty), in case the caller wants to
-    /// re-show its own UI.
+    /// The coordinator handles all UI: HUD, explicit stop controls, and optionally the
+    /// result window. `completion` always fires on the main actor with the
+    /// stitched image (or `nil` on cancel / empty / failure).
     func start(selectedCropRect rect: CGRect,
+               presentResultWindow: Bool = true,
                completion: ((NSImage?) -> Void)? = nil) {
 
-        print("🟢 ScrollStitchingCoordinator.start 收到区域: \(rect)")
+        let normalizedRect = rect.standardized.integral
+        print("🟢 ScrollStitchingCoordinator.start 收到区域: \(normalizedRect)")
 
         guard !isActive else {
             print("⚠️ ScrollStitchingCoordinator.start 被忽略 — 已有活动会话。")
             log.warning("Ignoring start() — session already active.")
             return
         }
-        guard rect.width >= 8, rect.height >= 8 else {
+        guard normalizedRect.width >= 8, normalizedRect.height >= 8 else {
             log.error("Rejecting tiny selectedCropRect: \(String(describing: rect))")
             completion?(nil)
             return
         }
 
-        // Resolve the screen / display that contains the selection's center.
-        let center = CGPoint(x: rect.midX, y: rect.midY)
+        // Resolve the screen that contains the selection's center.
+        let center = CGPoint(x: normalizedRect.midX, y: normalizedRect.midY)
         guard let screen = NSScreen.screens.first(where: { $0.frame.contains(center) })
                     ?? NSScreen.main else {
             log.error("No NSScreen contains the selectedCropRect.")
             completion?(nil); return
         }
-        self.selectedCropRect = rect
+        self.selectedCropRect = normalizedRect
         self.screenForCrop = screen
+        self.backingScale = screen.backingScaleFactor
+        self.quartzCaptureRect = Self.quartzRect(from: normalizedRect, scale: backingScale)
+        self.shouldPresentResultWindow = presentResultWindow
         self.completion = completion
+        self.captureFrameLogCount = 0
+        self.latestStitchedCGImage = nil
+        self.lastPreviewRefreshTimestamp = 0
+        self.isProcessingFrame = false
+        self.sessionGeneration &+= 1
 
         isActive = true
-        stitcher.reset()
+        worker = ScrollStitchingWorker(backingScale: backingScale)
+        print("🟢 ScrollCaptureBackend 收到区域: \(selectedCropRect)，Quartz区域: \(quartzCaptureRect)")
 
-        // Spin up async setup: discover SCDisplay, then start streaming.
-        Task { [weak self] in
-            await self?.beginAsync()
-        }
-    }
-
-    // MARK: Async setup
-
-    private func beginAsync() async {
-        do {
-            let content = try await captureManager.fetchShareableContent()
-            // Map NSScreen -> CGDirectDisplayID -> SCDisplay.
-            guard let cgDisplayID = displayID(for: screenForCrop),
-                  let scDisplay = content.displays.first(where: { $0.displayID == cgDisplayID }) else {
-                log.error("Could not match NSScreen to an SCDisplay.")
-                await failAndCleanup()
-                return
-            }
-            self.sourceDisplay = scDisplay
-            self.pixelCropRect = pixelRect(from: selectedCropRect,
-                                           on: screenForCrop!,
-                                           display: scDisplay)
-
-            // Wire frame handler — runs off the main actor on capture queue.
-            // Capture `crop` by value into the closure so the background
-            // queue never has to touch main-actor state.
-            captureManager.preferredFrameRate = 12
-            captureManager.pixelFormat = kCVPixelFormatType_32BGRA
-            let crop = self.pixelCropRect
-            captureManager.onFrame = { [weak self] pixelBuffer, _ in
-                self?.handleIncomingFrame(pixelBuffer, cropRect: crop)
-            }
-
-            try await captureManager.start(target: .display(scDisplay, excludingApplications: []))
-
-            // UI: HUD + Esc.
-            presentHUD()
-            installEscMonitors()
-            scheduleTimeout()
-        } catch {
-            log.error("ScrollStitching setup failed: \(error.localizedDescription, privacy: .public)")
-            await failAndCleanup()
-        }
-    }
-
-    // MARK: Frame handler (background thread)
-
-    nonisolated private func handleIncomingFrame(_ pixelBuffer: CVPixelBuffer,
-                                                 cropRect: CGRect) {
-        // 只在前几帧打印,避免日志洪水。
-        let framesSoFar = stitcher.framesProcessed
-        if framesSoFar < 3 {
-            print("🟢 OpenCVWrapper 收到帧 #\(framesSoFar + 1),裁切区域（px）: \(cropRect)")
-        }
-
-        guard let fullMat = OpenCVWrapper.mat(from: pixelBuffer) else { return }
-        guard let cropped = OpenCVWrapper.matByCropping(fullMat, to: cropRect) else { return }
-
-        var dy: Double = 0
-        let result = stitcher.add(cropped, outDeltaY: &dy)
-
-        // Push lightweight progress updates back to the HUD on the main actor.
-        let accepted = (result == .appended || result == .accepted) ? 1 : 0
-        let height = Int(stitcher.canvasHeight)
-        Task { @MainActor [weak self] in
-            self?.hudViewModel?.totalFrames &+= 1
-            self?.hudViewModel?.acceptedFrames &+= accepted
-            self?.hudViewModel?.canvasHeightPx = height
-        }
+        presentOverlay()
+        presentPreview()
+        presentHUD()
+        scheduleTimeout()
+        startCaptureLoop()
     }
 
     // MARK: HUD
 
+    private func presentOverlay() {
+        overlayPanel?.orderOut(nil)
+        let panel = ScrollStitchingOverlayPanel(captureRect: selectedCropRect)
+        panel.orderFrontRegardless()
+        self.overlayPanel = panel
+    }
+
     private func presentHUD() {
         let viewModel = ScrollStitchingHUDViewModel()
-        viewModel.onDone   = { [weak self] in Task { await self?.finish(cancelled: false) } }
-        viewModel.onCancel = { [weak self] in Task { await self?.finish(cancelled: true) } }
+        viewModel.onDone   = { [weak self] in self?.finish(cancelled: false) }
+        viewModel.onCancel = { [weak self] in self?.finish(cancelled: true) }
         self.hudViewModel = viewModel
 
         let panel = ScrollStitchingHUDPanel(viewModel: viewModel)
-        // Anchor to the top-right of the active screen for unobtrusive HUD.
-        if let screen = screenForCrop {
-            let panelSize = panel.frame.size
-            let x = screen.frame.maxX - panelSize.width - 24
-            let y = screen.frame.maxY - panelSize.height - 24
-            panel.setFrameOrigin(NSPoint(x: x, y: y))
-        }
+        panel.setFrameOrigin(hudOrigin(for: panel.frame.size))
         panel.orderFrontRegardless()
         self.hudPanel = panel
     }
 
-    // MARK: Stop monitors
-
-    private func installEscMonitors() {
-        // Global: when our app is *not* key (which is the normal case while
-        // user scrolls Safari), Esc anywhere on the system stops capture.
-        globalEscMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
-            guard event.keyCode == 53 else { return } // 53 = Escape
-            Task { @MainActor in await self?.finish(cancelled: true) }
-        }
-        // Local: in case our HUD becomes key, the global monitor wouldn't
-        // fire — cover that case too. We do not consume the event.
-        localEscMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
-            if event.keyCode == 53 {
-                Task { @MainActor in await self?.finish(cancelled: true) }
-            }
-            return event
-        }
+    private func presentPreview() {
+        previewPanel?.orderOut(nil)
+        let panel = ScrollStitchingPreviewPanel(anchorRect: selectedCropRect)
+        panel.orderFrontRegardless()
+        self.previewPanel = panel
     }
 
-    private func uninstallEscMonitors() {
-        if let m = globalEscMonitor { NSEvent.removeMonitor(m); globalEscMonitor = nil }
-        if let m = localEscMonitor  { NSEvent.removeMonitor(m); localEscMonitor  = nil }
+    private func hudOrigin(for panelSize: CGSize) -> NSPoint {
+        let visibleFrame = screenForCrop?.visibleFrame
+            ?? screenForCrop?.frame
+            ?? NSScreen.main?.visibleFrame
+            ?? CGRect(x: 0, y: 0, width: 1920, height: 1080)
+        let avoidRect = previewPanel?.frame.insetBy(dx: -Self.hudSpacing, dy: -Self.hudSpacing)
+
+        let bottomY = selectedCropRect.minY - panelSize.height - Self.hudSpacing
+        if bottomY >= visibleFrame.minY + Self.hudScreenMargin {
+            let bottomCandidates = [
+                CGRect(
+                    x: selectedCropRect.midX - panelSize.width / 2,
+                    y: bottomY,
+                    width: panelSize.width,
+                    height: panelSize.height
+                ),
+                CGRect(
+                    x: selectedCropRect.minX,
+                    y: bottomY,
+                    width: panelSize.width,
+                    height: panelSize.height
+                ),
+                CGRect(
+                    x: selectedCropRect.maxX - panelSize.width,
+                    y: bottomY,
+                    width: panelSize.width,
+                    height: panelSize.height
+                )
+            ]
+
+            if let resolved = bottomCandidates
+                .map({ clamp($0, to: visibleFrame) })
+                .first(where: { candidate in
+                    guard let avoidRect else { return true }
+                    return !candidate.intersects(avoidRect)
+                }) {
+                return resolved.origin
+            }
+        }
+
+        let leftX = selectedCropRect.minX - panelSize.width - Self.hudSpacing
+        if leftX >= visibleFrame.minX + Self.hudScreenMargin {
+            let centeredY = selectedCropRect.midY - panelSize.height / 2
+            let leftCandidate = clamp(
+                CGRect(
+                    x: leftX,
+                    y: centeredY,
+                    width: panelSize.width,
+                    height: panelSize.height
+                ),
+                to: visibleFrame
+            )
+            if avoidRect == nil || !leftCandidate.intersects(avoidRect!) {
+                return leftCandidate.origin
+            }
+        }
+
+        let fallbackCandidates = [
+            clamp(
+                CGRect(
+                    x: selectedCropRect.maxX + Self.hudSpacing,
+                    y: selectedCropRect.midY - panelSize.height / 2,
+                    width: panelSize.width,
+                    height: panelSize.height
+                ),
+                to: visibleFrame
+            ),
+            clamp(
+                CGRect(
+                    x: selectedCropRect.midX - panelSize.width / 2,
+                    y: selectedCropRect.maxY + Self.hudSpacing,
+                    width: panelSize.width,
+                    height: panelSize.height
+                ),
+                to: visibleFrame
+            ),
+            clamp(
+                CGRect(
+                    x: visibleFrame.maxX - panelSize.width - Self.hudScreenMargin,
+                    y: visibleFrame.maxY - panelSize.height - Self.hudScreenMargin,
+                    width: panelSize.width,
+                    height: panelSize.height
+                ),
+                to: visibleFrame
+            )
+        ]
+
+        if let resolved = fallbackCandidates.first(where: { candidate in
+            guard let avoidRect else { return true }
+            return !candidate.intersects(avoidRect)
+        }) {
+            return resolved.origin
+        }
+
+        return clamp(
+            CGRect(origin: selectedCropRect.origin, size: panelSize),
+            to: visibleFrame
+        ).origin
+    }
+
+    private func clamp(_ rect: CGRect, to bounds: CGRect) -> CGRect {
+        CGRect(
+            x: min(max(rect.origin.x, bounds.minX + Self.hudScreenMargin),
+                   bounds.maxX - rect.width - Self.hudScreenMargin),
+            y: min(max(rect.origin.y, bounds.minY + Self.hudScreenMargin),
+                   bounds.maxY - rect.height - Self.hudScreenMargin),
+            width: rect.width,
+            height: rect.height
+        )
     }
 
     private func scheduleTimeout() {
@@ -305,91 +354,449 @@ final class ScrollStitchingCoordinator {
         timeoutTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(cap * 1_000_000_000))
             guard !Task.isCancelled else { return }
-            await self?.finish(cancelled: false)
+            await MainActor.run {
+                self?.finish(cancelled: false)
+            }
         }
+    }
+
+    // MARK: Frame capture
+
+    private func startCaptureLoop() {
+        captureLoopTask?.cancel()
+        let intervalNs = UInt64(captureInterval * 1_000_000_000)
+        captureLoopTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 60_000_000)
+            while !Task.isCancelled {
+                await MainActor.run {
+                    self?.captureFrame()
+                }
+                try? await Task.sleep(nanoseconds: intervalNs)
+            }
+        }
+    }
+
+    private func captureFrame() {
+        guard isActive, !isProcessingFrame, let worker else { return }
+        let frameIndex = captureFrameLogCount
+        captureFrameLogCount += 1
+        isProcessingFrame = true
+
+        let listOption: CGWindowListOption
+        let relativeToWindow: CGWindowID
+        if let overlayNumber = overlayPanel?.windowNumber, overlayNumber > 0 {
+            listOption = [.optionOnScreenBelowWindow, .excludeDesktopElements]
+            relativeToWindow = CGWindowID(overlayNumber)
+        } else {
+            listOption = .optionOnScreenOnly
+            relativeToWindow = kCGNullWindowID
+        }
+
+        if frameIndex < 3 {
+            print("🟢 ScrollCaptureBackend 帧 #\(frameIndex + 1)，裁剪区域: \(selectedCropRect)，Quartz区域: \(quartzCaptureRect)")
+        }
+
+        let captureRect = quartzCaptureRect
+        let generation = sessionGeneration
+        processingQueue.async { [weak self] in
+            guard let cgImage = CGWindowListCreateImage(
+                captureRect,
+                listOption,
+                relativeToWindow,
+                .bestResolution
+            ) else {
+                DispatchQueue.main.async {
+                    guard let self, self.sessionGeneration == generation else { return }
+                    self.isProcessingFrame = false
+                }
+                return
+            }
+
+            let update = worker.processFrame(cgImage)
+            DispatchQueue.main.async { [weak self] in
+                self?.applyFrameUpdate(
+                    update,
+                    frameIndex: frameIndex,
+                    generation: generation
+                )
+            }
+        }
+    }
+
+    private func applyFrameUpdate(
+        _ update: ScrollStitchingFrameUpdate,
+        frameIndex: Int,
+        generation: Int
+    ) {
+        guard sessionGeneration == generation else { return }
+        isProcessingFrame = false
+        guard isActive else { return }
+
+        if frameIndex < 8 {
+            print("🟢 ScrollCaptureBackend outcome=\(String(describing: update.outcome)) totalHeight=\(update.canvasHeightPx)")
+        }
+
+        hudViewModel?.totalFrames &+= 1
+        if update.outcome == .appended || update.outcome == .prepended {
+            hudViewModel?.acceptedFrames &+= 1
+        }
+        hudViewModel?.canvasHeightPx = update.canvasHeightPx
+
+        guard let stitchedCGImage = update.stitchedCGImage else { return }
+        latestStitchedCGImage = stitchedCGImage
+
+        let now = CFAbsoluteTimeGetCurrent()
+        guard now - lastPreviewRefreshTimestamp >= previewRefreshInterval else { return }
+        lastPreviewRefreshTimestamp = now
+        previewPanel?.updateImage(stitchedCGImage)
     }
 
     // MARK: Finalization
 
-    private func finish(cancelled: Bool) async {
+    private func finish(cancelled: Bool) {
         guard isActive else { return }
         isActive = false
+        let shouldPresentResultWindow = self.shouldPresentResultWindow
+        self.shouldPresentResultWindow = true
 
         timeoutTask?.cancel(); timeoutTask = nil
-        uninstallEscMonitors()
-        await captureManager.stop()
-        captureManager.onFrame = nil
+        captureLoopTask?.cancel(); captureLoopTask = nil
+        isProcessingFrame = false
+        overlayPanel?.orderOut(nil); overlayPanel = nil
+        previewPanel?.orderOut(nil); previewPanel = nil
 
-        // Pull the stitched image off the C++ side and convert to NSImage.
-        let nsImage: NSImage? = {
-            guard !cancelled,
-                  let mat = stitcher.stitchedImage(),
-                  let cgRetained = OpenCVWrapper.cgImage(from: mat) else { return nil }
-            // CF_RETURNS_RETAINED: take ownership without an extra retain.
-            let cgImage = cgRetained.takeRetainedValue()
-            return NSImage(cgImage: cgImage,
-                           size: NSSize(width:  cgImage.width,
-                                        height: cgImage.height))
-        }()
+        let nsImage = cancelled ? nil : latestStitchedCGImage.map {
+            NSImage(
+                cgImage: $0,
+                size: NSSize(width: CGFloat($0.width) / backingScale,
+                             height: CGFloat($0.height) / backingScale)
+            )
+        }
 
         // Tear down HUD before showing result so focus shifts cleanly.
         hudPanel?.orderOut(nil); hudPanel = nil; hudViewModel = nil
 
-        if let img = nsImage {
-            ScrollStitchingResultWindow.present(image: img)
-        } else {
-            ScrollStitchingResultWindow.presentEmpty()
+        if !cancelled, shouldPresentResultWindow {
+            if let img = nsImage {
+                ScrollStitchingResultWindow.present(image: img)
+            } else {
+                ScrollStitchingResultWindow.presentEmpty()
+            }
         }
 
         completion?(nsImage)
         completion = nil
+        worker = nil
     }
 
-    private func failAndCleanup() async {
+    private func failAndCleanup() {
         isActive = false
-        uninstallEscMonitors()
+        shouldPresentResultWindow = true
+        captureLoopTask?.cancel(); captureLoopTask = nil
+        isProcessingFrame = false
         timeoutTask?.cancel(); timeoutTask = nil
-        await captureManager.stop()
+        overlayPanel?.orderOut(nil); overlayPanel = nil
+        previewPanel?.orderOut(nil); previewPanel = nil
         hudPanel?.orderOut(nil); hudPanel = nil; hudViewModel = nil
         completion?(nil); completion = nil
+        worker = nil
     }
 
     // MARK: Coordinate math
 
-    /// Maps an AppKit-screen rect to source-Mat pixel coordinates.
-    ///
-    /// AppKit screen coords have origin bottom-left of the *primary screen*;
-    /// SCK display frames have origin top-left of *that display*, in pixels.
-    /// Conversion steps:
-    ///   1. Translate into screen-local AppKit coords.
-    ///   2. Flip Y so origin is top-left (still in points).
-    ///   3. Multiply by backingScaleFactor (points → pixels).
-    private func pixelRect(from screenRect: CGRect,
-                           on screen: NSScreen,
-                           display: SCDisplay) -> CGRect {
-        let scale = screen.backingScaleFactor
-        let localX = screenRect.minX - screen.frame.minX
-        let localBottomUpY = screenRect.minY - screen.frame.minY
-        let localTopDownY = screen.frame.height - (localBottomUpY + screenRect.height)
+    private static func quartzRect(from appKitRect: CGRect, scale: CGFloat) -> CGRect {
+        let desktopBounds = NSScreen.screens.reduce(CGRect.null) { $0.union($1.frame) }
+        guard !desktopBounds.isNull else { return appKitRect }
 
-        let px = (localX * scale).rounded()
-        let py = (localTopDownY * scale).rounded()
-        let pw = (screenRect.width * scale).rounded()
-        let ph = (screenRect.height * scale).rounded()
+        let x = floor(appKitRect.origin.x * scale) / scale
+        let w = ceil(appKitRect.width * scale) / scale
+        let h = ceil(appKitRect.height * scale) / scale
+        let y = floor((desktopBounds.maxY - appKitRect.maxY) * scale) / scale
 
-        // Clamp into the captured display's pixel bounds.
-        let bounds = CGRect(x: 0, y: 0,
-                            width: CGFloat(display.width),
-                            height: CGFloat(display.height))
-        return CGRect(x: px, y: py, width: pw, height: ph).intersection(bounds)
+        return CGRect(x: x, y: y, width: w, height: h)
+    }
+}
+
+private final class ScrollStitchingOverlayPanel: NSPanel {
+
+    init(captureRect: CGRect) {
+        let unionFrame = NSScreen.screens.reduce(CGRect.null) { $0.union($1.frame) }
+        super.init(
+            contentRect: unionFrame,
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        isOpaque = false
+        backgroundColor = .clear
+        level = .screenSaver
+        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        hasShadow = false
+        hidesOnDeactivate = false
+        isFloatingPanel = true
+        worksWhenModal = false
+        ignoresMouseEvents = true
+
+        let view = ScrollStitchingOverlayView(
+            frame: NSRect(origin: .zero, size: unionFrame.size),
+            captureRect: captureRect.offsetBy(dx: -unionFrame.origin.x, dy: -unionFrame.origin.y)
+        )
+        contentView = view
+    }
+}
+
+private final class ScrollStitchingOverlayView: NSView {
+    private let captureRect: CGRect
+
+    init(frame: NSRect, captureRect: CGRect) {
+        self.captureRect = captureRect
+        super.init(frame: frame)
+        wantsLayer = true
     }
 
-    private func displayID(for screen: NSScreen?) -> CGDirectDisplayID? {
-        guard let screen,
-              let raw = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else {
-            return nil
+    required init?(coder: NSCoder) { nil }
+
+    override func draw(_ dirtyRect: NSRect) {
+        NSColor.black.withAlphaComponent(0.30).setFill()
+        NSBezierPath(rect: bounds).fill()
+
+        NSGraphicsContext.current?.compositingOperation = .clear
+        NSBezierPath(rect: captureRect).fill()
+        NSGraphicsContext.current?.compositingOperation = .sourceOver
+
+        let borderPath = NSBezierPath(rect: captureRect.insetBy(dx: -1.5, dy: -1.5))
+        borderPath.lineWidth = 2
+        NSColor.systemBlue.withAlphaComponent(0.85).setStroke()
+        borderPath.stroke()
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+}
+
+private struct ScrollStitchingFrameUpdate {
+    let outcome: ScrollStitchOutcome
+    let canvasHeightPx: Int
+    let stitchedCGImage: CGImage?
+}
+
+private final class ScrollStitchingWorker {
+    private var stitcher: ScrollImageStitcher
+
+    init(backingScale: CGFloat) {
+        self.stitcher = ScrollImageStitcher(backingScale: backingScale)
+    }
+
+    func processFrame(_ cgImage: CGImage) -> ScrollStitchingFrameUpdate {
+        let outcome = stitcher.appendFrame(cgImage)
+        return ScrollStitchingFrameUpdate(
+            outcome: outcome,
+            canvasHeightPx: stitcher.canvasPixelHeight,
+            stitchedCGImage: stitcher.resultCGImage
+        )
+    }
+}
+
+private final class ScrollStitchingPreviewPanel: NSPanel {
+
+    private final class AspectFitCGImageView: NSView {
+        var cgImage: CGImage? {
+            didSet { needsDisplay = true }
         }
-        return CGDirectDisplayID(raw.uint32Value)
+
+        override var isFlipped: Bool { true }
+
+        override func draw(_ dirtyRect: NSRect) {
+            super.draw(dirtyRect)
+
+            NSColor.clear.setFill()
+            dirtyRect.fill()
+
+            guard let cgImage,
+                  let context = NSGraphicsContext.current?.cgContext else { return }
+
+            let imageSize = CGSize(width: cgImage.width, height: cgImage.height)
+            let targetRect = Self.aspectFitRect(for: imageSize, in: bounds)
+
+            context.saveGState()
+            let clipPath = NSBezierPath(roundedRect: targetRect, xRadius: 8, yRadius: 8)
+            clipPath.addClip()
+            context.interpolationQuality = .high
+            context.translateBy(x: 0, y: targetRect.minY + targetRect.maxY)
+            context.scaleBy(x: 1, y: -1)
+            context.draw(cgImage, in: targetRect)
+            context.restoreGState()
+        }
+
+        private static func aspectFitRect(for imageSize: CGSize, in bounds: CGRect) -> CGRect {
+            guard imageSize.width > 0, imageSize.height > 0,
+                  bounds.width > 0, bounds.height > 0 else {
+                return bounds
+            }
+
+            let scale = min(bounds.width / imageSize.width,
+                            bounds.height / imageSize.height)
+            let fittedSize = CGSize(width: floor(imageSize.width * scale),
+                                    height: floor(imageSize.height * scale))
+            return CGRect(
+                x: bounds.midX - fittedSize.width / 2,
+                y: bounds.midY - fittedSize.height / 2,
+                width: fittedSize.width,
+                height: fittedSize.height
+            ).integral
+        }
+    }
+
+    private let imageView: AspectFitCGImageView
+    private let titleLabel: NSTextField
+    private let containerView: NSView
+    private let anchorRect: CGRect
+
+    private static let maxPreviewWidth: CGFloat = 520
+    private static let titleBarHeight: CGFloat = 22
+    private static let maxPreviewHeight: CGFloat = 900
+    private static let minPreviewWidth: CGFloat = 320
+    private static let minPreviewHeight: CGFloat = 320
+    private static let spacing: CGFloat = 18
+    private static let contentPadding: CGFloat = 10
+
+    init(anchorRect: CGRect) {
+        self.anchorRect = anchorRect
+
+        let initial = Self.previewFrame(for: anchorRect, imageSize: nil)
+        let contentSize = initial.size
+        let previewRect = Self.imageFrame(forPanelSize: contentSize, imageSize: nil)
+
+        imageView = AspectFitCGImageView(frame: previewRect)
+        imageView.wantsLayer = true
+        imageView.layer?.cornerRadius = 8
+        imageView.layer?.masksToBounds = true
+
+        titleLabel = NSTextField(labelWithString: ScrollFlowL10n.previewTitle)
+        titleLabel.font = .systemFont(ofSize: 11, weight: .semibold)
+        titleLabel.textColor = NSColor.white.withAlphaComponent(0.9)
+        titleLabel.alignment = .center
+        titleLabel.backgroundColor = .clear
+        titleLabel.drawsBackground = false
+        titleLabel.frame = NSRect(
+            x: 0, y: contentSize.height - Self.titleBarHeight,
+            width: contentSize.width, height: Self.titleBarHeight
+        )
+        titleLabel.autoresizingMask = [.width, .minYMargin]
+
+        containerView = NSView(frame: NSRect(origin: .zero, size: contentSize))
+        containerView.wantsLayer = true
+        containerView.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.65).cgColor
+        containerView.layer?.cornerRadius = 10
+        containerView.addSubview(imageView)
+        containerView.addSubview(titleLabel)
+
+        super.init(
+            contentRect: initial,
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        isOpaque = false
+        backgroundColor = .clear
+        level = .screenSaver
+        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        hasShadow = true
+        hidesOnDeactivate = false
+        ignoresMouseEvents = false
+        isFloatingPanel = true
+        worksWhenModal = false
+
+        contentView = containerView
+        applyLayout(panelSize: contentSize, imageSize: nil)
+    }
+
+    func updateImage(_ cgImage: CGImage) {
+        imageView.cgImage = cgImage
+
+        let imageSize = CGSize(width: cgImage.width, height: cgImage.height)
+        let newFrame = Self.previewFrame(for: anchorRect, imageSize: imageSize)
+        setFrame(newFrame, display: true, animate: false)
+        applyLayout(panelSize: newFrame.size, imageSize: imageSize)
+    }
+
+    private static func previewFrame(for anchor: CGRect, imageSize: CGSize?) -> CGRect {
+        let screenFrame = NSScreen.screens
+            .first(where: { $0.frame.intersects(anchor) })?
+            .visibleFrame
+            ?? NSScreen.main?.visibleFrame
+            ?? CGRect(x: 0, y: 0, width: 1920, height: 1080)
+
+        let maxPanelWidth = min(maxPreviewWidth, max(minPreviewWidth, screenFrame.width * 0.34))
+        let maxPanelHeight = min(maxPreviewHeight, max(minPreviewHeight, screenFrame.height * 0.88))
+        let panelSize = fittedPanelSize(maxWidth: maxPanelWidth,
+                                        maxHeight: maxPanelHeight,
+                                        imageSize: imageSize)
+
+        var y = anchor.midY - panelSize.height / 2
+        y = max(screenFrame.minY + 8, min(y, screenFrame.maxY - panelSize.height - 8))
+
+        let rightX = anchor.maxX + spacing
+        let leftX = anchor.minX - spacing - panelSize.width
+        let x: CGFloat
+        if rightX + panelSize.width <= screenFrame.maxX - 8 {
+            x = rightX
+        } else if leftX >= screenFrame.minX + 8 {
+            x = leftX
+        } else {
+            x = screenFrame.maxX - panelSize.width - 8
+        }
+        return CGRect(x: x, y: y, width: panelSize.width, height: panelSize.height)
+    }
+
+    private static func fittedPanelSize(maxWidth: CGFloat,
+                                        maxHeight: CGFloat,
+                                        imageSize: CGSize?) -> CGSize {
+        guard let imageSize, imageSize.width > 0, imageSize.height > 0 else {
+            return CGSize(width: maxWidth, height: maxHeight)
+        }
+
+        let availableWidth = maxWidth - contentPadding * 2
+        let availableHeight = maxHeight - titleBarHeight - contentPadding * 2
+        let scale = min(availableWidth / imageSize.width,
+                        availableHeight / imageSize.height)
+        let fittedWidth = floor(imageSize.width * scale)
+        let fittedHeight = floor(imageSize.height * scale)
+        return CGSize(width: fittedWidth + contentPadding * 2,
+                      height: fittedHeight + titleBarHeight + contentPadding * 2)
+    }
+
+    private static func imageFrame(forPanelSize panelSize: CGSize, imageSize: CGSize?) -> CGRect {
+        let bounds = CGRect(
+            x: contentPadding,
+            y: contentPadding,
+            width: panelSize.width - contentPadding * 2,
+            height: max(40, panelSize.height - titleBarHeight - contentPadding * 2)
+        )
+        guard let imageSize, imageSize.width > 0, imageSize.height > 0 else {
+            return bounds
+        }
+
+        let scale = min(bounds.width / imageSize.width,
+                        bounds.height / imageSize.height)
+        let fittedSize = CGSize(width: floor(imageSize.width * scale),
+                                height: floor(imageSize.height * scale))
+        return CGRect(
+            x: bounds.midX - fittedSize.width / 2,
+            y: bounds.midY - fittedSize.height / 2,
+            width: fittedSize.width,
+            height: fittedSize.height
+        ).integral
+    }
+
+    private func applyLayout(panelSize: CGSize, imageSize: CGSize?) {
+        containerView.frame = NSRect(origin: .zero, size: panelSize)
+        imageView.frame = Self.imageFrame(forPanelSize: panelSize, imageSize: imageSize)
+        titleLabel.frame = NSRect(
+            x: 0,
+            y: panelSize.height - Self.titleBarHeight,
+            width: panelSize.width,
+            height: Self.titleBarHeight
+        )
     }
 }
 
@@ -486,7 +893,7 @@ final class ScrollStitchingHUDPanel: NSPanel {
         self.setContentSize(host.fittingSize)
     }
 
-    // Override key-window check so global Esc keeps working.
+    // Keep the HUD non-key so the underlying app stays scrollable.
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 }

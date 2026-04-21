@@ -90,6 +90,7 @@ final class AnnotationEditorState: ObservableObject {
     ]
 
     @Published var selectedTool: AnnotationTool?
+    @Published var selectedCropRect: CGRect = .zero
     @Published var isSelectionAdjustmentMode = false
     @Published var isOCRRunning = false
     @Published var isOCRTranslationApplied = false
@@ -245,7 +246,6 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
     }
     /// Original screen-space capture rect (AppKit coords), used by scroll capture.
     private var originalCaptureRect: CGRect?
-    private var scrollCaptureSession: ScrollCaptureSession?
 
     /// Called when the user confirms or shares; passes the final annotated image.
     var onConfirm: ((NSImage) -> Void)?
@@ -290,7 +290,7 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
         minSize = NSSize(width: 80, height: 60)
         delegate = self
 
-        self.originalCaptureRect = captureRect
+        self.updateSelectedCropRect(captureRect)
         state.isSelectionAdjustmentMode = initialTool == nil
             && sourceScreenSnapshot != nil
             && sourceDesktopBounds != nil
@@ -342,6 +342,11 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
     }
 
     // MARK: Layout
+
+    private func updateSelectedCropRect(_ rect: CGRect?) {
+        originalCaptureRect = rect
+        state.selectedCropRect = rect ?? .zero
+    }
 
     private func setupContent(canvasW: CGFloat, canvasH: CGFloat) {
         contentContainer.frame = CGRect(x: 0, y: 0, width: canvasW, height: canvasH)
@@ -409,8 +414,14 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
             y: current.midY - newH / 2,
             width: newW + sidebarWidth, height: newH
         )
+        let updatedCaptureRect = CGRect(
+            x: newFrame.minX,
+            y: newFrame.minY,
+            width: newW,
+            height: newH
+        )
         setFrame(newFrame, display: true, animate: true)
-        originalCaptureRect = newFrame
+        updateSelectedCropRect(updatedCaptureRect)
         syncBackdropSelectionFrame()
     }
 
@@ -434,8 +445,8 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
         guard frame != normalized else { return }
 
         setFrame(normalized, display: true, animate: false)
-        originalCaptureRect = normalized
-                syncBackdropSelectionFrame()
+        updateSelectedCropRect(normalized)
+        syncBackdropSelectionFrame()
 
         guard let snapshot = sourceScreenSnapshot,
               let desktopBounds = sourceDesktopBounds,
@@ -898,7 +909,7 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
             onEmoji:        { [weak self] anchorView in self?.presentEmojiPicker(anchorView: anchorView) },
             onOCR:          { [weak self] in self?.performOCR(translate: false) },
             onOCRTranslate: { [weak self] in self?.performOCR(translate: true) },
-            onScrollCapture:{ [weak self] in self?.performScrollCapture() }
+            onScrollCapture:{ [weak self] rect in self?.performScrollCapture(selectedCropRect: rect) }
         )
 
         let panel = AnnotationToolbarFloatingPanel(
@@ -1008,76 +1019,52 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
 
     // MARK: Scroll Capture
 
-    private func performScrollCapture() {
-        // 🛠 Diagnostic: verify the toolbar button is actually firing AND
-        //    carrying a real cropping rect. If you don't see this line in
-        //    Console after clicking 「滚动截图」, the button binding itself
-        //    is broken (check the AnnotationToolbarView `onScrollCapture:`
-        //    wiring). If you DO see it but the HUD never appears, the new
-        //    ScrollStitchingCoordinator files aren't in the Xcode target —
-        //    see the checklist in ScrollStitchingFlow.swift's header.
-        print("👉 触发滚动截图，当前裁剪区域: \(String(describing: originalCaptureRect))")
+    private func performScrollCapture(selectedCropRect: CGRect) {
+        let fallbackRect = originalCaptureRect ?? .zero
+        let resolvedRect = (selectedCropRect.width >= 8 && selectedCropRect.height >= 8
+                            ? selectedCropRect
+                            : fallbackRect)
+            .standardized
+            .integral
 
-        guard let captureRect = originalCaptureRect else {
-            print("⚠️ originalCaptureRect 为 nil,中止滚动截图。")
+        print("👉 触发滚动截图，当前裁剪区域: \(selectedCropRect)")
+
+        guard resolvedRect.width >= 8, resolvedRect.height >= 8 else {
+            print("⚠️ selectedCropRect 无效，state=\(selectedCropRect), fallback=\(fallbackRect)")
             return
         }
-        print("🟢 即将进入 ScrollCapture pipeline, captureRect=\(captureRect)")
+        updateSelectedCropRect(resolvedRect)
+        print("🟢 即将进入 ScrollStitching pipeline, captureRect=\(resolvedRect)")
 
         // Hide the annotation editor & toolbar so they don't appear in captures.
         hideFloatingToolbar()
         orderOut(nil)
 
-        // ──────────────────────────────────────────────────────────────────
-        // TODO(scroll-stitching-v2): 切换到 ScreenCaptureKit + OpenCV pipeline
-        // ──────────────────────────────────────────────────────────────────
-        // 切换前必须先把以下文件加入 Xcode target:
-        //   • StackShot/OpenCVWrapper.h
-        //   • StackShot/OpenCVWrapper.mm          (Type = Objective-C++ Source)
-        //   • StackShot/StackShot-Bridging-Header.h
-        //   • StackShot/ScreenCaptureManager.swift
-        //   • StackShot/ScrollStitchingFlow.swift
-        // 并把 Build Settings 里 SWIFT_OBJC_BRIDGING_HEADER 设为上面那个桥接头;
-        // 把 opencv2.framework 拖进 Frameworks/ 并 Embed & Sign。
-        //
-        // 完成后,把下面这段 legacy block 整块换成:
-        //
-        //     ScrollStitchingCoordinator.shared.start(selectedCropRect: captureRect) { [weak self] image in
-        //         guard let self else { return }
-        //         if image == nil {
-        //             NSApp.activate(ignoringOtherApps: true)
-        //             self.orderFrontRegardless()
-        //             self.makeKeyAndOrderFront(nil)
-        //             self.showFloatingToolbar()
-        //         }
-        //     }
-        //     return
-        // ──────────────────────────────────────────────────────────────────
-
-        let session = ScrollCaptureSession(captureRect: captureRect)
-        session.onFinish = { [weak self] image in
+        // Defer to the next main-loop turn so AppKit has already hidden the
+        // editor before ScreenCaptureKit / HUD setup begins.
+        DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            self.scrollCaptureSession = nil
-            if let image {
-                // Open a new editor with the stitched long image.
-                let editor = AnnotationEditorPanel(screenshot: image)
-                editor.onConfirm = self.onConfirm
-                editor.onCancel  = self.onCancel
-                NSApp.activate(ignoringOtherApps: true)
-                editor.orderFrontRegardless()
-                editor.makeKeyAndOrderFront(nil)
-                // Replace ourselves in the capture controller.
-                CaptureSessionController.shared.replaceEditor(editor)
-            } else {
-                // Cancelled – restore original editor.
-                NSApp.activate(ignoringOtherApps: true)
-                self.orderFrontRegardless()
-                self.makeKeyAndOrderFront(nil)
-                self.showFloatingToolbar()
+            ScrollStitchingCoordinator.shared.start(
+                selectedCropRect: resolvedRect,
+                presentResultWindow: false
+            ) { [weak self] image in
+                guard let self else { return }
+                if let image {
+                    let editor = AnnotationEditorPanel(screenshot: image)
+                    editor.onConfirm = self.onConfirm
+                    editor.onCancel  = self.onCancel
+                    NSApp.activate(ignoringOtherApps: true)
+                    editor.orderFrontRegardless()
+                    editor.makeKeyAndOrderFront(nil)
+                    CaptureSessionController.shared.replaceEditor(editor)
+                } else {
+                    NSApp.activate(ignoringOtherApps: true)
+                    self.orderFrontRegardless()
+                    self.makeKeyAndOrderFront(nil)
+                    self.showFloatingToolbar()
+                }
             }
         }
-        scrollCaptureSession = session
-        session.start()
     }
 
     // MARK: OCR
@@ -2852,7 +2839,7 @@ private struct AnnotationToolbarView: View {
     var onEmoji:        (NSView) -> Void
     var onOCR:          () -> Void
     var onOCRTranslate: () -> Void
-    var onScrollCapture:() -> Void
+    var onScrollCapture:(CGRect) -> Void
 
     private let configurableTools: Set<AnnotationTool> = [.rectangle, .circle, .arrow, .pen, .mosaic, .text]
     private let orderedTokens: [ToolbarToken] = [
@@ -2931,7 +2918,7 @@ private struct AnnotationToolbarView: View {
             drawTool(.text, "t.square", EditorL10n.tr(.toolText))
         case .ocrTranslate:
             // Apple Translation 框架（可编程 Session）仅 macOS 15+ 可用；低版本隐藏按钮。
-            if #available(macOS 15.0, *) {
+            if #available(macOS 15.0, *), AppStoreComplianceFeatures.isOCRTranslationOverlayEnabled {
                 drawTool(.ocrTranslate, "translate", EditorL10n.tr(.toolOCRTranslate))
                     .overlay(alignment: .topTrailing) {
                         if state.isOCRTranslationApplied {
@@ -3075,7 +3062,11 @@ private struct AnnotationToolbarView: View {
     /// Stroke width matches the OCR glyph (`size * 0.09`) and the
     /// inner glyph is rendered at 18×18 like OCR for visual parity.
     private var scrollCaptureButton: some View {
-        Button(action: onScrollCapture) {
+        let selectedCropRect = state.selectedCropRect
+        return Button {
+            print("👉 触发滚动截图，当前裁剪区域: \(selectedCropRect)")
+            onScrollCapture(selectedCropRect)
+        } label: {
             ScrollCaptureGlyph()
                 .frame(width: 18, height: 18)
                 .frame(width: AnnotationEditorMetrics.toolbarButtonSize,
@@ -3715,6 +3706,14 @@ private enum OCRStructuredTextComposer {
 extension AnnotationEditorPanel {
 
     func toggleOCRTranslateOverlay() {
+        guard AppStoreComplianceFeatures.isOCRTranslationOverlayEnabled else {
+            showAlert(
+                title: EditorL10n.tr(.ocrTranslateFailedTitle),
+                message: EditorL10n.tr(.ocrTranslateFailedMessagePrefix)
+                    + AppComplianceL10n.ocrTranslationUnavailableMessage
+            )
+            return
+        }
         guard !isOCRTranslating else { return }
 
         if isOCRTranslationApplied {

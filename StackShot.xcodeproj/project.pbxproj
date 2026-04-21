@@ -18,11 +18,13 @@
 		02E87FFC300641C8A715FFEF518 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 02E87FFC300641C8A715FFEF50E /* Assets.xcassets */; };
 		02E87FFC300641C8A715FFEF524 /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02E87FFC300641C8A715FFEF525 /* MenuBarController.swift */; };
 		02E87FFC300641C8A715FFEF526 /* LaunchAtLoginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02E87FFC300641C8A715FFEF527 /* LaunchAtLoginManager.swift */; };
+		11AA0000000000000000000001 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 11AA0000000000000000000002 /* PrivacyInfo.xcprivacy */; };
 		AA000000000000000000000002 /* AnnotationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000000001 /* AnnotationModels.swift */; };
 		AA000000000000000000000004 /* AnnotationCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000000003 /* AnnotationCanvasView.swift */; };
 		AA000000000000000000000006 /* AnnotationEditorPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000000005 /* AnnotationEditorPanel.swift */; };
 		AA000000000000000000000008 /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000000007 /* SettingsStore.swift */; };
 		AA111111111111111111111002 /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA111111111111111111111001 /* Localization.swift */; };
+		CV000000000000000000000003 /* ScrollStitchingFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = CV000000000000000000000014 /* ScrollStitchingFlow.swift */; };
 		K0B00000000000000000000003 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = K0B00000000000000000000002 /* KeyboardShortcuts */; };
 		K0B00000000000000000000004 /* HotkeyShortcutConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = K0B00000000000000000000005 /* HotkeyShortcutConfiguration.swift */; };
 		SC000000000000000000000002 /* ScrollCaptureSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = SC000000000000000000000001 /* ScrollCaptureSession.swift */; };
@@ -41,11 +43,17 @@
 		02E87FFC300641C8A715FFEF50F /* StackShot.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StackShot.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		02E87FFC300641C8A715FFEF525 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
 		02E87FFC300641C8A715FFEF527 /* LaunchAtLoginManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginManager.swift; sourceTree = "<group>"; };
+		11AA0000000000000000000002 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		AA000000000000000000000001 /* AnnotationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationModels.swift; sourceTree = "<group>"; };
 		AA000000000000000000000003 /* AnnotationCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationCanvasView.swift; sourceTree = "<group>"; };
 		AA000000000000000000000005 /* AnnotationEditorPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationEditorPanel.swift; sourceTree = "<group>"; };
 		AA000000000000000000000007 /* SettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStore.swift; sourceTree = "<group>"; };
 		AA111111111111111111111001 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
+		CV000000000000000000000011 /* OpenCVWrapper.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = OpenCVWrapper.h; sourceTree = "<group>"; };
+		CV000000000000000000000012 /* OpenCVWrapper.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = OpenCVWrapper.mm; sourceTree = "<group>"; };
+		CV000000000000000000000013 /* ScreenCaptureManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenCaptureManager.swift; sourceTree = "<group>"; };
+		CV000000000000000000000014 /* ScrollStitchingFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollStitchingFlow.swift; sourceTree = "<group>"; };
+		CV000000000000000000000015 /* StackShot-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "StackShot-Bridging-Header.h"; sourceTree = "<group>"; };
 		K0B00000000000000000000005 /* HotkeyShortcutConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyShortcutConfiguration.swift; sourceTree = "<group>"; };
 		SC000000000000000000000001 /* ScrollCaptureSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollCaptureSession.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -90,6 +98,12 @@
 				AA000000000000000000000005 /* AnnotationEditorPanel.swift */,
 				K0B00000000000000000000005 /* HotkeyShortcutConfiguration.swift */,
 				SC000000000000000000000001 /* ScrollCaptureSession.swift */,
+				CV000000000000000000000013 /* ScreenCaptureManager.swift */,
+				CV000000000000000000000014 /* ScrollStitchingFlow.swift */,
+				CV000000000000000000000011 /* OpenCVWrapper.h */,
+				CV000000000000000000000012 /* OpenCVWrapper.mm */,
+				CV000000000000000000000015 /* StackShot-Bridging-Header.h */,
+				11AA0000000000000000000002 /* PrivacyInfo.xcprivacy */,
 				02E87FFC300641C8A715FFEF50E /* Assets.xcassets */,
 			);
 			path = StackShot;
@@ -163,6 +177,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				11AA0000000000000000000001 /* PrivacyInfo.xcprivacy in Resources */,
 				02E87FFC300641C8A715FFEF518 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -191,6 +206,7 @@
 				AA000000000000000000000006 /* AnnotationEditorPanel.swift in Sources */,
 				K0B00000000000000000000004 /* HotkeyShortcutConfiguration.swift in Sources */,
 				SC000000000000000000000002 /* ScrollCaptureSession.swift in Sources */,
+				CV000000000000000000000003 /* ScrollStitchingFlow.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -256,6 +272,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = StackShot;
+				SWIFT_OBJC_BRIDGING_HEADER = "StackShot/StackShot-Bridging-Header.h";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 			};
@@ -288,6 +305,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = StackShot;
+				SWIFT_OBJC_BRIDGING_HEADER = "StackShot/StackShot-Bridging-Header.h";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 			};

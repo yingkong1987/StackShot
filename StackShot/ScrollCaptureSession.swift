@@ -564,44 +564,48 @@ enum ScrollStitchOutcome {
 ///   re-rasterised.
 struct ScrollImageStitcher {
 
-    /// The accumulated long image so far.
-    private(set) var result: NSImage?
-
     private var accumulatedCG: CGImage?
-
-    /// Bottom edge of the accumulation (used for scroll-down detection).
-    /// Up to `stripRows` rows tall, full image width.
-    private var bottomStrip: RGBAFrameBuffer?
-    private var bottomStripSigs: [RowSignature] = []
-
-    /// Top edge of the accumulation (used for scroll-up detection).
-    private var topStrip: RGBAFrameBuffer?
-    private var topStripSigs: [RowSignature] = []
-
-    /// How many rows on each edge we keep cached for matching.
-    private let stripRows = 220
+    /// The immediately previous captured frame. We compare against this full
+    /// frame first so a static page is recognized as "no motion" instead of
+    /// being misread as a large append from a short edge overlap.
+    private var previousFrame: RGBAFrameBuffer?
+    private var previousFrameSigs: [RowSignature] = []
 
     /// Mean-absolute-difference threshold (per channel, 0–255) for
     /// accepting a fine-verified overlap. Empirically ~6 captures
     /// anti-aliased text scrolling cleanly while rejecting unrelated
     /// content (which typically shows MAD > 30).
     private let pixelMADThreshold: Double = 6.0
+    /// Static-frame precheck: when the whole frame is this similar we treat it
+    /// as "no motion" and skip stitching entirely.
+    private let duplicateScoreThreshold: Double = 0.985
+    private let duplicateMADThreshold: Double = 4.0
 
     /// Coarse-pass score below which we don't even bother running the
     /// fine pass (saves work on completely unrelated frames).
     private let coarseGate: Double = 0.55
+    /// Ignore tiny dy jitter from inertial scrolling / font antialiasing.
+    private let minMotionRows = 3
+    /// Search only plausible per-frame motion deltas. This keeps runtime
+    /// bounded and matches the faster capture cadence in the new coordinator.
+    private let maxShiftRows = 420
 
     /// Number of evenly-spaced sample columns per row used for the
     /// coarse signature.
     private let samplesPerRow = 64
 
-    /// How many top coarse candidates to verify per direction.
-    private let candidatesPerDirection = 4
-
     /// Practical CGContext height ceiling.
     private let maxStitchedHeight = 16_000
 
     let backingScale: CGFloat
+
+    var result: NSImage? {
+        guard let accumulatedCG else { return nil }
+        return makeNSImage(accumulatedCG)
+    }
+
+    var resultCGImage: CGImage? { accumulatedCG }
+    var canvasPixelHeight: Int { accumulatedCG?.height ?? 0 }
 
     init(backingScale: CGFloat = 2.0) {
         self.backingScale = max(1, backingScale)
@@ -615,111 +619,74 @@ struct ScrollImageStitcher {
 
         // Render the new frame into RGBA exactly once.
         guard let newBuffer = RGBAFrameBuffer.render(frame) else { return .skipped }
+        let newFullSigs = signatures(in: newBuffer, rowRange: 0..<frameH)
 
         // First frame – seed the accumulation.
         guard let accumulated = accumulatedCG else {
             accumulatedCG = frame
-            result = makeNSImage(frame)
-            seedEdges(from: newBuffer)
+            previousFrame = newBuffer
+            previousFrameSigs = newFullSigs
             return .appended
         }
         guard frameW == accumulated.width else { return .skipped }
         if accumulated.height >= maxStitchedHeight { return .skipped }
 
-        let newTopSigs    = signatures(in: newBuffer, rowRange: 0..<min(frameH, stripRows))
-        let newBottomStart = max(0, frameH - stripRows)
-        let newBottomSigs = signatures(in: newBuffer,
-                                       rowRange: newBottomStart..<frameH)
-
-        // ---- Direction A: user scrolled DOWN
-        // → the top of the new frame should match somewhere inside the
-        //   cached bottom strip of the accumulation.
-        var bestDown: VerifiedMatch? = nil
-        if let strip = bottomStrip {
-            bestDown = bestMatch(
-                refStrip: strip,
-                refStripSigs: bottomStripSigs,
-                refIsBottom: true,
-                newBuffer: newBuffer,
-                newEdgeSigs: newTopSigs,
-                newEdgeIsTop: true
-            )
+        guard let previousFrameBuffer = previousFrame else {
+            previousFrame = newBuffer
+            previousFrameSigs = newFullSigs
+            return .skipped
         }
 
-        // ---- Direction B: user scrolled UP
-        // → the bottom of the new frame matches inside the cached top
-        //   strip of the accumulation.
-        var bestUp: VerifiedMatch? = nil
-        if let strip = topStrip {
-            bestUp = bestMatch(
-                refStrip: strip,
-                refStripSigs: topStripSigs,
-                refIsBottom: false,
-                newBuffer: newBuffer,
-                newEdgeSigs: newBottomSigs,
-                newEdgeIsTop: false
-            )
-        }
-
-        // Pick whichever direction got a better fine MAD (lower = better).
-        let down = bestDown
-        let up   = bestUp
-        let pick: (VerifiedMatch, ScrollStitchOutcome.Direction)?
-        switch (down, up) {
-        case (nil, nil):                pick = nil
-        case (let d?, nil):             pick = (d, .down)
-        case (nil, let u?):             pick = (u, .up)
-        case (let d?, let u?):
-            // Prefer the smaller MAD; on a tie, prefer the larger overlap.
-            if d.mad < u.mad - 0.5 {
-                pick = (d, .down)
-            } else if u.mad < d.mad - 0.5 {
-                pick = (u, .up)
-            } else if d.overlap >= u.overlap {
-                pick = (d, .down)
-            } else {
-                pick = (u, .up)
-            }
-        }
-
-        guard let (match, direction) = pick else { return .skipped }
-
-        // Same image as before → no motion.
-        if match.overlap >= frameH { return .duplicate }
-
-        switch direction {
+        switch detectMotion(
+            previousFrame: previousFrameBuffer,
+            previousFrameSigs: previousFrameSigs,
+            newBuffer: newBuffer,
+            newFullSigs: newFullSigs
+        ) {
+        case .duplicate:
+            previousFrame = newBuffer
+            previousFrameSigs = newFullSigs
+            return .duplicate
+        case .none:
+            previousFrame = newBuffer
+            previousFrameSigs = newFullSigs
+            return .skipped
+        case let .moved(direction, shift):
+            switch direction {
         case .down:
-            // New rows are at the BOTTOM of the new frame, beyond the
-            // overlap that lines up with the accumulation's bottom.
-            let newRows = frameH - match.overlap
-            return appendBelow(
-                newBuffer: newBuffer,
+            // Current frame content moved upward by `shift`, so the newly
+            // revealed rows live at the bottom.
+            let newRows = shift
+            let outcome = appendBelow(
                 frame: frame,
                 newRows: newRows,
-                accumulated: accumulated,
-                newBottomSigs: newBottomSigs
+                accumulated: accumulated
             )
+            previousFrame = newBuffer
+            previousFrameSigs = newFullSigs
+            return outcome
         case .up:
-            // New rows are at the TOP of the new frame.
-            let newRows = frameH - match.overlap
-            return prependAbove(
-                newBuffer: newBuffer,
+            // Current frame content moved downward by `shift`, so the newly
+            // revealed rows live at the top.
+            let newRows = shift
+            let outcome = prependAbove(
                 frame: frame,
                 newRows: newRows,
-                accumulated: accumulated,
-                newTopSigs: newTopSigs
+                accumulated: accumulated
             )
+            previousFrame = newBuffer
+            previousFrameSigs = newFullSigs
+            return outcome
+        }
         }
     }
 
     // MARK: Append / Prepend
 
     private mutating func appendBelow(
-        newBuffer: RGBAFrameBuffer,
         frame: CGImage,
         newRows: Int,
-        accumulated: CGImage,
-        newBottomSigs: [RowSignature]
+        accumulated: CGImage
     ) -> ScrollStitchOutcome {
         guard newRows > 0 else { return .skipped }
         let frameW = frame.width
@@ -738,23 +705,13 @@ struct ScrollImageStitcher {
         ) else { return .skipped }
 
         accumulatedCG = combined
-        result = makeNSImage(combined)
-
-        // Bottom strip of the new accumulation == bottom strip of the
-        // new frame (which is what we just appended). Reuse signatures
-        // and pixel rows directly to avoid re-rasterising.
-        bottomStrip = makeBottomStrip(of: newBuffer)
-        bottomStripSigs = newBottomSigs
-        // Top strip of accumulation hasn't changed; keep it as-is.
         return .appended
     }
 
     private mutating func prependAbove(
-        newBuffer: RGBAFrameBuffer,
         frame: CGImage,
         newRows: Int,
-        accumulated: CGImage,
-        newTopSigs: [RowSignature]
+        accumulated: CGImage
     ) -> ScrollStitchOutcome {
         guard newRows > 0 else { return .skipped }
         let frameW = frame.width
@@ -774,12 +731,6 @@ struct ScrollImageStitcher {
         ) else { return .skipped }
 
         accumulatedCG = combined
-        result = makeNSImage(combined)
-
-        // Top strip of new accumulation == top strip of the new frame.
-        topStrip = makeTopStrip(of: newBuffer)
-        topStripSigs = newTopSigs
-        // Bottom strip unchanged.
         return .prepended
     }
 
@@ -807,111 +758,127 @@ struct ScrollImageStitcher {
         return ctx.makeImage()
     }
 
-    // MARK: Edge caches
-
-    private mutating func seedEdges(from buf: RGBAFrameBuffer) {
-        bottomStrip = makeBottomStrip(of: buf)
-        topStrip    = makeTopStrip(of: buf)
-        bottomStripSigs = signatures(
-            in: bottomStrip!,
-            rowRange: 0..<bottomStrip!.height
-        )
-        topStripSigs = signatures(
-            in: topStrip!,
-            rowRange: 0..<topStrip!.height
-        )
-    }
-
-    private func makeBottomStrip(of buf: RGBAFrameBuffer) -> RGBAFrameBuffer {
-        let rows = min(stripRows, buf.height)
-        let startRow = buf.height - rows
-        return buf.copy(rowRange: startRow..<buf.height)
-    }
-
-    private func makeTopStrip(of buf: RGBAFrameBuffer) -> RGBAFrameBuffer {
-        let rows = min(stripRows, buf.height)
-        return buf.copy(rowRange: 0..<rows)
-    }
-
     // MARK: Match search
 
-    /// One verified candidate overlap.
-    private struct VerifiedMatch {
-        /// Number of rows that overlap between reference strip and new edge.
-        let overlap: Int
-        /// Mean absolute pixel difference (per channel) in the overlap.
-        let mad: Double
+    private enum MotionResult {
+        case duplicate
+        case moved(ScrollStitchOutcome.Direction, shift: Int)
+        case none
     }
 
-    /// Search for the best overlap between a reference strip (cached
-    /// edge of accumulated image) and the new frame's matching edge.
-    ///
-    /// - Parameter refIsBottom: `true` when the reference strip is the
-    ///   accumulated image's bottom edge (= scroll-down case). The
-    ///   overlap is anchored at the **bottom** of `refStrip` and the
-    ///   **top** of the new edge. When `false`, it's anchored at the
-    ///   **top** of `refStrip` and the **bottom** of the new edge.
-    /// - Parameter newEdgeIsTop: which side of the new frame the edge
-    ///   buffer represents. (Used only to decide where the new edge
-    ///   sits inside `newBuffer`.)
-    private func bestMatch(
-        refStrip: RGBAFrameBuffer,
-        refStripSigs: [RowSignature],
-        refIsBottom: Bool,
+    private struct MotionCandidate {
+        let direction: ScrollStitchOutcome.Direction
+        let shift: Int
+        let score: Double
+    }
+
+    private func detectMotion(
+        previousFrame: RGBAFrameBuffer,
+        previousFrameSigs: [RowSignature],
         newBuffer: RGBAFrameBuffer,
-        newEdgeSigs: [RowSignature],
-        newEdgeIsTop: Bool
-    ) -> VerifiedMatch? {
-        let maxOverlap = min(refStripSigs.count, newEdgeSigs.count, newBuffer.height)
-        guard maxOverlap > 4 else { return nil }
-        let minOverlap = max(6, maxOverlap / 30)
+        newFullSigs: [RowSignature]
+    ) -> MotionResult {
+        let fullCount = min(previousFrame.height, newBuffer.height,
+                            previousFrameSigs.count, newFullSigs.count)
+        guard fullCount > 0 else { return .none }
 
-        // Coarse pass: keep top-N candidates by signature score.
-        var coarse: [(overlap: Int, score: Double)] = []
-        coarse.reserveCapacity(maxOverlap)
-        for k in stride(from: maxOverlap, through: minOverlap, by: -1) {
-            let aStart = refIsBottom ? (refStripSigs.count - k) : 0
-            let bStart = newEdgeIsTop ? 0 : (newEdgeSigs.count - k)
-            let s = compareRows(
-                a: refStripSigs, aStart: aStart,
-                b: newEdgeSigs,  bStart: bStart,
-                count: k
+        let staticRowStride = max(1, fullCount / 180)
+        let fullFrameScore = compareRows(
+            a: previousFrameSigs, aStart: 0,
+            b: newFullSigs, bStart: 0,
+            count: fullCount,
+            rowStride: staticRowStride
+        )
+        let fullFrameMAD = pixelMAD(
+            refStrip: previousFrame,
+            refStartRow: 0,
+            newBuffer: newBuffer,
+            newStartRow: 0,
+            overlap: fullCount,
+            rowStep: staticRowStride
+        )
+        if fullFrameScore >= duplicateScoreThreshold, fullFrameMAD <= duplicateMADThreshold {
+            return .duplicate
+        }
+
+        let minOverlap = max(80, fullCount / 5)
+        let maxShift = min(maxShiftRows, fullCount - minOverlap)
+        guard maxShift >= minMotionRows else { return .none }
+
+        var bestDown: MotionCandidate?
+        var bestUp: MotionCandidate?
+        for shift in minMotionRows...maxShift {
+            let overlap = fullCount - shift
+            let rowStride = max(1, overlap / 120)
+
+            let downScore = compareRows(
+                a: previousFrameSigs, aStart: shift,
+                b: newFullSigs, bStart: 0,
+                count: overlap,
+                rowStride: rowStride
             )
-            if s >= coarseGate {
-                coarse.append((k, s))
+            if downScore >= coarseGate, downScore > (bestDown?.score ?? 0) {
+                bestDown = MotionCandidate(direction: .down, shift: shift, score: downScore)
+            }
+
+            let upScore = compareRows(
+                a: previousFrameSigs, aStart: 0,
+                b: newFullSigs, bStart: shift,
+                count: overlap,
+                rowStride: rowStride
+            )
+            if upScore >= coarseGate, upScore > (bestUp?.score ?? 0) {
+                bestUp = MotionCandidate(direction: .up, shift: shift, score: upScore)
             }
         }
-        guard !coarse.isEmpty else { return nil }
-        coarse.sort { $0.score > $1.score }
-        let top = coarse.prefix(candidatesPerDirection)
 
-        // Fine pass: pixel-precise MAD on each candidate overlap region.
-        var best: VerifiedMatch?
-        for cand in top {
-            let mad = pixelMAD(
-                refStrip: refStrip, refIsBottom: refIsBottom,
-                newBuffer: newBuffer, newEdgeIsTop: newEdgeIsTop,
-                overlap: cand.overlap
-            )
-            if mad <= pixelMADThreshold {
-                if best == nil || mad < best!.mad - 0.25 {
-                    best = VerifiedMatch(overlap: cand.overlap, mad: mad)
-                } else if let b = best, mad <= b.mad + 0.25, cand.overlap > b.overlap {
-                    best = VerifiedMatch(overlap: cand.overlap, mad: mad)
+        let verified = [bestDown, bestUp]
+            .compactMap { $0 }
+            .compactMap { candidate -> (MotionCandidate, Double)? in
+                let overlap = fullCount - candidate.shift
+                let rowStep = max(1, overlap / 160)
+                let mad: Double
+                switch candidate.direction {
+                case .down:
+                    mad = pixelMAD(
+                        refStrip: previousFrame,
+                        refStartRow: candidate.shift,
+                        newBuffer: newBuffer,
+                        newStartRow: 0,
+                        overlap: overlap,
+                        rowStep: rowStep
+                    )
+                case .up:
+                    mad = pixelMAD(
+                        refStrip: previousFrame,
+                        refStartRow: 0,
+                        newBuffer: newBuffer,
+                        newStartRow: candidate.shift,
+                        overlap: overlap,
+                        rowStep: rowStep
+                    )
                 }
+                return mad <= pixelMADThreshold ? (candidate, mad) : nil
             }
+
+        guard let best = verified.min(by: { lhs, rhs in
+            if lhs.1 != rhs.1 { return lhs.1 < rhs.1 }
+            return lhs.0.score > rhs.0.score
+        }) else {
+            return .none
         }
-        return best
+        return .moved(best.0.direction, shift: best.0.shift)
     }
 
     /// Compute mean absolute pixel difference (RGB averaged) over the
-    /// `overlap` rows lined up at the chosen edges.
+    /// `overlap` rows starting at the provided row offsets.
     private func pixelMAD(
         refStrip: RGBAFrameBuffer,
-        refIsBottom: Bool,
+        refStartRow: Int,
         newBuffer: RGBAFrameBuffer,
-        newEdgeIsTop: Bool,
-        overlap: Int
+        newStartRow: Int,
+        overlap: Int,
+        rowStep: Int = 1
     ) -> Double {
         let w = refStrip.width
         guard newBuffer.width == w, overlap > 0 else { return .infinity }
@@ -921,12 +888,9 @@ struct ScrollImageStitcher {
         // a Retina capture takes well under a millisecond.
         let colStep = max(1, w / 256)
 
-        let refStartRow = refIsBottom ? (refStrip.height - overlap) : 0
-        let newStartRow = newEdgeIsTop ? 0 : (newBuffer.height - overlap)
-
         var total: UInt64 = 0
         var samples: UInt64 = 0
-        for r in 0..<overlap {
+        for r in stride(from: 0, to: overlap, by: max(1, rowStep)) {
             let refBase = (refStartRow + r) * refStrip.bytesPerRow
             let newBase = (newStartRow + r) * newBuffer.bytesPerRow
             var x = 0
@@ -976,14 +940,18 @@ struct ScrollImageStitcher {
     private func compareRows(
         a: [RowSignature], aStart: Int,
         b: [RowSignature], bStart: Int,
-        count: Int
+        count: Int,
+        rowStride: Int = 1
     ) -> Double {
         guard count > 0 else { return 0 }
         var total = 0.0
-        for i in 0..<count {
+        var samples = 0
+        for i in stride(from: 0, to: count, by: max(1, rowStride)) {
             total += rowSimilarity(a[aStart + i], b[bStart + i])
+            samples += 1
         }
-        return total / Double(count)
+        guard samples > 0 else { return 0 }
+        return total / Double(samples)
     }
 
     private func rowSimilarity(_ a: RowSignature, _ b: RowSignature) -> Double {

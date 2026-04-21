@@ -114,6 +114,15 @@ struct PixelBufferLock {
     const size_t height = CVPixelBufferGetHeight(pixelBuffer);
     if (width == 0 || height == 0) { return nil; }
 
+    static int pixelBufferLogCount = 0;
+    if (pixelBufferLogCount < 3) {
+        NSLog(@"🟢 OpenCVWrapper.matFromPixelBuffer 收到像素缓冲: %zux%zu fmt=%u",
+              width,
+              height,
+              (unsigned int)fmt);
+        pixelBufferLogCount += 1;
+    }
+
     cv::Mat bgr;
 
     switch (fmt) {
@@ -263,6 +272,13 @@ static void OpenCVWrapperReleaseHolder(void *info,
                               toRect:(CGRect)pixelRect
 {
     if (source == nil || source->_mat.empty()) { return nil; }
+
+    static int cropLogCount = 0;
+    if (cropLogCount < 3) {
+        NSLog(@"🟢 OpenCVWrapper.matByCropping 收到区域(px): %@",
+              NSStringFromCGRect(pixelRect));
+        cropLogCount += 1;
+    }
 
     cv::Rect roi(
         (int)std::round(pixelRect.origin.x),
@@ -523,4 +539,3 @@ static void OpenCVWrapperReleaseHolder(void *info,
 }
 
 @end
-

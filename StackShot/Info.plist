@@ -27,6 +27,6 @@
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>NSScreenCaptureUsageDescription</key>
-	<string>StackShot 需要截取所选屏幕区域以复制到剪贴板。</string>
+	<string>StackShot needs Screen Recording access to capture screenshots, scrolling screenshots, and process the captured content for editing, OCR, saving, and export.</string>
 </dict>
 </plist>

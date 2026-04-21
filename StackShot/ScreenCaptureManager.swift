@@ -140,8 +140,8 @@ final class ScreenCaptureManager: NSObject, ObservableObject {
 
     /// Starts streaming frames from `target`. Idempotent: calling it while
     /// already capturing tears down the previous stream first.
-    func start(target: ScreenCaptureTarget) async throws {
-        print("🟢 ScreenCaptureManager.start 调用,target=\(target)")
+    func start(target: ScreenCaptureTarget, selectedCropRect: CGRect = .zero) async throws {
+        print("🟢 ScreenCaptureManager.start 收到区域: \(selectedCropRect), target=\(target), mainThread=\(Thread.isMainThread)")
 
         if isCapturing { await stop() }
 
@@ -349,4 +349,3 @@ private final class StreamOutputBridge: NSObject, SCStreamOutput, SCStreamDelega
         errorHandler(error)
     }
 }
-

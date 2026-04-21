@@ -107,6 +107,32 @@ private extension CGRect {
 }
 
 enum WindowUnderMouseService {
+    static func accessibilityPermissionGranted() -> Bool {
+        #if DEBUG
+        true
+        #else
+        AXIsProcessTrusted()
+        #endif
+    }
+
+    @MainActor
+    static func requestAccessibilityPermission() -> Bool {
+        #if DEBUG
+        true
+        #else
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        return AXIsProcessTrustedWithOptions(options)
+        #endif
+    }
+
+    @MainActor
+    static func openAccessibilitySettings() {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") else {
+            return
+        }
+        NSWorkspace.shared.open(url)
+    }
+
     /// 返回当前屏幕上可见窗口的冻结快照，顺序与 WindowServer 返回顺序一致（前到后）。
     static func captureSnapshot() -> WindowUnderMouseSnapshot {
         let myPID = ProcessInfo.processInfo.processIdentifier
@@ -160,7 +186,7 @@ enum WindowUnderMouseService {
     }
 
     private static func accessibilityWindow(at point: CGPoint, snapshot: WindowUnderMouseSnapshot) -> WindowUnderMouseInfo? {
-        guard hasAccessibilityPermission() else { return nil }
+        guard accessibilityPermissionGranted() else { return nil }
 
         let systemWide = AXUIElementCreateSystemWide()
         let quartzPoint = quartzPoint(fromAppKitPoint: point)
@@ -257,14 +283,6 @@ enum WindowUnderMouseService {
 
     private static func role(of element: AXUIElement) -> String? {
         copyStringAttribute(from: element, attribute: kAXRoleAttribute as CFString)
-    }
-
-    private static func hasAccessibilityPermission() -> Bool {
-        #if DEBUG
-        true
-        #else
-        AXIsProcessTrusted()
-        #endif
     }
 
     private static func copyAXBounds(of element: AXUIElement) -> CGRect? {

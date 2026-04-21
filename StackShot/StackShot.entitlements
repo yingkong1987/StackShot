@@ -6,12 +6,5 @@
 	<true/>
 	<key>com.apple.security.files.user-selected.read-write</key>
 	<true/>
-	<!-- Apple Translation framework (macOS 15+) reaches out to
-	     audioanalyticsd; without this exception the sandbox
-	     terminates the helper with a precondition failure. -->
-	<key>com.apple.security.temporary-exception.mach-lookup.global-name</key>
-	<array>
-		<string>com.apple.audioanalyticsd</string>
-	</array>
 </dict>
 </plist>

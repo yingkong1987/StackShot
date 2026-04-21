@@ -83,13 +83,55 @@ struct ContentView: View {
                     SettingsSectionHeader(text: L10n.tr("section.permissions"))
                     SettingsCard {
                         VStack(alignment: .leading, spacing: 8) {
-                            Label(L10n.tr("permissions.screen_recording"), systemImage: "rectangle.dashed.badge.record")
-                            Label(L10n.tr("permissions.restart_hint"), systemImage: "arrow.clockwise.circle")
+                            ComplianceInfoRow(
+                                title: AppComplianceL10n.screenRecordingTitle,
+                                message: AppComplianceL10n.screenRecordingSummary,
+                                systemImage: "rectangle.dashed.badge.record",
+                                buttonTitle: AppComplianceL10n.openScreenRecordingSettings,
+                                action: AppPermissionSupport.openScreenRecordingSettings
+                            )
+
+                            SettingsCardSeparator()
+
+                            ComplianceInfoRow(
+                                title: AppComplianceL10n.accessibilityTitle,
+                                message: AppComplianceL10n.accessibilitySummary(
+                                    isGranted: WindowUnderMouseService.accessibilityPermissionGranted()
+                                ),
+                                systemImage: "figure.wave.circle",
+                                buttonTitle: AppComplianceL10n.accessibilityButtonTitle(
+                                    isGranted: WindowUnderMouseService.accessibilityPermissionGranted()
+                                ),
+                                action: {
+                                    if WindowUnderMouseService.accessibilityPermissionGranted() {
+                                        WindowUnderMouseService.openAccessibilitySettings()
+                                    } else {
+                                        AppPermissionSupport.requestAccessibilityAccess()
+                                    }
+                                }
+                            )
                         }
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(16)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    SettingsSectionHeader(text: AppComplianceL10n.privacySectionTitle)
+                    SettingsCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text(AppComplianceL10n.privacyCardSummary)
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            Button(AppComplianceL10n.openPrivacyPolicy) {
+                                AppPrivacyPolicyPresenter.show()
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                        .padding(16)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
             }
@@ -217,6 +259,29 @@ private struct LanguageQuickSwitchRow: View {
         }
         .padding(.horizontal, 16)
         .frame(height: 44)
+    }
+}
+
+private struct ComplianceInfoRow: View {
+    let title: String
+    let message: String
+    let systemImage: String
+    let buttonTitle: String
+    let action: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(title, systemImage: systemImage)
+                .font(.system(size: 13, weight: .semibold))
+
+            Text(message)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button(buttonTitle, action: action)
+                .buttonStyle(.bordered)
+        }
     }
 }
 
