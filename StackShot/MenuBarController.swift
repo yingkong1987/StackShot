@@ -260,22 +260,28 @@ enum AppComplianceL10n {
                 en: "2. Accessibility: Used only to more accurately detect the frontmost window under the pointer. Without access, manual region capture still works, but hovered-window detection may be less precise."
             ),
             tr(
-                zhHans: "3. 剪贴板与文件：只有在你点击复制、分享或保存时，StackShot 才会把图像或文字写入剪贴板或导出到你选择的位置。",
-                zhHant: "3. 剪貼簿與檔案：只有在你點擊複製、分享或儲存時，StackShot 才會把影像或文字寫入剪貼簿或匯出到你選擇的位置。",
-                ja: "3. クリップボードとファイル: 画像や文字をクリップボードへ書き込んだり、選択した場所へ保存したりするのは、コピー・共有・保存をあなたが実行したときだけです。",
-                en: "3. Clipboard and files: StackShot writes images or text to the clipboard, or exports files to disk, only when you explicitly choose Copy, Share, or Save."
+                zhHans: "3. 剪贴板与文件：只有在你点击复制、OCR 翻译、分享或保存时，StackShot 才会把图像或文字写入剪贴板或导出到你选择的位置。",
+                zhHant: "3. 剪貼簿與檔案：只有在你點擊複製、OCR 翻譯、分享或儲存時，StackShot 才會把影像或文字寫入剪貼簿或匯出到你選擇的位置。",
+                ja: "3. クリップボードとファイル: 画像や文字をクリップボードへ書き込んだり、選択した場所へ保存したりするのは、コピー・OCR 翻訳・共有・保存をあなたが実行したときだけです。",
+                en: "3. Clipboard and files: StackShot writes images or text to the clipboard, or exports files to disk, only when you explicitly choose Copy, OCR Translate, Share, or Save."
             ),
             tr(
-                zhHans: "4. 本地处理：截图编辑、窗口识别、OCR 和大部分图像处理都在本机完成。应用不包含远程上传截图内容的网络同步逻辑。",
-                zhHant: "4. 本機處理：截圖編輯、視窗辨識、OCR 和大部分影像處理都在本機完成。應用不包含遠端上傳截圖內容的網路同步邏輯。",
-                ja: "4. ローカル処理: スクリーンショット編集、ウィンドウ判定、OCR、ほとんどの画像処理はデバイス上で完結します。取得した画像を自動送信する同期機能は含みません。",
-                en: "4. Local processing: Screenshot editing, window detection, OCR, and most image processing run on-device. The app doesn't include automatic network sync that uploads captured content."
+                zhHans: "4. OCR 翻译接力：当你点击 OCR 翻译时，StackShot 会先在本机识别文字、复制到剪贴板，再尝试打开系统“翻译”应用。后续翻译行为由系统应用处理，不由 StackShot 直接提供。",
+                zhHant: "4. OCR 翻譯接力：當你點擊 OCR 翻譯時，StackShot 會先在本機辨識文字、複製到剪貼簿，再嘗試打開系統「翻譯」App。後續翻譯行為由系統 App 處理，不由 StackShot 直接提供。",
+                ja: "4. OCR 翻訳の引き継ぎ: OCR 翻訳を実行すると、StackShot はまずデバイス上で文字を認識してクリップボードへコピーし、その後システムの「翻訳」アプリを開こうとします。以降の翻訳処理は StackShot ではなくシステムアプリ側が担当します。",
+                en: "4. OCR translation handoff: When you choose OCR Translate, StackShot recognizes text on-device, copies it to the clipboard, and then tries to open the system Translate app. Any translation after that point is handled by the system app, not directly by StackShot."
             ),
             tr(
-                zhHans: "5. 偏好设置：语言、Dock 显示和快捷键等设置只保存在本机的应用偏好中，用于恢复你的使用习惯。",
-                zhHant: "5. 偏好設定：語言、Dock 顯示和快捷鍵等設定只保存在本機的應用偏好中，用於還原你的使用習慣。",
-                ja: "5. 設定情報: 言語、Dock 表示、ショートカットなどの設定は、この Mac 上のアプリ設定にのみ保存され、利用環境の復元に使われます。",
-                en: "5. Preferences: Language, Dock visibility, and shortcut settings are stored only in the app's local preferences on this Mac so your workflow can be restored."
+                zhHans: "5. 本地处理：截图编辑、窗口识别、OCR 和大部分图像处理都在本机完成。应用不包含远程上传截图内容的网络同步逻辑。",
+                zhHant: "5. 本機處理：截圖編輯、視窗辨識、OCR 和大部分影像處理都在本機完成。應用不包含遠端上傳截圖內容的網路同步邏輯。",
+                ja: "5. ローカル処理: スクリーンショット編集、ウィンドウ判定、OCR、ほとんどの画像処理はデバイス上で完結します。取得した画像を自動送信する同期機能は含みません。",
+                en: "5. Local processing: Screenshot editing, window detection, OCR, and most image processing run on-device. The app doesn't include automatic network sync that uploads captured content."
+            ),
+            tr(
+                zhHans: "6. 偏好设置：语言、Dock 显示和快捷键等设置只保存在本机的应用偏好中，用于恢复你的使用习惯。",
+                zhHant: "6. 偏好設定：語言、Dock 顯示和快捷鍵等設定只保存在本機的應用偏好中，用於還原你的使用習慣。",
+                ja: "6. 設定情報: 言語、Dock 表示、ショートカットなどの設定は、この Mac 上のアプリ設定にのみ保存され、利用環境の復元に使われます。",
+                en: "6. Preferences: Language, Dock visibility, and shortcut settings are stored only in the app's local preferences on this Mac so your workflow can be restored."
             )
         ]
     }

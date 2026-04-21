@@ -1070,16 +1070,6 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
     // MARK: OCR
 
     private func performOCR(translate: Bool) {
-        if translate {
-            if #available(macOS 15.0, *) {
-                toggleOCRTranslateOverlay()
-                return
-            }
-            // macOS < 15 fallback: legacy text-copy + open system Translate app.
-            legacyCopyTextThenOpenTranslate()
-            return
-        }
-
         guard !state.isOCRRunning else { return }
         let sourceImage = canvas.renderToImage()
         beginOCRLoadingUI()
@@ -1095,10 +1085,28 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
                         imageSize: snapshot.imageSize,
                         preferredTextWidth: self.preferredOCRTextWidth
                     )
-                    self.handleOCRRecognizedText(attributed, sessionToken: sessionToken)
-                case .failure:
-                    self.completeOCRAfterMinimumDuration(for: sessionToken) { panel in
-                        panel.restoreOCRUIAfterFailure()
+                    if translate {
+                        self.handleOCRRecognizedTextForTranslation(attributed, sessionToken: sessionToken)
+                    } else {
+                        self.handleOCRRecognizedText(attributed, sessionToken: sessionToken)
+                    }
+                case let .failure(error):
+                    if translate {
+                        self.completeOCRAfterMinimumDuration(for: sessionToken) { panel in
+                            panel.restoreOCRUIAfterFailure { restoredPanel in
+                                if restoredPanel.state.selectedTool == .ocrTranslate {
+                                    restoredPanel.state.selectedTool = nil
+                                }
+                                restoredPanel.showAlert(
+                                    title: EditorL10n.tr(.ocrTranslateFailedTitle),
+                                    message: EditorL10n.tr(.ocrTranslateFailedMessagePrefix) + error.localizedDescription
+                                )
+                            }
+                        }
+                    } else {
+                        self.completeOCRAfterMinimumDuration(for: sessionToken) { panel in
+                            panel.restoreOCRUIAfterFailure()
+                        }
                     }
                 }
             }
@@ -1141,6 +1149,33 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
         }
     }
 
+    private func handleOCRRecognizedTextForTranslation(_ attributedText: NSAttributedString, sessionToken: UUID) {
+        let plainText = attributedText.string.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !plainText.isEmpty else {
+            completeOCRAfterMinimumDuration(for: sessionToken) { panel in
+                panel.restoreOCRUIAfterFailure { restoredPanel in
+                    if restoredPanel.state.selectedTool == .ocrTranslate {
+                        restoredPanel.state.selectedTool = nil
+                    }
+                    restoredPanel.showAlert(
+                        title: EditorL10n.tr(.ocrEmptyTitle),
+                        message: EditorL10n.tr(.ocrTranslatableEmptyMessage)
+                    )
+                }
+            }
+            return
+        }
+
+        showOCRResultsUI(with: attributedText)
+        completeOCRAfterMinimumDuration(for: sessionToken) { panel in
+            panel.finishOCRLoadingUI()
+            if panel.state.selectedTool == .ocrTranslate {
+                panel.state.selectedTool = nil
+            }
+            panel.openTranslation(text: plainText)
+        }
+    }
+
     private func completeOCRAfterMinimumDuration(
         for sessionToken: UUID,
         action: @escaping (AnnotationEditorPanel) -> Void
@@ -1174,16 +1209,25 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
     }
 
     private func openTranslation(text: String) {
-        guard !text.isEmpty else {
+        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedText.isEmpty else {
             showAlert(title: EditorL10n.tr(.ocrEmptyTitle), message: EditorL10n.tr(.ocrTranslatableEmptyMessage))
             return
         }
-        // Copy text and open the system Translate app
+
+        // Copy the recognized text first so the user can paste it manually
+        // if the system Translate app is unavailable or doesn't ingest it.
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
-        if let url = URL(string: "translate://") {
-            NSWorkspace.shared.open(url)
+        NSPasteboard.general.setString(trimmedText, forType: .string)
+
+        if let url = URL(string: "translate://"), NSWorkspace.shared.open(url) {
+            return
         }
+
+        showAlert(
+            title: EditorL10n.tr(.ocrTranslateFailedTitle),
+            message: EditorL10n.tr(.ocrTranslateOpenFallbackMessage)
+        )
     }
 
     // MARK: Helpers
@@ -1285,6 +1329,7 @@ private enum EditorL10nKey {
     case ocrTranslateInProgress
     case ocrTranslateFailedTitle
     case ocrTranslateFailedMessagePrefix
+    case ocrTranslateOpenFallbackMessage
     case exportReadImageDataFailed
     case exportUnsupportedType
     case exportWriteFailed
@@ -1339,7 +1384,8 @@ private enum EditorL10n {
         .ocrTranslatableEmptyMessage: "图片中没有可翻译的文字。",
         .ocrTranslateInProgress: "正在翻译…",
         .ocrTranslateFailedTitle: "翻译失败",
-        .ocrTranslateFailedMessagePrefix: "无法完成翻译：",
+        .ocrTranslateFailedMessagePrefix: "无法发起翻译：",
+        .ocrTranslateOpenFallbackMessage: "已将识别文字复制到剪贴板，但无法打开系统“翻译”。请手动打开“翻译”或其他翻译应用后粘贴。",
         .exportReadImageDataFailed: "无法读取图像数据。",
         .exportUnsupportedType: "不支持该文件格式。",
         .exportWriteFailed: "系统写入文件失败。",
@@ -1351,7 +1397,7 @@ private enum EditorL10n {
         .toolPen: "画笔",
         .toolMosaic: "马赛克",
         .toolText: "文字",
-        .toolOCRTranslate: "OCR 翻译",
+        .toolOCRTranslate: "识别并翻译",
         .toolOCR: "识别文字",
         .toolCrop: "裁剪",
         .toolScrollCapture: "滚动截图",
@@ -1379,7 +1425,8 @@ private enum EditorL10n {
         .ocrTranslatableEmptyMessage: "圖片中沒有可翻譯的文字。",
         .ocrTranslateInProgress: "翻譯中…",
         .ocrTranslateFailedTitle: "翻譯失敗",
-        .ocrTranslateFailedMessagePrefix: "無法完成翻譯：",
+        .ocrTranslateFailedMessagePrefix: "無法啟動翻譯：",
+        .ocrTranslateOpenFallbackMessage: "已將辨識文字複製到剪貼簿，但無法打開系統「翻譯」。請手動打開「翻譯」或其他翻譯應用程式後貼上。",
         .exportReadImageDataFailed: "無法讀取圖像資料。",
         .exportUnsupportedType: "不支援此檔案格式。",
         .exportWriteFailed: "系統寫入檔案失敗。",
@@ -1391,7 +1438,7 @@ private enum EditorL10n {
         .toolPen: "畫筆",
         .toolMosaic: "馬賽克",
         .toolText: "文字",
-        .toolOCRTranslate: "OCR 翻譯",
+        .toolOCRTranslate: "辨識並翻譯",
         .toolOCR: "辨識文字",
         .toolCrop: "裁剪",
         .toolScrollCapture: "捲動截圖",
@@ -1419,7 +1466,8 @@ private enum EditorL10n {
         .ocrTranslatableEmptyMessage: "No translatable text was found in the image.",
         .ocrTranslateInProgress: "Translating…",
         .ocrTranslateFailedTitle: "Translation Failed",
-        .ocrTranslateFailedMessagePrefix: "Could not translate the recognized text: ",
+        .ocrTranslateFailedMessagePrefix: "Could not start translation: ",
+        .ocrTranslateOpenFallbackMessage: "Recognized text was copied to the clipboard, but the system Translate app couldn't be opened. Open Translate or another translation app and paste the text manually.",
         .exportReadImageDataFailed: "Unable to read image data.",
         .exportUnsupportedType: "This file type is not supported.",
         .exportWriteFailed: "The system failed to write the file.",
@@ -1431,7 +1479,7 @@ private enum EditorL10n {
         .toolPen: "Pen",
         .toolMosaic: "Mosaic",
         .toolText: "Text",
-        .toolOCRTranslate: "OCR Translate",
+        .toolOCRTranslate: "Recognize & Translate",
         .toolOCR: "Recognize Text",
         .toolCrop: "Crop",
         .toolScrollCapture: "Scroll Capture",
@@ -1459,7 +1507,8 @@ private enum EditorL10n {
         .ocrTranslatableEmptyMessage: "画像に翻訳可能なテキストが見つかりませんでした。",
         .ocrTranslateInProgress: "翻訳中…",
         .ocrTranslateFailedTitle: "翻訳に失敗しました",
-        .ocrTranslateFailedMessagePrefix: "テキストを翻訳できませんでした：",
+        .ocrTranslateFailedMessagePrefix: "翻訳を開始できませんでした：",
+        .ocrTranslateOpenFallbackMessage: "認識したテキストはクリップボードにコピーされましたが、システムの「翻訳」を開けませんでした。「翻訳」または他の翻訳アプリを手動で開いて貼り付けてください。",
         .exportReadImageDataFailed: "画像データを読み取れませんでした。",
         .exportUnsupportedType: "このファイル形式はサポートされていません。",
         .exportWriteFailed: "ファイルの書き込みに失敗しました。",
@@ -1471,7 +1520,7 @@ private enum EditorL10n {
         .toolPen: "ペン",
         .toolMosaic: "モザイク",
         .toolText: "テキスト",
-        .toolOCRTranslate: "OCR 翻訳",
+        .toolOCRTranslate: "認識して翻訳",
         .toolOCR: "テキスト認識",
         .toolCrop: "切り取り",
         .toolScrollCapture: "スクロールキャプチャ",
@@ -2917,21 +2966,7 @@ private struct AnnotationToolbarView: View {
         case .text:
             drawTool(.text, "t.square", EditorL10n.tr(.toolText))
         case .ocrTranslate:
-            // Apple Translation 框架（可编程 Session）仅 macOS 15+ 可用；低版本隐藏按钮。
-            if #available(macOS 15.0, *), AppStoreComplianceFeatures.isOCRTranslationOverlayEnabled {
-                drawTool(.ocrTranslate, "translate", EditorL10n.tr(.toolOCRTranslate))
-                    .overlay(alignment: .topTrailing) {
-                        if state.isOCRTranslationApplied {
-                            OCRTranslationAppliedBadge()
-                                .offset(x: 4, y: -4)
-                                .allowsHitTesting(false)
-                                .transition(.scale.combined(with: .opacity))
-                        }
-                    }
-                    .animation(.easeInOut(duration: 0.15), value: state.isOCRTranslationApplied)
-            } else {
-                EmptyView()
-            }
+            drawTool(.ocrTranslate, "translate", EditorL10n.tr(.toolOCRTranslate))
         case .ocr:
             ocrToolButton(EditorL10n.tr(.toolOCR))
         case .crop:
