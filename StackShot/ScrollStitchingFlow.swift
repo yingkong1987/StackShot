@@ -109,7 +109,7 @@ private enum ScrollFlowL10n {
 // MARK: - Coordinator
 
 @MainActor
-final class ScrollStitchingCoordinator {
+final class ScrollStitchingCoordinator: ConsoleTraceLogging {
 
     static let shared = ScrollStitchingCoordinator()
 
@@ -166,14 +166,15 @@ final class ScrollStitchingCoordinator {
                completion: ((NSImage?) -> Void)? = nil) {
 
         let normalizedRect = rect.standardized.integral
-        print("🟢 ScrollStitchingCoordinator.start 收到区域: \(normalizedRect)")
+        debugLog("收到滚动截图请求，区域=\(normalizedRect)，presentResultWindow=\(presentResultWindow)。")
 
         guard !isActive else {
-            print("⚠️ ScrollStitchingCoordinator.start 被忽略 — 已有活动会话。")
+            debugLog("滚动截图请求被忽略：已有活动会话。")
             log.warning("Ignoring start() — session already active.")
             return
         }
         guard normalizedRect.width >= 8, normalizedRect.height >= 8 else {
+            debugLog("滚动截图请求被拒绝：区域过小，原始区域=\(rect)。")
             log.error("Rejecting tiny selectedCropRect: \(String(describing: rect))")
             completion?(nil)
             return
@@ -200,7 +201,7 @@ final class ScrollStitchingCoordinator {
 
         isActive = true
         worker = ScrollStitchingWorker(backingScale: backingScale)
-        print("🟢 ScrollCaptureBackend 收到区域: \(selectedCropRect)，Quartz区域: \(quartzCaptureRect)")
+        debugLog("滚动截图会话已启动，selectedCropRect=\(selectedCropRect)，quartzCaptureRect=\(quartzCaptureRect)，backingScale=\(backingScale)。")
 
         presentOverlay()
         presentPreview()
@@ -216,6 +217,7 @@ final class ScrollStitchingCoordinator {
         let panel = ScrollStitchingOverlayPanel(captureRect: selectedCropRect)
         panel.orderFrontRegardless()
         self.overlayPanel = panel
+        debugLog("已展示滚动截图选区遮罩。")
     }
 
     private func presentHUD() {
@@ -228,6 +230,7 @@ final class ScrollStitchingCoordinator {
         panel.setFrameOrigin(hudOrigin(for: panel.frame.size))
         panel.orderFrontRegardless()
         self.hudPanel = panel
+        debugLog("已展示滚动截图 HUD。")
     }
 
     private func presentPreview() {
@@ -235,6 +238,7 @@ final class ScrollStitchingCoordinator {
         let panel = ScrollStitchingPreviewPanel(anchorRect: selectedCropRect)
         panel.orderFrontRegardless()
         self.previewPanel = panel
+        debugLog("已展示滚动截图预览面板。")
     }
 
     private func hudOrigin(for panelSize: CGSize) -> NSPoint {
@@ -365,6 +369,7 @@ final class ScrollStitchingCoordinator {
     private func startCaptureLoop() {
         captureLoopTask?.cancel()
         let intervalNs = UInt64(captureInterval * 1_000_000_000)
+        debugLog("开始滚动截图采样循环，captureInterval=\(String(format: "%.3f", captureInterval)) 秒。")
         captureLoopTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 60_000_000)
             while !Task.isCancelled {
@@ -393,7 +398,7 @@ final class ScrollStitchingCoordinator {
         }
 
         if frameIndex < 3 {
-            print("🟢 ScrollCaptureBackend 帧 #\(frameIndex + 1)，裁剪区域: \(selectedCropRect)，Quartz区域: \(quartzCaptureRect)")
+            debugLog("处理滚动截图帧 #\(frameIndex + 1)，selectedCropRect=\(selectedCropRect)，quartzCaptureRect=\(quartzCaptureRect)。")
         }
 
         let captureRect = quartzCaptureRect
@@ -433,7 +438,7 @@ final class ScrollStitchingCoordinator {
         guard isActive else { return }
 
         if frameIndex < 8 {
-            print("🟢 ScrollCaptureBackend outcome=\(String(describing: update.outcome)) totalHeight=\(update.canvasHeightPx)")
+            debugLog("帧更新已应用，frameIndex=\(frameIndex)，outcome=\(String(describing: update.outcome))，totalHeightPx=\(update.canvasHeightPx)。")
         }
 
         hudViewModel?.totalFrames &+= 1
@@ -455,6 +460,7 @@ final class ScrollStitchingCoordinator {
 
     private func finish(cancelled: Bool) {
         guard isActive else { return }
+        debugLog("准备结束滚动截图会话，cancelled=\(cancelled)。")
         isActive = false
         let shouldPresentResultWindow = self.shouldPresentResultWindow
         self.shouldPresentResultWindow = true
@@ -478,8 +484,10 @@ final class ScrollStitchingCoordinator {
 
         if !cancelled, shouldPresentResultWindow {
             if let img = nsImage {
+                debugLog("滚动截图结果可用，准备展示结果窗口，尺寸=\(Int(img.size.width))x\(Int(img.size.height))。")
                 ScrollStitchingResultWindow.present(image: img)
             } else {
+                debugLog("滚动截图结束，但没有生成可展示图像，准备展示空结果页。")
                 ScrollStitchingResultWindow.presentEmpty()
             }
         }
@@ -487,9 +495,11 @@ final class ScrollStitchingCoordinator {
         completion?(nsImage)
         completion = nil
         worker = nil
+        debugLog("滚动截图会话已结束。")
     }
 
     private func failAndCleanup() {
+        debugLog("滚动截图流程失败，开始清理现场。")
         isActive = false
         shouldPresentResultWindow = true
         captureLoopTask?.cancel(); captureLoopTask = nil
@@ -901,11 +911,12 @@ final class ScrollStitchingHUDPanel: NSPanel {
 // MARK: - Result window
 
 @MainActor
-final class ScrollStitchingResultWindow: NSWindowController {
+final class ScrollStitchingResultWindow: NSWindowController, ConsoleTraceLogging {
 
     private static var liveControllers: [ScrollStitchingResultWindow] = []
 
     static func present(image: NSImage) {
+        Self.debugLog("准备展示滚动截图结果窗口，尺寸=\(Int(image.size.width))x\(Int(image.size.height))。")
         let controller = ScrollStitchingResultWindow(image: image)
         liveControllers.append(controller)
         controller.window?.center()
@@ -914,6 +925,7 @@ final class ScrollStitchingResultWindow: NSWindowController {
     }
 
     static func presentEmpty() {
+        Self.debugLog("准备展示滚动截图空结果窗口。")
         let controller = ScrollStitchingResultWindow(image: nil)
         liveControllers.append(controller)
         controller.window?.center()
@@ -962,6 +974,7 @@ final class ScrollStitchingResultWindow: NSWindowController {
 
 extension ScrollStitchingResultWindow: NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
+        debugLog("滚动截图结果窗口即将关闭。")
         // Drop our retain so SwiftUI / images get freed.
         if let idx = Self.liveControllers.firstIndex(where: { $0 === self }) {
             Self.liveControllers.remove(at: idx)
@@ -969,7 +982,7 @@ extension ScrollStitchingResultWindow: NSWindowDelegate {
     }
 }
 
-private struct ScrollStitchingResultView: View {
+private struct ScrollStitchingResultView: View, ConsoleTraceLogging {
     let image: NSImage
     let onClose: () -> Void
     @State private var copyConfirmed = false
@@ -1009,6 +1022,7 @@ private struct ScrollStitchingResultView: View {
     }
 
     private func copyToPasteboard() {
+        debugLog("准备将滚动截图结果复制到剪贴板，尺寸=\(Int(image.size.width))x\(Int(image.size.height))。")
         let pb = NSPasteboard.general
         pb.clearContents()
         if let tiff = image.tiffRepresentation {
@@ -1021,19 +1035,32 @@ private struct ScrollStitchingResultView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
             withAnimation(.easeIn(duration: 0.2)) { copyConfirmed = false }
         }
+        debugLog("滚动截图结果已写入剪贴板。")
     }
 
     private func saveToDisk() {
+        debugLog("准备保存滚动截图结果到磁盘。")
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.png]
         panel.canCreateDirectories = true
         let stamp = ISO8601DateFormatter().string(from: Date())
             .replacingOccurrences(of: ":", with: "-")
         panel.nameFieldStringValue = "\(ScrollFlowL10n.saveDefaultName)-\(stamp).png"
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        guard let png = pngData(from: image) else { return }
-        do { try png.write(to: url) }
-        catch { NSAlert(error: error).runModal() }
+        guard panel.runModal() == .OK, let url = panel.url else {
+            debugLog("用户取消了滚动截图结果保存。")
+            return
+        }
+        guard let png = pngData(from: image) else {
+            debugLog("滚动截图结果保存失败：无法生成 PNG 数据。")
+            return
+        }
+        do {
+            try png.write(to: url)
+            debugLog("滚动截图结果保存完成，路径=\(url.path)。")
+        } catch {
+            debugLog("滚动截图结果保存失败：\(error.localizedDescription)")
+            NSAlert(error: error).runModal()
+        }
     }
 
     private func pngData(from image: NSImage) -> Data? {

@@ -61,7 +61,7 @@ enum ScreenCaptureError: LocalizedError {
 // MARK: - Manager
 
 @MainActor
-final class ScreenCaptureManager: NSObject, ObservableObject {
+final class ScreenCaptureManager: NSObject, ObservableObject, ConsoleTraceLogging {
 
     // MARK: Published state (bind these from SwiftUI)
 
@@ -141,9 +141,12 @@ final class ScreenCaptureManager: NSObject, ObservableObject {
     /// Starts streaming frames from `target`. Idempotent: calling it while
     /// already capturing tears down the previous stream first.
     func start(target: ScreenCaptureTarget, selectedCropRect: CGRect = .zero) async throws {
-        print("🟢 ScreenCaptureManager.start 收到区域: \(selectedCropRect), target=\(target), mainThread=\(Thread.isMainThread)")
+        debugLog("收到屏幕捕获启动请求，区域=\(selectedCropRect)，target=\(target.traceDescription)，mainThread=\(Thread.isMainThread)。")
 
-        if isCapturing { await stop() }
+        if isCapturing {
+            debugLog("当前已有捕获会话，准备先停止旧会话。")
+            await stop()
+        }
 
         lastError = nil
         deliveredFrameCount = 0
@@ -151,6 +154,7 @@ final class ScreenCaptureManager: NSObject, ObservableObject {
 
         let filter = await makeFilter(for: target)
         let config = makeConfiguration(for: target)
+        debugLog("已生成屏幕捕获配置，minimumFrameInterval=\(config.minimumFrameInterval.seconds)，queueDepth=\(config.queueDepth)。")
 
         let bridge = StreamOutputBridge { [weak self] pixelBuffer, pts in
             // Hop back to the main actor only for state updates; frame
@@ -178,6 +182,7 @@ final class ScreenCaptureManager: NSObject, ObservableObject {
         } catch {
             // Common failure modes: TCC denied (permission), or the target
             // window was just closed. Both bubble up as `streamFailed`.
+            debugLog("启动屏幕捕获失败：\(error.localizedDescription)")
             log.error("startCapture failed: \(error.localizedDescription, privacy: .public)")
             throw ScreenCaptureError.streamFailed(error)
         }
@@ -185,6 +190,7 @@ final class ScreenCaptureManager: NSObject, ObservableObject {
         self.stream = newStream
         self.streamOutput = bridge
         self.isCapturing = true
+        debugLog("屏幕捕获已启动，目标=\(target.traceDescription)，FPS=\(self.preferredFrameRate)。")
         log.info("Capture started @\(self.preferredFrameRate, privacy: .public) FPS")
     }
 
@@ -193,17 +199,21 @@ final class ScreenCaptureManager: NSObject, ObservableObject {
     func stop() async {
         guard let stream = self.stream else {
             isCapturing = false
+            debugLog("停止屏幕捕获时未发现活动流，直接重置状态。")
             return
         }
+        debugLog("准备停止当前屏幕捕获流。")
         do {
             try await stream.stopCapture()
         } catch {
+            debugLog("停止屏幕捕获失败：\(error.localizedDescription)")
             log.error("stopCapture error: \(error.localizedDescription, privacy: .public)")
         }
         self.stream = nil
         self.streamOutput = nil
         self.currentTarget = nil
         self.isCapturing = false
+        debugLog("屏幕捕获已停止。")
     }
 
     // MARK: - Filter / configuration
@@ -284,9 +294,22 @@ final class ScreenCaptureManager: NSObject, ObservableObject {
     // MARK: - Error funnel
 
     private func handleStreamError(_ error: Error) {
+        debugLog("捕获流上报错误：\(error.localizedDescription)")
         log.error("stream error: \(error.localizedDescription, privacy: .public)")
         lastError = .streamFailed(error)
         Task { await stop() }
+    }
+}
+
+private extension ScreenCaptureTarget {
+    var traceDescription: String {
+        switch self {
+        case .window(let window):
+            let title = window.title?.isEmpty == false ? window.title! : "未命名窗口"
+            return "window(id=\(window.windowID), title=\(title))"
+        case .display(let display, let excludingApplications):
+            return "display(id=\(display.displayID), excludingApps=\(excludingApplications.count))"
+        }
     }
 }
 

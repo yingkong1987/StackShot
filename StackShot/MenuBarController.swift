@@ -4,8 +4,9 @@ import SwiftUI
 @MainActor
 final class MenuBarController: NSObject, NSWindowDelegate {
     static let shared = MenuBarController()
-    private static let statusBarIconName = NSImage.Name("MenuBarLogoTemplate")
-    private static let statusBarIconPointSize = NSSize(width: 18, height: 18)
+    private static let statusBarColorIconName = NSImage.Name("AppLogo")
+    private static let statusBarIconSize = NSSize(width: 20, height: 20)
+    private static let statusBarIconCornerRadius: CGFloat = 4.5
 
     private var statusItem: NSStatusItem?
     private weak var mainWindow: NSWindow?
@@ -48,17 +49,42 @@ final class MenuBarController: NSObject, NSWindowDelegate {
     }
 
     private static func makeStatusBarIconImage() -> NSImage {
-        if let logo = NSImage(named: statusBarIconName)?.copy() as? NSImage {
-            logo.isTemplate = true
-            logo.size = statusBarIconPointSize
+        if let logo = preparedRoundedStatusBarIcon(named: statusBarColorIconName) {
             return logo
         }
 
         let fallback = (NSImage(systemSymbolName: "camera.viewfinder", accessibilityDescription: "StackShot")
             ?? NSImage()).copy() as? NSImage ?? NSImage()
         fallback.isTemplate = true
-        fallback.size = statusBarIconPointSize
+        fallback.size = statusBarIconSize
         return fallback
+    }
+
+    private static func preparedRoundedStatusBarIcon(named name: NSImage.Name) -> NSImage? {
+        guard let logo = NSImage(named: name)?.copy() as? NSImage else { return nil }
+        return roundedStatusBarIcon(from: logo)
+    }
+
+    private static func roundedStatusBarIcon(from source: NSImage) -> NSImage {
+        let icon = NSImage(size: statusBarIconSize)
+        icon.lockFocus()
+        defer { icon.unlockFocus() }
+
+        let drawRect = NSRect(origin: .zero, size: statusBarIconSize)
+        NSBezierPath(
+            roundedRect: drawRect,
+            xRadius: statusBarIconCornerRadius,
+            yRadius: statusBarIconCornerRadius
+        )
+        .addClip()
+        source.draw(
+            in: drawRect,
+            from: NSRect(origin: .zero, size: source.size),
+            operation: .sourceOver,
+            fraction: 1
+        )
+        icon.isTemplate = false
+        return icon
     }
 
     private func makeMenu() -> NSMenu {

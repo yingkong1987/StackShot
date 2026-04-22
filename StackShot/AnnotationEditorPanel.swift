@@ -209,7 +209,35 @@ private extension AnnotationTool {
 
 // MARK: – Annotation editor window
 
-final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
+protocol ConsoleTraceLogging {}
+
+extension ConsoleTraceLogging {
+    func debugLog(_ message: String, function: String = #function, line: Int = #line) {
+        ConsoleTraceLogWriter.log(
+            message,
+            owner: String(describing: type(of: self)),
+            function: function,
+            line: line
+        )
+    }
+
+    static func debugLog(_ message: String, function: String = #function, line: Int = #line) {
+        ConsoleTraceLogWriter.log(
+            message,
+            owner: String(describing: Self.self),
+            function: function,
+            line: line
+        )
+    }
+}
+
+private enum ConsoleTraceLogWriter {
+    static func log(_ message: String, owner: String, function: String, line: Int) {
+        print("【调试】[\(owner)] [\(function):\(line)] \(message)")
+    }
+}
+
+final class AnnotationEditorPanel: NSPanel, NSWindowDelegate, ConsoleTraceLogging {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
 
@@ -684,6 +712,7 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
     }
 
     private func beginOCRLoadingUI() {
+        debugLog("开始准备 OCR 界面状态。")
         cancelPendingOCRCompletion()
         captureOCRRestoreState()
         state.isOCRRunning = true
@@ -703,9 +732,11 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
             setOCRSidebarVisible(false, animated: false)
         }
         ocrScanOverlay.startAnimating()
+        debugLog("OCR 加载态已启动，保留侧边栏=\(preserveSidebar)。")
     }
 
     private func showOCRResultsUI(with attributedText: NSAttributedString) {
+        debugLog("准备展示 OCR 结果，字符数=\(attributedText.string.count)。")
         ocrResultLoadingIndicator.stopAnimation(nil)
         ocrResultLoadingIndicator.isHidden = true
         ocrResultTextView.textStorage?.setAttributedString(attributedText)
@@ -721,9 +752,11 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
         ocrResultScrollView.isHidden = false
         setOCRSidebarVisible(true, animated: true)
         ocrRestoreState = nil
+        debugLog("OCR 结果已展示，侧边栏已展开。")
     }
 
     private func finishOCRLoadingUI() {
+        debugLog("结束 OCR 加载态。")
         state.isOCRRunning = false
         ocrLoadingStartTime = nil
         ocrScanOverlay.stopAnimating()
@@ -732,6 +765,7 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
     }
 
     private func resetOCRUI(hideSidebar: Bool) {
+        debugLog("重置 OCR 界面，hideSidebar=\(hideSidebar)。")
         cancelPendingOCRCompletion()
         state.isOCRRunning = false
         ocrLoadingStartTime = nil
@@ -758,6 +792,7 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
     }
 
     private func restoreOCRUIAfterFailure(postRestore: ((AnnotationEditorPanel) -> Void)? = nil) {
+        debugLog("OCR 失败后准备恢复界面状态。")
         finishOCRLoadingUI()
 
         guard let snapshot = ocrRestoreState else {
@@ -788,12 +823,14 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
         }
 
         ocrRestoreState = nil
+        debugLog("OCR 界面恢复完成，sidebarVisible=\(snapshot.sidebarVisible)。")
         postRestore?(self)
     }
 
     // MARK: Actions
 
     private func confirmEditor() {
+        debugLog("用户确认当前编辑结果，准备复制到剪贴板并结束编辑。")
         let image = canvas.renderToImage()
         writeToPasteboard(image)
         onConfirm?(image)
@@ -801,6 +838,7 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
     }
 
     private func cancelEditor() {
+        debugLog("用户取消当前编辑会话。")
         onCancel?()
         close()
     }
@@ -968,41 +1006,60 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
     }
 
     private func shareImage() {
+        debugLog("收到分享请求，开始渲染当前画布。")
         let image = canvas.renderToImage()
         guard let cv = contentView else {
+            debugLog("当前没有 contentView，回退为直接复制到剪贴板。")
             writeToPasteboard(image)
             return
         }
         let picker = NSSharingServicePicker(items: [image])
         // Anchor the picker near the bottom-right of the window
         let anchor = CGRect(x: cv.bounds.maxX - 60, y: 0, width: 40, height: 40)
+        debugLog("准备展示系统分享面板，锚点=\(anchor)。")
         picker.show(relativeTo: anchor, of: cv, preferredEdge: .minY)
     }
 
     private func saveToFile() {
+        debugLog("收到保存请求，开始渲染当前画布。")
         let image = canvas.renderToImage()
         let panel = NSSavePanel()
-        let writableTypes = Self.writableImageTypes()
-        let defaultType = writableTypes.contains(.png) ? UTType.png : (writableTypes.first ?? .png)
+        let resolvedTypes = Self.writableImageTypes()
+        let defaultType = resolvedTypes.contains(.png) ? UTType.png : (resolvedTypes.first ?? .png)
+        let defaultFileName = Self.defaultExportFileName(for: defaultType)
+        debugLog("已生成保存面板配置，默认格式=\(Self.displayName(for: defaultType))，默认文件名=\(defaultFileName)。")
 
         panel.canCreateDirectories = true
         panel.isExtensionHidden = false
         panel.allowsOtherFileTypes = false
-        let resolvedTypes = writableTypes.isEmpty ? [.png] : writableTypes
-        panel.allowedContentTypes = resolvedTypes
-        panel.nameFieldStringValue = Self.defaultExportFileName(for: defaultType)
-        panel.setValue(
-            resolvedTypes.compactMap(\.preferredFilenameExtension),
-            forKey: "allowedFileTypes"
+        panel.allowedContentTypes = [defaultType]
+        panel.nameFieldStringValue = defaultFileName
+        let formatAccessory = ExportFormatAccessoryController(
+            panel: panel,
+            writableTypes: resolvedTypes,
+            defaultType: defaultType,
+            defaultFileName: defaultFileName
         )
+        panel.accessoryView = formatAccessory.view
 
-        panel.begin { [weak self] result in
-            guard result == .OK, let self, let rawURL = panel.url else { return }
+        hideFloatingToolbar()
+        debugLog("已隐藏浮动工具栏，并以 Sheet 形式展示保存面板。")
+
+        panel.beginSheetModal(for: self) { [weak self, formatAccessory] result in
+            defer { self?.syncFloatingToolbarVisibility() }
+            guard let self else { return }
+            guard result == .OK, let rawURL = panel.url else {
+                self.debugLog("用户取消了保存操作。")
+                return
+            }
             do {
-                let targetType = self.exportUTType(from: rawURL, fallback: defaultType)
+                let targetType = formatAccessory.selectedType
                 let finalURL = self.normalizedExportURL(rawURL, for: targetType)
+                self.debugLog("用户确认保存，目标格式=\(Self.displayName(for: targetType))，原始路径=\(rawURL.path)，最终路径=\(finalURL.path)。")
                 try self.writeImage(image, to: finalURL, type: targetType)
+                self.debugLog("图片保存完成。")
             } catch {
+                self.debugLog("图片保存失败：\(error.localizedDescription)")
                 self.showAlert(
                     title: EditorL10n.tr(.saveFailedTitle),
                     message: "\(EditorL10n.tr(.saveFailedMessagePrefix))\n\(error.localizedDescription)"
@@ -1027,14 +1084,14 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
             .standardized
             .integral
 
-        print("👉 触发滚动截图，当前裁剪区域: \(selectedCropRect)")
+        debugLog("触发滚动截图，当前裁剪区域=\(selectedCropRect)。")
 
         guard resolvedRect.width >= 8, resolvedRect.height >= 8 else {
-            print("⚠️ selectedCropRect 无效，state=\(selectedCropRect), fallback=\(fallbackRect)")
+            debugLog("滚动截图已中止：当前裁剪区域无效，state=\(selectedCropRect)，fallback=\(fallbackRect)。")
             return
         }
         updateSelectedCropRect(resolvedRect)
-        print("🟢 即将进入 ScrollStitching pipeline, captureRect=\(resolvedRect)")
+        debugLog("即将进入滚动截图流程，captureRect=\(resolvedRect)。")
 
         // Hide the annotation editor & toolbar so they don't appear in captures.
         hideFloatingToolbar()
@@ -1050,6 +1107,7 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
             ) { [weak self] image in
                 guard let self else { return }
                 if let image {
+                    self.debugLog("滚动截图完成，准备用结果图重新打开编辑器，尺寸=\(Int(image.size.width))x\(Int(image.size.height))。")
                     let editor = AnnotationEditorPanel(screenshot: image)
                     editor.onConfirm = self.onConfirm
                     editor.onCancel  = self.onCancel
@@ -1058,6 +1116,7 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
                     editor.makeKeyAndOrderFront(nil)
                     CaptureSessionController.shared.replaceEditor(editor)
                 } else {
+                    self.debugLog("滚动截图未生成结果，恢复原编辑器。")
                     NSApp.activate(ignoringOtherApps: true)
                     self.orderFrontRegardless()
                     self.makeKeyAndOrderFront(nil)
@@ -1070,7 +1129,11 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
     // MARK: OCR
 
     private func performOCR(translate: Bool) {
-        guard !state.isOCRRunning else { return }
+        guard !state.isOCRRunning else {
+            debugLog("OCR 请求被忽略：已有 OCR 任务正在执行。")
+            return
+        }
+        debugLog("开始执行 OCR，translate=\(translate)。")
         let sourceImage = canvas.renderToImage()
         beginOCRLoadingUI()
 
@@ -1080,6 +1143,7 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
                 let sessionToken = self.ocrSessionToken
                 switch result {
                 case let .success(snapshot):
+                    self.debugLog("OCR 识别成功，识别区域数=\(snapshot.regions.count)，translate=\(translate)。")
                     let attributed = OCRStructuredTextComposer.makeAttributedString(
                         from: snapshot.regions,
                         imageSize: snapshot.imageSize,
@@ -1091,6 +1155,7 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
                         self.handleOCRRecognizedText(attributed, sessionToken: sessionToken)
                     }
                 case let .failure(error):
+                    self.debugLog("OCR 识别失败：\(error.localizedDescription)，translate=\(translate)。")
                     if translate {
                         self.completeOCRAfterMinimumDuration(for: sessionToken) { panel in
                             panel.restoreOCRUIAfterFailure { restoredPanel in
@@ -1136,6 +1201,7 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
     private func handleOCRRecognizedText(_ attributedText: NSAttributedString, sessionToken: UUID) {
         let plainText = attributedText.string.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !plainText.isEmpty else {
+            debugLog("OCR 识别完成，但未提取到可展示文字。")
             completeOCRAfterMinimumDuration(for: sessionToken) { panel in
                 panel.restoreOCRUIAfterFailure { restoredPanel in
                     restoredPanel.showAlert(title: EditorL10n.tr(.ocrEmptyTitle), message: EditorL10n.tr(.ocrEmptyMessage))
@@ -1143,6 +1209,7 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
             }
             return
         }
+        debugLog("OCR 识别完成，准备展示结果，字符数=\(plainText.count)。")
         showOCRResultsUI(with: attributedText)
         completeOCRAfterMinimumDuration(for: sessionToken) { panel in
             panel.finishOCRLoadingUI()
@@ -1152,6 +1219,7 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
     private func handleOCRRecognizedTextForTranslation(_ attributedText: NSAttributedString, sessionToken: UUID) {
         let plainText = attributedText.string.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !plainText.isEmpty else {
+            debugLog("OCR 翻译前识别完成，但没有可翻译文字。")
             completeOCRAfterMinimumDuration(for: sessionToken) { panel in
                 panel.restoreOCRUIAfterFailure { restoredPanel in
                     if restoredPanel.state.selectedTool == .ocrTranslate {
@@ -1166,6 +1234,7 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
             return
         }
 
+        debugLog("OCR 翻译前识别完成，字符数=\(plainText.count)，准备调起翻译。")
         showOCRResultsUI(with: attributedText)
         completeOCRAfterMinimumDuration(for: sessionToken) { panel in
             panel.finishOCRLoadingUI()
@@ -1181,6 +1250,7 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
         action: @escaping (AnnotationEditorPanel) -> Void
     ) {
         let remainingDelay = remainingOCRScanDelay
+        debugLog("安排 OCR 收尾动作，remainingDelay=\(String(format: "%.3f", remainingDelay)) 秒。")
         let workItem = DispatchWorkItem { [weak self] in
             guard let self, self.ocrSessionToken == sessionToken else { return }
             self.ocrCompletionWorkItem = nil
@@ -1204,6 +1274,7 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
     }
 
     private func cancelPendingOCRCompletion() {
+        debugLog("取消待执行的 OCR 收尾任务。")
         ocrCompletionWorkItem?.cancel()
         ocrCompletionWorkItem = nil
     }
@@ -1211,19 +1282,23 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
     private func openTranslation(text: String) {
         let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedText.isEmpty else {
+            debugLog("翻译请求被忽略：文本为空。")
             showAlert(title: EditorL10n.tr(.ocrEmptyTitle), message: EditorL10n.tr(.ocrTranslatableEmptyMessage))
             return
         }
 
         // Copy the recognized text first so the user can paste it manually
         // if the system Translate app is unavailable or doesn't ingest it.
+        debugLog("准备打开系统翻译，先复制识别文本到剪贴板，字符数=\(trimmedText.count)。")
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(trimmedText, forType: .string)
 
         if let url = URL(string: "translate://"), NSWorkspace.shared.open(url) {
+            debugLog("已成功调起系统翻译应用。")
             return
         }
 
+        debugLog("无法调起系统翻译应用，准备展示回退提示。")
         showAlert(
             title: EditorL10n.tr(.ocrTranslateFailedTitle),
             message: EditorL10n.tr(.ocrTranslateOpenFallbackMessage)
@@ -1233,29 +1308,56 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
     // MARK: Helpers
 
     private func writeToPasteboard(_ image: NSImage) {
+        debugLog("准备写入图像到剪贴板，尺寸=\(Int(image.size.width))x\(Int(image.size.height))。")
         NSPasteboard.general.clearContents()
         NSPasteboard.general.writeObjects([image])
         NSSound.beep()
+        debugLog("图像已写入剪贴板，并播放提示音。")
     }
 
     private static func writableImageTypes() -> [UTType] {
-        let ids = (CGImageDestinationCopyTypeIdentifiers() as? [String]) ?? []
+        let ids = Set((CGImageDestinationCopyTypeIdentifiers() as? [String]) ?? [])
+        let preferredIDs = [
+            UTType.png.identifier,
+            UTType.jpeg.identifier,
+            "public.heic",
+            UTType.tiff.identifier,
+            UTType.gif.identifier,
+            UTType.bmp.identifier
+        ]
+        let preferredTypes = preferredIDs.compactMap { ids.contains($0) ? UTType($0) : nil }
+        if !preferredTypes.isEmpty {
+            Self.debugLog("已解析可写图片格式：\(preferredTypes.map(Self.displayName(for:)).joined(separator: "、"))。")
+            return preferredTypes
+        }
+
         let types = ids.compactMap { UTType($0) }
             .filter { $0.conforms(to: .image) }
-        return types.sorted { lhs, rhs in
+            .sorted { lhs, rhs in
             (lhs.localizedDescription ?? lhs.identifier) < (rhs.localizedDescription ?? rhs.identifier)
         }
+        let resolvedTypes = types.isEmpty ? [.png] : types
+        Self.debugLog("已回退到系统可写图片格式列表：\(resolvedTypes.map(Self.displayName(for:)).joined(separator: "、"))。")
+        return resolvedTypes
     }
 
-    private static func defaultExportFileName(for type: UTType) -> String {
+    fileprivate static func defaultExportFileName(for type: UTType) -> String {
         let timestamp = exportFileNameFormatter.string(from: Date())
         let baseName = "StackShot_\(timestamp)"
         return exportFileName(baseName: baseName, for: type)
     }
 
-    private static func exportFileName(baseName: String, for type: UTType) -> String {
+    fileprivate static func exportFileName(baseName: String, for type: UTType) -> String {
         let ext = type.preferredFilenameExtension ?? "png"
         return "\(baseName).\(ext)"
+    }
+
+    fileprivate static func displayName(for type: UTType) -> String {
+        let ext = type.preferredFilenameExtension?.uppercased() ?? type.identifier.uppercased()
+        guard let description = type.localizedDescription?.nilIfEmpty else {
+            return ext
+        }
+        return "\(ext) (\(description))"
     }
 
     private static let exportFileNameFormatter: DateFormatter = {
@@ -1266,26 +1368,18 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
         return formatter
     }()
 
-    private func exportUTType(from url: URL, fallback: UTType) -> UTType {
-        if
-            let ext = url.pathExtension.nilIfEmpty,
-            let byExtension = UTType(filenameExtension: ext),
-            byExtension.conforms(to: .image)
-        {
-            return byExtension
-        }
-        return fallback
-    }
-
     private func normalizedExportURL(_ url: URL, for type: UTType) -> URL {
-        guard url.pathExtension.isEmpty,
-              let ext = type.preferredFilenameExtension else {
+        guard let ext = type.preferredFilenameExtension else {
             return url
         }
-        return url.appendingPathExtension(ext)
+        guard url.pathExtension.caseInsensitiveCompare(ext) != .orderedSame else {
+            return url
+        }
+        return url.deletingPathExtension().appendingPathExtension(ext)
     }
 
     private func writeImage(_ image: NSImage, to url: URL, type: UTType) throws {
+        debugLog("开始写入图片，格式=\(Self.displayName(for: type))，路径=\(url.path)，图像尺寸=\(Int(image.size.width))x\(Int(image.size.height))。")
         guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
             throw NSError(domain: "StackShot.Export", code: 1, userInfo: [NSLocalizedDescriptionKey: EditorL10n.tr(.exportReadImageDataFailed)])
         }
@@ -1304,9 +1398,11 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate {
         guard CGImageDestinationFinalize(destination) else {
             throw NSError(domain: "StackShot.Export", code: 3, userInfo: [NSLocalizedDescriptionKey: EditorL10n.tr(.exportWriteFailed)])
         }
+        debugLog("系统图片写入已完成。")
     }
 
     private func showAlert(title: String, message: String) {
+        debugLog("准备弹出提示框，标题=\(title)，内容=\(message.replacingOccurrences(of: "\n", with: " "))")
         let alert = NSAlert()
         alert.messageText     = title
         alert.informativeText = message
@@ -1321,6 +1417,7 @@ private enum EditorL10nKey {
     case editorWindowTitle
     case saveFailedTitle
     case saveFailedMessagePrefix
+    case exportFormatLabel
     case ocrEmptyTitle
     case ocrEmptyMessage
     case ocrDoneTitle
@@ -1377,6 +1474,7 @@ private enum EditorL10n {
         .editorWindowTitle: "编辑截图",
         .saveFailedTitle: "保存失败",
         .saveFailedMessagePrefix: "无法保存图片，请重试。",
+        .exportFormatLabel: "格式：",
         .ocrEmptyTitle: "未识别到文字",
         .ocrEmptyMessage: "图片中没有可识别的文字。",
         .ocrDoneTitle: "文字识别完成",
@@ -1418,6 +1516,7 @@ private enum EditorL10n {
         .editorWindowTitle: "編輯截圖",
         .saveFailedTitle: "儲存失敗",
         .saveFailedMessagePrefix: "無法儲存圖片，請再試一次。",
+        .exportFormatLabel: "格式：",
         .ocrEmptyTitle: "未辨識到文字",
         .ocrEmptyMessage: "圖片中沒有可辨識的文字。",
         .ocrDoneTitle: "文字辨識完成",
@@ -1459,6 +1558,7 @@ private enum EditorL10n {
         .editorWindowTitle: "Edit Screenshot",
         .saveFailedTitle: "Save Failed",
         .saveFailedMessagePrefix: "Unable to save the image. Please try again.",
+        .exportFormatLabel: "Format:",
         .ocrEmptyTitle: "No Text Detected",
         .ocrEmptyMessage: "No recognizable text was found in the image.",
         .ocrDoneTitle: "Text Recognition Complete",
@@ -1500,6 +1600,7 @@ private enum EditorL10n {
         .editorWindowTitle: "スクリーンショットを編集",
         .saveFailedTitle: "保存に失敗しました",
         .saveFailedMessagePrefix: "画像を保存できませんでした。もう一度お試しください。",
+        .exportFormatLabel: "形式:",
         .ocrEmptyTitle: "テキストが検出されませんでした",
         .ocrEmptyMessage: "画像に認識可能なテキストが見つかりませんでした。",
         .ocrDoneTitle: "テキスト認識完了",
@@ -1536,6 +1637,166 @@ private enum EditorL10n {
         .textStyleSize: "サイズ",
         .mosaicRadius: "半径"
     ]
+}
+
+private final class ExportFormatAccessoryController: NSObject, ConsoleTraceLogging {
+    let view: NSView
+
+    private enum Layout {
+        static let contentHeight: CGFloat = 32
+        static let horizontalInset: CGFloat = 20
+        static let labelWidth: CGFloat = 76
+        static let fieldSpacing: CGFloat = 12
+        static let trailingReservedWidth: CGFloat = 92
+        static let minimumPopupWidth: CGFloat = 160
+    }
+
+    private weak var panel: NSSavePanel?
+    private let writableTypes: [UTType]
+    private let fallbackBaseName: String
+    private let popupButton = NSPopUpButton(frame: .zero, pullsDown: false)
+    private let containerWidthConstraint: NSLayoutConstraint
+    private let popupWidthConstraint: NSLayoutConstraint
+    private var resizeObserver: NSObjectProtocol?
+
+    var selectedType: UTType {
+        guard let type = selectedTypeFromPopup else { return writableTypes.first ?? .png }
+        return type
+    }
+
+    init(panel: NSSavePanel, writableTypes: [UTType], defaultType: UTType, defaultFileName: String) {
+        self.panel = panel
+        self.writableTypes = writableTypes.isEmpty ? [.png] : writableTypes
+        self.fallbackBaseName = Self.baseName(from: defaultFileName).nilIfEmpty ?? "StackShot"
+
+        let contentWidth = max(panel.contentView?.bounds.width ?? 420, 420)
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: contentWidth, height: Layout.contentHeight))
+        container.translatesAutoresizingMaskIntoConstraints = false
+        self.containerWidthConstraint = container.widthAnchor.constraint(equalToConstant: contentWidth)
+
+        let label = NSTextField(labelWithString: EditorL10n.tr(.exportFormatLabel))
+        label.translatesAutoresizingMaskIntoConstraints = false
+        label.alignment = .right
+        label.setContentHuggingPriority(.required, for: .horizontal)
+
+        popupButton.translatesAutoresizingMaskIntoConstraints = false
+        popupButton.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        popupButton.setContentCompressionResistancePriority(.required, for: .horizontal)
+        for type in self.writableTypes {
+            popupButton.addItem(withTitle: Self.displayName(for: type))
+            popupButton.lastItem?.representedObject = type.identifier
+        }
+        if let defaultIndex = self.writableTypes.firstIndex(of: defaultType) {
+            popupButton.selectItem(at: defaultIndex)
+        } else {
+            popupButton.selectItem(at: 0)
+        }
+        let initialPopupWidth = Self.popupWidth(for: contentWidth)
+        self.popupWidthConstraint = popupButton.widthAnchor.constraint(equalToConstant: initialPopupWidth)
+
+        container.addSubview(label)
+        container.addSubview(popupButton)
+        NSLayoutConstraint.activate([
+            containerWidthConstraint,
+            container.heightAnchor.constraint(equalToConstant: Layout.contentHeight),
+
+            label.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: Layout.horizontalInset),
+            label.widthAnchor.constraint(equalToConstant: Layout.labelWidth),
+            label.centerYAnchor.constraint(equalTo: popupButton.centerYAnchor),
+
+            popupButton.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: Layout.fieldSpacing),
+            popupButton.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            popupWidthConstraint
+        ])
+
+        self.view = container
+
+        super.init()
+
+        popupButton.target = self
+        popupButton.action = #selector(handleSelectionChange)
+        debugLog("已创建保存格式下拉框，默认格式=\(AnnotationEditorPanel.displayName(for: defaultType))，候选格式=\(self.writableTypes.map(AnnotationEditorPanel.displayName(for:)).joined(separator: "、"))。")
+        installResizeObserver()
+        updateLayoutForCurrentPanelWidth(reason: "初始化")
+        syncPanelSelection(usingBaseName: Self.baseName(from: defaultFileName).nilIfEmpty ?? fallbackBaseName)
+    }
+
+    deinit {
+        if let resizeObserver {
+            NotificationCenter.default.removeObserver(resizeObserver)
+        }
+    }
+
+    @objc
+    private func handleSelectionChange() {
+        debugLog("用户切换保存格式为 \(AnnotationEditorPanel.displayName(for: selectedType))。")
+        syncPanelSelection(usingBaseName: currentBaseName())
+    }
+
+    private var selectedTypeFromPopup: UTType? {
+        guard
+            let identifier = popupButton.selectedItem?.representedObject as? String,
+            let type = UTType(identifier)
+        else {
+            return nil
+        }
+        return type
+    }
+
+    private func currentBaseName() -> String {
+        let current = panel?.nameFieldStringValue ?? ""
+        return Self.baseName(from: current).nilIfEmpty ?? fallbackBaseName
+    }
+
+    private func syncPanelSelection(usingBaseName baseName: String) {
+        guard let panel else { return }
+        let type = selectedType
+        panel.allowedContentTypes = [type]
+        if let ext = type.preferredFilenameExtension {
+            panel.setValue([ext], forKey: "allowedFileTypes")
+        }
+        panel.nameFieldStringValue = AnnotationEditorPanel.exportFileName(baseName: baseName, for: type)
+        debugLog("已同步保存面板格式，格式=\(AnnotationEditorPanel.displayName(for: type))，文件名=\(panel.nameFieldStringValue)。")
+    }
+
+    private static func baseName(from fileName: String) -> String {
+        let trimmed = fileName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+        return (trimmed as NSString).deletingPathExtension
+    }
+
+    private static func displayName(for type: UTType) -> String {
+        AnnotationEditorPanel.displayName(for: type)
+    }
+
+    private func installResizeObserver() {
+        guard let panel else { return }
+        resizeObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didResizeNotification,
+            object: panel,
+            queue: .main
+        ) { [weak self] _ in
+            self?.updateLayoutForCurrentPanelWidth(reason: "窗口尺寸变化")
+        }
+    }
+
+    private func updateLayoutForCurrentPanelWidth(reason: String) {
+        guard let panel else { return }
+        let contentWidth = max(panel.contentView?.bounds.width ?? panel.contentLayoutRect.width, 320)
+        let popupWidth = Self.popupWidth(for: contentWidth)
+        containerWidthConstraint.constant = contentWidth
+        popupWidthConstraint.constant = popupWidth
+        debugLog("已同步保存格式下拉框宽度，reason=\(reason)，contentWidth=\(Int(contentWidth))，popupWidth=\(Int(popupWidth))。")
+    }
+
+    private static func popupWidth(for contentWidth: CGFloat) -> CGFloat {
+        let calculatedWidth = contentWidth
+            - Layout.horizontalInset
+            - Layout.labelWidth
+            - Layout.fieldSpacing
+            - Layout.trailingReservedWidth
+        return max(Layout.minimumPopupWidth, calculatedWidth)
+    }
 }
 
 private extension String {
@@ -3099,7 +3360,6 @@ private struct AnnotationToolbarView: View {
     private var scrollCaptureButton: some View {
         let selectedCropRect = state.selectedCropRect
         return Button {
-            print("👉 触发滚动截图，当前裁剪区域: \(selectedCropRect)")
             onScrollCapture(selectedCropRect)
         } label: {
             ScrollCaptureGlyph()
