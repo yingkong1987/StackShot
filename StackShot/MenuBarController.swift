@@ -123,6 +123,10 @@ final class MenuBarController: NSObject, NSWindowDelegate {
 
     @objc
     private func showMainWindow() {
+        presentMainWindow()
+    }
+
+    func presentMainWindow() {
         bringMainWindowToFront()
     }
 

@@ -1,8 +1,17 @@
+import AppKit
 import SwiftUI
 import KeyboardShortcuts
 
+final class StackShotAppDelegate: NSObject, NSApplicationDelegate {
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        MenuBarController.shared.presentMainWindow()
+        return false
+    }
+}
+
 @main
 struct StackShotApp: App {
+    @NSApplicationDelegateAdaptor(StackShotAppDelegate.self) private var appDelegate
     @State private var didSetup = false
     @StateObject private var launchAtLoginManager = LaunchAtLoginManager()
 
