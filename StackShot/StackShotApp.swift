@@ -23,6 +23,7 @@ struct StackShotApp: App {
                     guard !didSetup else { return }
                     didSetup = true
                     MenuBarController.shared.setup()
+                    CaptureSessionController.shared.warmUpCaptureInfrastructureIfPossible()
                     KeyboardShortcuts.onKeyDown(for: .stackShotCapture) {
                         DispatchQueue.main.async {
                             CaptureSessionController.shared.activateFromHotkey()

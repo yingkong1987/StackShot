@@ -16,8 +16,10 @@ final class CaptureSessionController {
     private var dragAnchorPoint: CGPoint?
     private var preparedScreenSnapshot: CGImage?
     private var preparedDesktopBounds: CGRect?
+    private var overlayPreparationTask: Task<Void, Never>?
     private var didRequestScreenCaptureThisLaunch = false
     private var didShowScreenCaptureAlertThisLaunch = false
+    private var didWarmCaptureInfrastructureThisLaunch = false
 
     private init() {}
 
@@ -35,18 +37,13 @@ final class CaptureSessionController {
         annotationEditor = nil
         dismissHoverUI()
 
-        // 在显示遮罩前冻结全屏快照（供放大镜使用）和当前窗口顺序（供 hover 命中使用）。
-        let screenSnapshot = prepareSessionSnapshot()
-        let windowSnapshot = WindowUnderMouseService.captureSnapshot()
-        let windowInfo = WindowUnderMouseService.windowUnderMouse(snapshot: windowSnapshot)
-
         NSApp.activate(ignoringOtherApps: true)
 
         let overlayWindow = RegionSelectionOverlay(
             shape: .rectangle,
-            screenSnapshot: screenSnapshot,
-            windowSnapshot: windowSnapshot,
-            initialWindowRect: windowInfo?.bounds,
+            screenSnapshot: nil,
+            windowSnapshot: nil,
+            initialWindowRect: nil,
             commitSelectionImmediately: true,
             onComplete: { [weak self] rect, shape in
                 self?.handleCaptured(rect: rect, shape: shape, initialTool: nil)
@@ -55,6 +52,9 @@ final class CaptureSessionController {
         )
         overlayWindow.prepareForCapture()
         overlay = overlayWindow
+        preparedScreenSnapshot = nil
+        preparedDesktopBounds = Self.desktopBounds()
+        prepareOverlayAssetsForHotkeySession(overlayWindow)
     }
 
     // MARK: – Hover tracking
@@ -275,6 +275,10 @@ final class CaptureSessionController {
             nsImage = Self.applyCircularMask(to: nsImage) ?? nsImage
         }
 
+        if preparedScreenSnapshot == nil || preparedDesktopBounds == nil {
+            _ = prepareSessionSnapshot()
+        }
+
         dismissHoverUI()
         showAnnotationEditor(for: nsImage, initialTool: initialTool, captureRect: snappedAppKit)
     }
@@ -291,6 +295,7 @@ final class CaptureSessionController {
         )
         editor.onConfirm = { [weak self] _ in self?.annotationEditor = nil }
         editor.onCancel  = { [weak self] in   self?.annotationEditor = nil }
+        editor.onClose   = { [weak self] in   self?.annotationEditor = nil }
         preparedScreenSnapshot = nil
         preparedDesktopBounds = nil
         NSApp.activate(ignoringOtherApps: true)
@@ -304,6 +309,7 @@ final class CaptureSessionController {
         annotationEditor?.orderOut(nil)
         editor.onConfirm = { [weak self] _ in self?.annotationEditor = nil }
         editor.onCancel  = { [weak self] in   self?.annotationEditor = nil }
+        editor.onClose   = { [weak self] in   self?.annotationEditor = nil }
         annotationEditor = editor
     }
 
@@ -312,6 +318,8 @@ final class CaptureSessionController {
     /// Hide and nil all hover-phase windows using orderOut (no close animation) to
     /// avoid CoreAnimation conflicts when showing the annotation editor immediately after.
     private func dismissHoverUI() {
+        overlayPreparationTask?.cancel()
+        overlayPreparationTask = nil
         endHoverTracking()
         dragAnchorPoint = nil
         currentHoveredWindow = nil
@@ -328,15 +336,70 @@ final class CaptureSessionController {
     }
 
     private func prepareSessionSnapshot() -> CGImage? {
-        let snapshot = CGWindowListCreateImage(
+        let snapshot = Self.captureScreenSnapshot()
+        preparedScreenSnapshot = snapshot
+        preparedDesktopBounds = Self.desktopBounds()
+        return snapshot
+    }
+
+    func warmUpCaptureInfrastructureIfPossible() {
+        guard Self.screenCapturePermissionGranted() else { return }
+        guard !didWarmCaptureInfrastructureThisLaunch else { return }
+        didWarmCaptureInfrastructureThisLaunch = true
+
+        let primaryScreenHeight = NSScreen.screens.first?.frame.height
+        Task.detached(priority: .utility) {
+            _ = Self.captureScreenSnapshot()
+            _ = WindowUnderMouseService.captureSnapshot(primaryScreenHeight: primaryScreenHeight)
+        }
+    }
+
+    private func prepareOverlayAssetsForHotkeySession(_ overlayWindow: RegionSelectionOverlay) {
+        overlayPreparationTask?.cancel()
+
+        let overlayIdentity = ObjectIdentifier(overlayWindow)
+        let primaryScreenHeight = NSScreen.screens.first?.frame.height
+        let desktopBounds = Self.desktopBounds()
+        let mouseLocation = NSEvent.mouseLocation
+
+        overlayPreparationTask = Task.detached(priority: .userInitiated) {
+            let screenSnapshot = Self.captureScreenSnapshot()
+            let windowSnapshot = WindowUnderMouseService.captureSnapshot(primaryScreenHeight: primaryScreenHeight)
+            let windowInfo = windowSnapshot.window(at: mouseLocation)
+
+            guard !Task.isCancelled else { return }
+
+            await MainActor.run { [weak self] in
+                guard let self,
+                      let currentOverlay = self.overlay,
+                      ObjectIdentifier(currentOverlay) == overlayIdentity else { return }
+                self.preparedScreenSnapshot = screenSnapshot
+                self.preparedDesktopBounds = desktopBounds
+                currentOverlay.updatePreparedData(
+                    screenSnapshot: screenSnapshot,
+                    windowSnapshot: windowSnapshot,
+                    initialWindowRect: windowInfo?.bounds
+                )
+                self.overlayPreparationTask = nil
+            }
+        }
+    }
+
+    nonisolated private static func captureScreenSnapshot() -> CGImage? {
+        CGWindowListCreateImage(
             .infinite,
             .optionOnScreenOnly,
             kCGNullWindowID,
             .bestResolution
         )
-        preparedScreenSnapshot = snapshot
-        preparedDesktopBounds = Self.desktopBounds()
-        return snapshot
+    }
+
+    nonisolated private static func screenCapturePermissionGranted() -> Bool {
+        #if DEBUG
+        true
+        #else
+        CGPreflightScreenCaptureAccess()
+        #endif
     }
 
     private func ensureScreenCapturePermission(interactive: Bool) -> Bool {

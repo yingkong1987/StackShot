@@ -144,7 +144,9 @@ final class ScrollStitchingCoordinator: ConsoleTraceLogging {
     private var timeoutTask: Task<Void, Never>?
     private var maxCaptureDuration: TimeInterval = 5 * 60
     private var shouldPresentResultWindow = true
-    private let captureInterval: TimeInterval = 0.09
+    // Slightly faster cadence reduces vertical jumps during quicker scrolls
+    // without overwhelming the stitching worker with overlapping frames.
+    private let captureInterval: TimeInterval = 0.07
 
     // Re-entry guard.
     private var isActive = false

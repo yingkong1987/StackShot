@@ -276,6 +276,10 @@ final class AnnotationCanvasView: NSView {
     // MARK: – Drawing
 
     override func draw(_ dirtyRect: NSRect) {
+        drawCanvas(includeInteractionGuides: true)
+    }
+
+    private func drawCanvas(includeInteractionGuides: Bool) {
         // Background
         NSColor(white: 0.15, alpha: 1).setFill()
         bounds.fill()
@@ -285,11 +289,13 @@ final class AnnotationCanvasView: NSView {
 
         // Committed annotations
         for (idx, item) in annotations.enumerated() {
-            drawAnnotation(item, index: idx)
+            drawAnnotation(item, index: idx, includeInteractionGuides: includeInteractionGuides)
         }
 
         // In-progress preview
-        drawInProgress()
+        if includeInteractionGuides {
+            drawInProgress()
+        }
     }
 
     private var screenshotDrawRect: CGRect {
@@ -304,7 +310,7 @@ final class AnnotationCanvasView: NSView {
 
     // MARK: – Annotation rendering
 
-    private func drawAnnotation(_ item: AnnotationItem, index: Int) {
+    private func drawAnnotation(_ item: AnnotationItem, index: Int, includeInteractionGuides: Bool) {
         switch item {
         case let .rectangle(r, c, lw, isFilled):
             let path = NSBezierPath(rect: r)
@@ -349,7 +355,7 @@ final class AnnotationCanvasView: NSView {
             }
             let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
             (content as NSString).draw(at: origin, withAttributes: attrs)
-            if index == selectedTextIndex {
+            if includeInteractionGuides, index == selectedTextIndex {
                 let rect = textRect(origin: origin, content: content, font: font)
                     .insetBy(dx: -6, dy: -5)
                 let path = NSBezierPath(roundedRect: rect, xRadius: 6, yRadius: 6)
@@ -361,7 +367,10 @@ final class AnnotationCanvasView: NSView {
             }
 
         case let .emojiSticker(sticker):
-            drawEmojiSticker(sticker, isSelected: index == selectedEmojiIndex)
+            drawEmojiSticker(
+                sticker,
+                isSelected: includeInteractionGuides && index == selectedEmojiIndex
+            )
         }
     }
 
@@ -841,7 +850,7 @@ final class AnnotationCanvasView: NSView {
     func renderToImage() -> NSImage {
         let img = NSImage(size: bounds.size)
         img.lockFocusFlipped(false)
-        draw(bounds)
+        drawCanvas(includeInteractionGuides: false)
         img.unlockFocus()
         return img
     }

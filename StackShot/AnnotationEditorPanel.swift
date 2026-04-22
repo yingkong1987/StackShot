@@ -279,6 +279,8 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate, ConsoleTraceLoggin
     var onConfirm: ((NSImage) -> Void)?
     /// Called when the user cancels.
     var onCancel: (() -> Void)?
+    /// Called whenever the editor window closes, regardless of reason.
+    var onClose: (() -> Void)?
 
     // MARK: Init
 
@@ -326,6 +328,9 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate, ConsoleTraceLoggin
         editingBackdrop = AnnotationEditingBackdropPanel(level: AnnotationEditorOverlayLevels.backdrop)
         editingBackdrop?.onSelectionFrameChange = { [weak self] newFrame in
             self?.applyAdjustedSelectionFrame(newFrame)
+        }
+        editingBackdrop?.onCancelRequested = { [weak self] in
+            self?.cancelEditor()
         }
 
         // Apply initial tool (e.g. pre-selected from the hover toolbar)
@@ -843,6 +848,18 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate, ConsoleTraceLoggin
         close()
     }
 
+    private func deactivateActiveTool() {
+        _ = canvas.commitActiveTextEditingIfNeeded()
+        let canAdjustSelection = sourceScreenSnapshot != nil && sourceDesktopBounds != nil
+        state.isSelectionAdjustmentMode = canAdjustSelection
+        state.selectedTool = nil
+        AnnotationStylePopoverSession.closeActive()
+        emojiPopover?.performClose(nil)
+        emojiPopover = nil
+        updateSelectionAdjustmentAvailability()
+        makeKeyAndOrderFront(nil)
+    }
+
     private func enterSelectionAdjustmentMode() {
         _ = canvas.commitActiveTextEditingIfNeeded()
         state.isSelectionAdjustmentMode = true
@@ -867,7 +884,7 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate, ConsoleTraceLoggin
         }
 
         if state.selectedTool != nil {
-            enterSelectionAdjustmentMode()
+            deactivateActiveTool()
             return
         }
 
@@ -888,6 +905,7 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate, ConsoleTraceLoggin
         toolbarPanel = nil
         ocrScanOverlay.stopAnimating()
         super.close()
+        onClose?()
     }
 
     private func presentEmojiPicker(anchorView: NSView) {
@@ -1058,6 +1076,7 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate, ConsoleTraceLoggin
                 self.debugLog("用户确认保存，目标格式=\(Self.displayName(for: targetType))，原始路径=\(rawURL.path)，最终路径=\(finalURL.path)。")
                 try self.writeImage(image, to: finalURL, type: targetType)
                 self.debugLog("图片保存完成。")
+                self.close()
             } catch {
                 self.debugLog("图片保存失败：\(error.localizedDescription)")
                 self.showAlert(
@@ -1657,7 +1676,6 @@ private final class ExportFormatAccessoryController: NSObject, ConsoleTraceLoggi
     private let popupButton = NSPopUpButton(frame: .zero, pullsDown: false)
     private let containerWidthConstraint: NSLayoutConstraint
     private let popupWidthConstraint: NSLayoutConstraint
-    private var resizeObserver: NSObjectProtocol?
 
     var selectedType: UTType {
         guard let type = selectedTypeFromPopup else { return writableTypes.first ?? .png }
@@ -1716,15 +1734,8 @@ private final class ExportFormatAccessoryController: NSObject, ConsoleTraceLoggi
         popupButton.target = self
         popupButton.action = #selector(handleSelectionChange)
         debugLog("已创建保存格式下拉框，默认格式=\(AnnotationEditorPanel.displayName(for: defaultType))，候选格式=\(self.writableTypes.map(AnnotationEditorPanel.displayName(for:)).joined(separator: "、"))。")
-        installResizeObserver()
-        updateLayoutForCurrentPanelWidth(reason: "初始化")
+        applyInitialLayout()
         syncPanelSelection(usingBaseName: Self.baseName(from: defaultFileName).nilIfEmpty ?? fallbackBaseName)
-    }
-
-    deinit {
-        if let resizeObserver {
-            NotificationCenter.default.removeObserver(resizeObserver)
-        }
     }
 
     @objc
@@ -1769,24 +1780,13 @@ private final class ExportFormatAccessoryController: NSObject, ConsoleTraceLoggi
         AnnotationEditorPanel.displayName(for: type)
     }
 
-    private func installResizeObserver() {
+    private func applyInitialLayout() {
         guard let panel else { return }
-        resizeObserver = NotificationCenter.default.addObserver(
-            forName: NSWindow.didResizeNotification,
-            object: panel,
-            queue: .main
-        ) { [weak self] _ in
-            self?.updateLayoutForCurrentPanelWidth(reason: "窗口尺寸变化")
-        }
-    }
-
-    private func updateLayoutForCurrentPanelWidth(reason: String) {
-        guard let panel else { return }
-        let contentWidth = max(panel.contentView?.bounds.width ?? panel.contentLayoutRect.width, 320)
+        let contentWidth = max(panel.contentView?.bounds.width ?? panel.contentLayoutRect.width, 420)
         let popupWidth = Self.popupWidth(for: contentWidth)
         containerWidthConstraint.constant = contentWidth
         popupWidthConstraint.constant = popupWidth
-        debugLog("已同步保存格式下拉框宽度，reason=\(reason)，contentWidth=\(Int(contentWidth))，popupWidth=\(Int(popupWidth))。")
+        debugLog("已锁定保存格式下拉框初始宽度，contentWidth=\(Int(contentWidth))，popupWidth=\(Int(popupWidth))。")
     }
 
     private static func popupWidth(for contentWidth: CGFloat) -> CGFloat {
@@ -2182,6 +2182,11 @@ private final class AnnotationEditingBackdropPanel: NSPanel {
         set { backdropView.onSelectionFrameChange = newValue }
     }
 
+    var onCancelRequested: (() -> Void)? {
+        get { backdropView.onCancelRequested }
+        set { backdropView.onCancelRequested = newValue }
+    }
+
     var allowsSelectionCreation: Bool {
         get { backdropView.allowsSelectionCreation }
         set { backdropView.allowsSelectionCreation = newValue }
@@ -2222,6 +2227,7 @@ private final class AnnotationEditingBackdropPanel: NSPanel {
 
 private final class AnnotationEditingBackdropView: NSView {
     var onSelectionFrameChange: ((CGRect) -> Void)?
+    var onCancelRequested: (() -> Void)?
     var allowsSelectionCreation = false
     var selectionFrame: CGRect = .zero {
         didSet { needsDisplay = true }
@@ -2286,7 +2292,9 @@ private final class AnnotationEditingBackdropView: NSView {
         needsDisplay = true
     }
 
-    override func rightMouseDown(with event: NSEvent) {}
+    override func rightMouseDown(with event: NSEvent) {
+        onCancelRequested?()
+    }
 
     private func normalizedRect(from a: CGPoint, to b: CGPoint) -> CGRect {
         CGRect(

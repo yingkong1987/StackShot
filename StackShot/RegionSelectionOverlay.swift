@@ -64,6 +64,27 @@ final class RegionSelectionOverlay: NSWindow {
         makeFirstResponder(contentView)
     }
 
+    func updatePreparedData(
+        screenSnapshot: CGImage?,
+        windowSnapshot: WindowUnderMouseSnapshot?,
+        initialWindowRect: CGRect?
+    ) {
+        guard let view = contentView as? SelectionOverlayView else { return }
+        let localInitialWindowRect = initialWindowRect.map { globalRect in
+            CGRect(
+                x: globalRect.origin.x - frame.origin.x,
+                y: globalRect.origin.y - frame.origin.y,
+                width: globalRect.width,
+                height: globalRect.height
+            )
+        }
+        view.updatePreparedData(
+            screenSnapshot: screenSnapshot,
+            windowSnapshot: windowSnapshot,
+            initialWindowRect: localInitialWindowRect
+        )
+    }
+
     private static func unionScreenFrame() -> CGRect {
         var u = CGRect.null
         for s in NSScreen.screens {
@@ -124,9 +145,9 @@ private final class SelectionOverlayView: NSView {
     private let controlButtonSpacing: CGFloat = 8
 
     // Magnifier & auto-window-selection
-    private let screenSnapshot: CGImage?
-    private let snapshotBitmapRep: NSBitmapImageRep?
-    private let windowSnapshot: WindowUnderMouseSnapshot?
+    private var screenSnapshot: CGImage?
+    private var snapshotBitmapRep: NSBitmapImageRep?
+    private var windowSnapshot: WindowUnderMouseSnapshot?
     private let windowOrigin: CGPoint
     private var autoSelectedRect: CGRect?
     private var mousePosition: NSPoint = .zero
@@ -165,6 +186,31 @@ private final class SelectionOverlayView: NSView {
     required init?(coder: NSCoder) { nil }
 
     override var acceptsFirstResponder: Bool { true }
+
+    func updatePreparedData(
+        screenSnapshot: CGImage?,
+        windowSnapshot: WindowUnderMouseSnapshot?,
+        initialWindowRect: CGRect?
+    ) {
+        self.screenSnapshot = screenSnapshot
+        self.snapshotBitmapRep = screenSnapshot.map { NSBitmapImageRep(cgImage: $0) }
+        self.windowSnapshot = windowSnapshot
+
+        guard selectionRect == nil, dragMode == nil else {
+            needsDisplay = true
+            return
+        }
+
+        if let initialWindowRect {
+            autoSelectedRect = initialWindowRect
+        } else if hasMagnifier {
+            updateWindowUnderMouse(preservePreviousIfMissed: true)
+        }
+
+        updateCursorAppearance(at: mousePosition)
+        updateSelectionControls()
+        needsDisplay = true
+    }
 
     override func updateTrackingAreas() {
         if let trackingArea {

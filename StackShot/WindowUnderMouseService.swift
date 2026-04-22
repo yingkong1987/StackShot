@@ -134,14 +134,16 @@ enum WindowUnderMouseService {
     }
 
     /// 返回当前屏幕上可见窗口的冻结快照，顺序与 WindowServer 返回顺序一致（前到后）。
-    static func captureSnapshot() -> WindowUnderMouseSnapshot {
+    static func captureSnapshot(primaryScreenHeight: CGFloat? = NSScreen.screens.first?.frame.height) -> WindowUnderMouseSnapshot {
         let myPID = ProcessInfo.processInfo.processIdentifier
 
         guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
             return WindowUnderMouseSnapshot(windows: [])
         }
 
-        let windows = list.compactMap { windowInfo(from: $0, excludingPID: myPID) }
+        let windows = list.compactMap {
+            windowInfo(from: $0, excludingPID: myPID, primaryScreenHeight: primaryScreenHeight)
+        }
         return WindowUnderMouseSnapshot(windows: windows)
     }
 
@@ -164,7 +166,11 @@ enum WindowUnderMouseService {
         CGRect(dictionaryRepresentation: dict as CFDictionary)
     }
 
-    private static func windowInfo(from entry: [String: Any], excludingPID: pid_t) -> WindowUnderMouseInfo? {
+    private static func windowInfo(
+        from entry: [String: Any],
+        excludingPID: pid_t,
+        primaryScreenHeight: CGFloat?
+    ) -> WindowUnderMouseInfo? {
         guard let pidNum = entry[kCGWindowOwnerPID as String] as? NSNumber else { return nil }
         let pid = pidNum.int32Value
         if pid == excludingPID { return nil }
@@ -178,7 +184,7 @@ enum WindowUnderMouseService {
             return nil
         }
 
-        let rect = appKitRect(fromQuartzRect: quartzRect)
+        let rect = appKitRect(fromQuartzRect: quartzRect, primaryScreenHeight: primaryScreenHeight)
         if rect.width < 8 || rect.height < 8 { return nil }
 
         let title = entry[kCGWindowName as String] as? String
@@ -327,9 +333,13 @@ enum WindowUnderMouseService {
     }
 
     private static func appKitRect(fromQuartzRect rect: CGRect) -> CGRect {
+        appKitRect(fromQuartzRect: rect, primaryScreenHeight: NSScreen.screens.first?.frame.height)
+    }
+
+    private static func appKitRect(fromQuartzRect rect: CGRect, primaryScreenHeight: CGFloat?) -> CGRect {
         // Quartz 坐标原点在主屏幕左上角，AppKit 在主屏幕左下角，
         // 转换只需要主屏幕高度，用整个桌面 union 高度在多屏纵向排列时会算错。
-        guard let primaryHeight = NSScreen.screens.first?.frame.height else { return rect }
+        guard let primaryHeight = primaryScreenHeight else { return rect }
 
         return CGRect(
             x: rect.origin.x,
