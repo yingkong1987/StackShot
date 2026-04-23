@@ -39,9 +39,11 @@ final class CaptureSessionController {
 
         NSApp.activate(ignoringOtherApps: true)
 
+        let screenSnapshot = prepareSessionSnapshot()
+
         let overlayWindow = RegionSelectionOverlay(
             shape: .rectangle,
-            screenSnapshot: nil,
+            screenSnapshot: screenSnapshot,
             windowSnapshot: nil,
             initialWindowRect: nil,
             commitSelectionImmediately: true,
@@ -52,8 +54,6 @@ final class CaptureSessionController {
         )
         overlayWindow.prepareForCapture()
         overlay = overlayWindow
-        preparedScreenSnapshot = nil
-        preparedDesktopBounds = Self.desktopBounds()
         prepareOverlayAssetsForHotkeySession(overlayWindow)
     }
 
@@ -257,9 +257,15 @@ final class CaptureSessionController {
         )
         let snappedQuartz = Self.quartzRect(fromAppKitRect: snappedAppKit)
 
-        guard let cgImage = CGWindowListCreateImage(
+        let cgImage = preparedScreenSnapshot.flatMap { snapshot in
+            preparedDesktopBounds.flatMap { desktopBounds in
+                Self.cropSnapshot(snapshot, desktopBounds: desktopBounds, captureRect: snappedAppKit)
+            }
+        } ?? CGWindowListCreateImage(
             snappedQuartz, .optionOnScreenOnly, kCGNullWindowID, .bestResolution
-        ) else {
+        )
+
+        guard let cgImage else {
             showCaptureFailedAlert(reason: "无法创建图像，可能被系统隐私设置阻止。")
             endSession()
             return
@@ -361,11 +367,9 @@ final class CaptureSessionController {
 
         let overlayIdentity = ObjectIdentifier(overlayWindow)
         let primaryScreenHeight = NSScreen.screens.first?.frame.height
-        let desktopBounds = Self.desktopBounds()
         let mouseLocation = NSEvent.mouseLocation
 
         overlayPreparationTask = Task.detached(priority: .userInitiated) {
-            let screenSnapshot = Self.captureScreenSnapshot()
             let windowSnapshot = WindowUnderMouseService.captureSnapshot(primaryScreenHeight: primaryScreenHeight)
             let windowInfo = windowSnapshot.window(at: mouseLocation)
 
@@ -375,10 +379,8 @@ final class CaptureSessionController {
                 guard let self,
                       let currentOverlay = self.overlay,
                       ObjectIdentifier(currentOverlay) == overlayIdentity else { return }
-                self.preparedScreenSnapshot = screenSnapshot
-                self.preparedDesktopBounds = desktopBounds
                 currentOverlay.updatePreparedData(
-                    screenSnapshot: screenSnapshot,
+                    screenSnapshot: self.preparedScreenSnapshot,
                     windowSnapshot: windowSnapshot,
                     initialWindowRect: windowInfo?.bounds
                 )
@@ -472,6 +474,30 @@ final class CaptureSessionController {
             width: rect.width,
             height: rect.height
         )
+    }
+
+    private static func cropSnapshot(
+        _ snapshot: CGImage,
+        desktopBounds: CGRect,
+        captureRect: CGRect
+    ) -> CGImage? {
+        guard desktopBounds.width > 0, desktopBounds.height > 0 else { return nil }
+
+        let scaleX = CGFloat(snapshot.width) / desktopBounds.width
+        let scaleY = CGFloat(snapshot.height) / desktopBounds.height
+        let pixelRect = CGRect(
+            x: (captureRect.minX - desktopBounds.minX) * scaleX,
+            y: (desktopBounds.maxY - captureRect.maxY) * scaleY,
+            width: captureRect.width * scaleX,
+            height: captureRect.height * scaleY
+        ).integral.intersection(CGRect(x: 0, y: 0, width: snapshot.width, height: snapshot.height))
+
+        guard pixelRect.width >= 1,
+              pixelRect.height >= 1 else {
+            return nil
+        }
+
+        return snapshot.cropping(to: pixelRect)
     }
 
     private static func desktopBounds() -> CGRect {

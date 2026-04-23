@@ -74,6 +74,18 @@ private enum AnnotationEditorMetrics {
 private enum ToolbarDockPosition {
     case belowEditor
     case rightOfEditor
+    case leftOfEditor
+
+    var popoverPreferredEdge: NSRectEdge {
+        switch self {
+        case .belowEditor:
+            return .minY
+        case .rightOfEditor:
+            return .maxX
+        case .leftOfEditor:
+            return .minX
+        }
+    }
 }
 
 private enum AnnotationEditorOverlayLevels {
@@ -280,6 +292,8 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate, ConsoleTraceLoggin
     private var translationHostView: NSView?
     // OCR 翻译期间显示的进度 HUD。
     private var translateHUD: NSView?
+    private var ocrTranslateTask: Task<Void, Never>?
+    private var ocrTranslateSessionToken = UUID()
     private var isOCRTranslating = false
     private var preTranslationScreenshot: NSImage?
     private var editingBackdrop: AnnotationEditingBackdropPanel?
@@ -345,9 +359,7 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate, ConsoleTraceLoggin
         delegate = self
 
         self.updateSelectedCropRect(captureRect)
-        state.isSelectionAdjustmentMode = initialTool == nil
-            && sourceScreenSnapshot != nil
-            && sourceDesktopBounds != nil
+        state.isSelectionAdjustmentMode = false
         setupContent(canvasW: initialFrame.width, canvasH: initialFrame.height)
         editingBackdrop = AnnotationEditingBackdropPanel(level: AnnotationEditorOverlayLevels.backdrop)
         editingBackdrop?.onSelectionFrameChange = { [weak self] newFrame in
@@ -355,6 +367,9 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate, ConsoleTraceLoggin
         }
         editingBackdrop?.onCancelRequested = { [weak self] in
             self?.cancelEditor()
+        }
+        editingBackdrop?.onConfirmRequested = { [weak self] in
+            self?.confirmEditorFromBackdrop()
         }
 
         // Apply initial tool (e.g. pre-selected from the hover toolbar)
@@ -860,6 +875,7 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate, ConsoleTraceLoggin
 
     private func confirmEditor() {
         debugLog("用户确认当前编辑结果，准备复制到剪贴板并结束编辑。")
+        _ = canvas.commitActiveTextEditingIfNeeded()
         let image = canvas.renderToImage()
         writeToPasteboard(image)
         onConfirm?(image)
@@ -872,10 +888,14 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate, ConsoleTraceLoggin
         close()
     }
 
+    private func confirmEditorFromBackdrop() {
+        guard !isOCRTranslating else { return }
+        confirmEditor()
+    }
+
     private func deactivateActiveTool() {
         _ = canvas.commitActiveTextEditingIfNeeded()
-        let canAdjustSelection = sourceScreenSnapshot != nil && sourceDesktopBounds != nil
-        state.isSelectionAdjustmentMode = canAdjustSelection
+        state.isSelectionAdjustmentMode = false
         state.selectedTool = nil
         AnnotationStylePopoverSession.closeActive()
         emojiPopover?.performClose(nil)
@@ -907,6 +927,13 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate, ConsoleTraceLoggin
             return
         }
 
+#if canImport(Translation)
+        if #available(macOS 15.0, *), isOCRTranslating {
+            cancelOCRTranslationProcess()
+            return
+        }
+#endif
+
         if state.selectedTool != nil {
             deactivateActiveTool()
             return
@@ -919,6 +946,11 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate, ConsoleTraceLoggin
 
     override func close() {
         cancelPendingOCRCompletion()
+#if canImport(Translation)
+        if #available(macOS 15.0, *), isOCRTranslating || translateHUD != nil || translationHostView != nil {
+            cancelOCRTranslationProcess(restoreToolbar: false)
+        }
+#endif
         hideFloatingToolbar()
         hideEditingBackdrop()
         editingBackdrop?.close()
@@ -932,7 +964,7 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate, ConsoleTraceLoggin
         onClose?()
     }
 
-    private func presentEmojiPicker(anchorView: NSView) {
+    private func presentEmojiPicker(anchorView: NSView, dock: ToolbarDockPosition) {
         guard let toolbarPanel else { return }
 
         if let emojiPopover, emojiPopover.isShown {
@@ -955,7 +987,7 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate, ConsoleTraceLoggin
         popover.contentViewController = host
         popover.contentSize = NSSize(width: 304, height: 248)
 
-        popover.show(relativeTo: anchorView.bounds, of: anchorView, preferredEdge: .maxY)
+        popover.show(relativeTo: anchorView.bounds, of: anchorView, preferredEdge: dock.popoverPreferredEdge)
         toolbarPanel.orderFrontRegardless()
         emojiPopover = popover
     }
@@ -986,7 +1018,7 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate, ConsoleTraceLoggin
             onShare:        { [weak self] in self?.shareImage() },
             onCancel:       { [weak self] in self?.cancelEditor() },
             onConfirm:      { [weak self] in self?.confirmEditor() },
-            onEmoji:        { [weak self] anchorView in self?.presentEmojiPicker(anchorView: anchorView) },
+            onEmoji:        { [weak self] anchorView, dock in self?.presentEmojiPicker(anchorView: anchorView, dock: dock) },
             onOCR:          { [weak self] in self?.performOCR(translate: false) },
             onOCRTranslate: { [weak self] in self?.performOCRTranslation() },
             onScrollCapture:{ [weak self] rect in self?.performScrollCapture(selectedCropRect: rect) }
@@ -1008,7 +1040,7 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate, ConsoleTraceLoggin
     }
 
     private func syncFloatingToolbarVisibility() {
-        guard isVisible, !isMiniaturized, occlusionState.contains(.visible) else {
+        guard isVisible, !isMiniaturized, occlusionState.contains(.visible), !isOCRTranslating else {
             hideFloatingToolbar()
             return
         }
@@ -1396,6 +1428,7 @@ private enum EditorL10nKey {
     case ocrDoneMessageFormat
     case ocrTranslatableEmptyMessage
     case ocrTranslateInProgress
+    case ocrTranslateProgressDetail
     case ocrTranslateFailedTitle
     case ocrTranslateFailedMessagePrefix
     case ocrTranslateUnavailableMessage
@@ -1420,6 +1453,7 @@ private enum EditorL10nKey {
     case actionPin
     case actionShare
     case actionCancel
+    case actionCancelTranslation
     case actionConfirmCopy
     case emojiPickerTitle
     case textStyleFont
@@ -1453,6 +1487,7 @@ private enum EditorL10n {
         .ocrDoneMessageFormat: "已识别 %d 个字符并复制到剪贴板。",
         .ocrTranslatableEmptyMessage: "图片中没有可翻译的文字。",
         .ocrTranslateInProgress: "正在翻译…",
+        .ocrTranslateProgressDetail: "工具栏已暂时隐藏。正在匹配语言并生成译文，你可以随时点击底部按钮取消。",
         .ocrTranslateFailedTitle: "翻译失败",
         .ocrTranslateFailedMessagePrefix: "无法发起翻译：",
         .ocrTranslateUnavailableMessage: "内置翻译需要 macOS 15 或更高版本，并使用 Apple 官方 Translation 框架。当前系统不支持时，可先使用“识别文字”。",
@@ -1477,6 +1512,7 @@ private enum EditorL10n {
         .actionPin: "钉图",
         .actionShare: "分享",
         .actionCancel: "取消",
+        .actionCancelTranslation: "取消翻译",
         .actionConfirmCopy: "确认并复制",
         .emojiPickerTitle: "Emoji",
         .textStyleFont: "字体",
@@ -1495,6 +1531,7 @@ private enum EditorL10n {
         .ocrDoneMessageFormat: "已辨識 %d 個字元並複製到剪貼簿。",
         .ocrTranslatableEmptyMessage: "圖片中沒有可翻譯的文字。",
         .ocrTranslateInProgress: "翻譯中…",
+        .ocrTranslateProgressDetail: "工具列已暫時隱藏。正在配對語言並產生譯文，你可以隨時點擊底部按鈕取消。",
         .ocrTranslateFailedTitle: "翻譯失敗",
         .ocrTranslateFailedMessagePrefix: "無法啟動翻譯：",
         .ocrTranslateUnavailableMessage: "內建翻譯需要 macOS 15 或以上版本，並使用 Apple 官方 Translation 框架。若目前系統不支援，可先使用「辨識文字」。",
@@ -1519,6 +1556,7 @@ private enum EditorL10n {
         .actionPin: "釘圖",
         .actionShare: "分享",
         .actionCancel: "取消",
+        .actionCancelTranslation: "取消翻譯",
         .actionConfirmCopy: "確認並複製",
         .emojiPickerTitle: "Emoji",
         .textStyleFont: "字體",
@@ -1537,6 +1575,7 @@ private enum EditorL10n {
         .ocrDoneMessageFormat: "Recognized %d characters and copied them to the clipboard.",
         .ocrTranslatableEmptyMessage: "No translatable text was found in the image.",
         .ocrTranslateInProgress: "Translating…",
+        .ocrTranslateProgressDetail: "The toolbar is temporarily hidden while StackShot prepares recognition and translation. Use the button below to cancel at any time.",
         .ocrTranslateFailedTitle: "Translation Failed",
         .ocrTranslateFailedMessagePrefix: "Could not start translation: ",
         .ocrTranslateUnavailableMessage: "Built-in translation requires macOS 15 or later and uses Apple's public Translation framework. If it isn't available on this system, use Recognize Text instead.",
@@ -1561,6 +1600,7 @@ private enum EditorL10n {
         .actionPin: "Pin",
         .actionShare: "Share",
         .actionCancel: "Cancel",
+        .actionCancelTranslation: "Cancel Translation",
         .actionConfirmCopy: "Confirm & Copy",
         .emojiPickerTitle: "Emoji",
         .textStyleFont: "Font",
@@ -1579,6 +1619,7 @@ private enum EditorL10n {
         .ocrDoneMessageFormat: "%d 文字を認識しクリップボードにコピーしました。",
         .ocrTranslatableEmptyMessage: "画像に翻訳可能なテキストが見つかりませんでした。",
         .ocrTranslateInProgress: "翻訳中…",
+        .ocrTranslateProgressDetail: "翻訳中はツールバーが一時的に非表示になります。認識と言語変換を準備している間、下のボタンからいつでもキャンセルできます。",
         .ocrTranslateFailedTitle: "翻訳に失敗しました",
         .ocrTranslateFailedMessagePrefix: "翻訳を開始できませんでした：",
         .ocrTranslateUnavailableMessage: "内蔵翻訳は macOS 15 以降で利用でき、Apple の公開 Translation フレームワークを使用します。現在のシステムで利用できない場合は、先に「テキスト認識」を使ってください。",
@@ -1603,6 +1644,7 @@ private enum EditorL10n {
         .actionPin: "ピン留め",
         .actionShare: "共有",
         .actionCancel: "キャンセル",
+        .actionCancelTranslation: "翻訳をキャンセル",
         .actionConfirmCopy: "確認してコピー",
         .emojiPickerTitle: "Emoji",
         .textStyleFont: "フォント",
@@ -2140,6 +2182,11 @@ private final class AnnotationEditingBackdropPanel: NSPanel {
         set { backdropView.onCancelRequested = newValue }
     }
 
+    var onConfirmRequested: (() -> Void)? {
+        get { backdropView.onConfirmRequested }
+        set { backdropView.onConfirmRequested = newValue }
+    }
+
     var allowsSelectionCreation: Bool {
         get { backdropView.allowsSelectionCreation }
         set { backdropView.allowsSelectionCreation = newValue }
@@ -2169,6 +2216,7 @@ private final class AnnotationEditingBackdropPanel: NSPanel {
         hidesOnDeactivate = false
         isFloatingPanel = true
         worksWhenModal = true
+        acceptsMouseMovedEvents = true
         ignoresMouseEvents = false
         contentView = backdropView
     }
@@ -2181,6 +2229,7 @@ private final class AnnotationEditingBackdropPanel: NSPanel {
 private final class AnnotationEditingBackdropView: NSView {
     var onSelectionFrameChange: ((CGRect) -> Void)?
     var onCancelRequested: (() -> Void)?
+    var onConfirmRequested: (() -> Void)?
     var allowsSelectionCreation = false
     var selectionFrame: CGRect = .zero {
         didSet { needsDisplay = true }
@@ -2189,6 +2238,7 @@ private final class AnnotationEditingBackdropView: NSView {
     private let windowOrigin: CGPoint
     private var dragStartPoint: CGPoint?
     private var draftSelectionRect: CGRect?
+    private var trackingAreaRef: NSTrackingArea?
     private let snapThreshold: CGFloat = 10
 
     init(frame frameRect: NSRect, windowOrigin: CGPoint) {
@@ -2197,6 +2247,26 @@ private final class AnnotationEditingBackdropView: NSView {
     }
 
     required init?(coder: NSCoder) { nil }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
+    }
+
+    override func updateTrackingAreas() {
+        if let trackingAreaRef {
+            removeTrackingArea(trackingAreaRef)
+        }
+
+        let trackingArea = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseMoved, .cursorUpdate, .activeAlways, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(trackingArea)
+        trackingAreaRef = trackingArea
+        super.updateTrackingAreas()
+    }
 
     override func draw(_ dirtyRect: NSRect) {
         NSColor.black.withAlphaComponent(0.42).setFill()
@@ -2215,9 +2285,24 @@ private final class AnnotationEditingBackdropView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
-        guard allowsSelectionCreation else { return }
+        if !allowsSelectionCreation {
+            if event.clickCount >= 2 {
+                onConfirmRequested?()
+            }
+            updateCursor(at: convert(event.locationInWindow, from: nil))
+            return
+        }
+
         dragStartPoint = convert(event.locationInWindow, from: nil)
         draftSelectionRect = nil
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        updateCursor(at: convert(event.locationInWindow, from: nil))
+    }
+
+    override func cursorUpdate(with event: NSEvent) {
+        updateCursor(at: convert(event.locationInWindow, from: nil))
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -2248,6 +2333,51 @@ private final class AnnotationEditingBackdropView: NSView {
     override func rightMouseDown(with event: NSEvent) {
         onCancelRequested?()
     }
+
+    private func updateCursor(at point: CGPoint) {
+        guard bounds.contains(point) else { return }
+        if allowsSelectionCreation {
+            NSCursor.crosshair.set()
+            return
+        }
+        Self.disabledToolCursor.set()
+    }
+
+    private static let disabledToolCursor: NSCursor = {
+        let baseCursor = NSCursor.arrow
+        let canvasSize = NSSize(
+            width: max(24, baseCursor.image.size.width + 8),
+            height: max(24, baseCursor.image.size.height + 8)
+        )
+        let image = NSImage(size: canvasSize)
+
+        image.lockFocus()
+        baseCursor.image.draw(
+            in: CGRect(origin: .zero, size: baseCursor.image.size),
+            from: .zero,
+            operation: .sourceOver,
+            fraction: 1
+        )
+
+        let badgeRect = CGRect(x: round(baseCursor.image.size.width / 2), y: 2, width: 12, height: 12)
+        let badge = NSBezierPath(ovalIn: badgeRect)
+        NSColor.systemRed.setFill()
+        badge.fill()
+        NSColor.white.setStroke()
+        badge.lineWidth = 1.2
+        badge.stroke()
+
+        let slash = NSBezierPath()
+        slash.move(to: CGPoint(x: badgeRect.minX + 2.4, y: badgeRect.minY + 2.3))
+        slash.line(to: CGPoint(x: badgeRect.maxX - 2.3, y: badgeRect.maxY - 2.4))
+        slash.lineWidth = 1.5
+        slash.lineCapStyle = .round
+        NSColor.white.setStroke()
+        slash.stroke()
+        image.unlockFocus()
+
+        return NSCursor(image: image, hotSpot: baseCursor.hotSpot)
+    }()
 
     private func normalizedRect(from a: CGPoint, to b: CGPoint) -> CGRect {
         CGRect(
@@ -2624,12 +2754,15 @@ private final class AnnotationToolbarFloatingPanel: NSPanel {
         let preferBelow = editorFrame.width >= editorFrame.height
         let below = belowFrame(editorFrame: editorFrame, visible: visible)
         let right = rightFrame(editorFrame: editorFrame, visible: visible)
+        let left = leftFrame(editorFrame: editorFrame, visible: visible)
 
         if preferBelow {
             if let below { return ToolbarLayout(frame: below, dock: .belowEditor) }
             if let right { return ToolbarLayout(frame: right, dock: .rightOfEditor) }
+            if let left { return ToolbarLayout(frame: left, dock: .leftOfEditor) }
         } else {
             if let right { return ToolbarLayout(frame: right, dock: .rightOfEditor) }
+            if let left { return ToolbarLayout(frame: left, dock: .leftOfEditor) }
             if let below { return ToolbarLayout(frame: below, dock: .belowEditor) }
         }
 
@@ -2668,6 +2801,22 @@ private final class AnnotationToolbarFloatingPanel: NSPanel {
 
         let x = editorFrame.maxX + AnnotationEditorMetrics.toolbarGapToEditor
         guard x + width <= visible.maxX - margin else { return nil }
+
+        let minY = visible.minY + margin
+        let maxY = visible.maxY - margin - height
+        guard maxY >= minY else { return nil }
+        let y = min(max(editorFrame.midY - height / 2, minY), maxY)
+        return CGRect(x: x, y: y, width: width, height: height)
+    }
+
+    private static func leftFrame(editorFrame: CGRect, visible: CGRect) -> CGRect? {
+        let base = AnnotationEditorMetrics.toolbarRightSize
+        let width = min(base.width, editorFrame.width, visible.width - margin * 2)
+        let height = min(base.height, editorFrame.height, visible.height - margin * 2)
+        guard width >= base.width * 0.95, height >= base.height * 0.82 else { return nil }
+
+        let x = editorFrame.minX - AnnotationEditorMetrics.toolbarGapToEditor - width
+        guard x >= visible.minX + margin else { return nil }
 
         let minY = visible.minY + margin
         let maxY = visible.maxY - margin - height
@@ -2729,9 +2878,10 @@ private struct ConfigurableToolToolbarButton: NSViewRepresentable {
     let tool: AnnotationTool
     let systemName: String
     let help: String
+    let dock: ToolbarDockPosition
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(tool: tool, state: state, systemName: systemName)
+        Coordinator(tool: tool, state: state, systemName: systemName, dock: dock)
     }
 
     func makeNSView(context: Context) -> NSView {
@@ -2760,6 +2910,7 @@ private struct ConfigurableToolToolbarButton: NSViewRepresentable {
     func updateNSView(_ nsView: NSView, context: Context) {
         context.coordinator.state = state
         context.coordinator.help = help
+        context.coordinator.dock = dock
         context.coordinator.button?.toolTip = help
         context.coordinator.refreshSymbol()
         context.coordinator.updateAppearance(selected: state.selectedTool == tool)
@@ -2769,16 +2920,18 @@ private struct ConfigurableToolToolbarButton: NSViewRepresentable {
         let tool: AnnotationTool
         var state: AnnotationEditorState
         let systemName: String
+        var dock: ToolbarDockPosition
         var help: String = ""
 
         weak var container: NSView?
         weak var button: NSButton?
         var popover: NSPopover?
 
-        init(tool: AnnotationTool, state: AnnotationEditorState, systemName: String) {
+        init(tool: AnnotationTool, state: AnnotationEditorState, systemName: String, dock: ToolbarDockPosition) {
             self.tool = tool
             self.state = state
             self.systemName = systemName
+            self.dock = dock
         }
 
         func refreshSymbol() {
@@ -2830,7 +2983,7 @@ private struct ConfigurableToolToolbarButton: NSViewRepresentable {
             pop.contentViewController = host
 
             let anchor = sender.superview ?? sender
-            pop.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: NSRectEdge.maxY)
+            pop.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: dock.popoverPreferredEdge)
 
             popover = pop
             AnnotationStylePopoverSession.active = pop
@@ -2873,11 +3026,12 @@ private struct ConfigurableToolToolbarButton: NSViewRepresentable {
 
 private struct EmojiToolbarButton: NSViewRepresentable {
     @ObservedObject var state: AnnotationEditorState
+    let dock: ToolbarDockPosition
     let help: String
-    let onClick: (NSView) -> Void
+    let onClick: (NSView, ToolbarDockPosition) -> Void
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(state: state, onClick: onClick)
+        Coordinator(state: state, dock: dock, onClick: onClick)
     }
 
     func makeNSView(context: Context) -> NSView {
@@ -2914,18 +3068,21 @@ private struct EmojiToolbarButton: NSViewRepresentable {
 
     func updateNSView(_ nsView: NSView, context: Context) {
         context.coordinator.state = state
+        context.coordinator.dock = dock
         context.coordinator.updateAppearance(selected: state.selectedTool == .emoji)
         context.coordinator.button?.toolTip = help
     }
 
     final class Coordinator: NSObject {
         var state: AnnotationEditorState
-        let onClick: (NSView) -> Void
+        var dock: ToolbarDockPosition
+        let onClick: (NSView, ToolbarDockPosition) -> Void
         weak var container: NSView?
         weak var button: NSButton?
 
-        init(state: AnnotationEditorState, onClick: @escaping (NSView) -> Void) {
+        init(state: AnnotationEditorState, dock: ToolbarDockPosition, onClick: @escaping (NSView, ToolbarDockPosition) -> Void) {
             self.state = state
+            self.dock = dock
             self.onClick = onClick
         }
 
@@ -2940,7 +3097,7 @@ private struct EmojiToolbarButton: NSViewRepresentable {
         @objc
         func click(_ sender: NSButton) {
             state.selectedTool = .emoji
-            onClick(sender)
+            onClick(sender, dock)
         }
     }
 }
@@ -3107,7 +3264,7 @@ private struct AnnotationToolbarView: View {
     var onShare:        () -> Void
     var onCancel:       () -> Void
     var onConfirm:      () -> Void
-    var onEmoji:        (NSView) -> Void
+    var onEmoji:        (NSView, ToolbarDockPosition) -> Void
     var onOCR:          () -> Void
     var onOCRTranslate: () -> Void
     var onScrollCapture:(CGRect) -> Void
@@ -3122,7 +3279,7 @@ private struct AnnotationToolbarView: View {
 
     private var orderedTokens: [ToolbarToken] {
         var tokens: [ToolbarToken] = [
-            .adjustSelection, .rectangle, .circle, .emoji, .arrow, .pen, .mosaic, .text
+            .rectangle, .circle, .emoji, .arrow, .pen, .mosaic, .text
         ]
         if AnnotationEditorFeatureAvailability.supportsOCRTranslationUI {
             tokens.append(.ocrTranslate)
@@ -3184,7 +3341,7 @@ private struct AnnotationToolbarView: View {
         case .circle:
             drawTool(.circle, "circle", EditorL10n.tr(.toolCircle))
         case .emoji:
-            EmojiToolbarButton(state: state, help: EditorL10n.tr(.toolEmoji), onClick: onEmoji)
+            EmojiToolbarButton(state: state, dock: dock, help: EditorL10n.tr(.toolEmoji), onClick: onEmoji)
                 .frame(width: AnnotationEditorMetrics.toolbarButtonSize,
                        height: AnnotationEditorMetrics.toolbarButtonSize)
         case .arrow:
@@ -3238,7 +3395,7 @@ private struct AnnotationToolbarView: View {
         let supportsStyle = configurableTools.contains(tool)
 
         if supportsStyle {
-            ConfigurableToolToolbarButton(state: state, tool: tool, systemName: icon, help: tip)
+            ConfigurableToolToolbarButton(state: state, tool: tool, systemName: icon, help: tip, dock: dock)
                 .frame(width: AnnotationEditorMetrics.toolbarButtonSize,
                        height: AnnotationEditorMetrics.toolbarButtonSize)
         } else {
@@ -3966,6 +4123,214 @@ private enum OCRStructuredTextComposer {
     }
 }
 
+private struct OCRTranslateProgressOverlay: View {
+    let badgeTitle: String
+    let title: String
+    let detail: String
+    let cancelTitle: String
+    let onCancel: () -> Void
+
+    @State private var pulse = false
+    @State private var orbit = false
+    @State private var bars = false
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [Color.black.opacity(0.24), Color.black.opacity(0.48)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+
+            VStack(spacing: 0) {
+                Spacer(minLength: 24)
+
+                ZStack(alignment: .topTrailing) {
+                    RoundedRectangle(cornerRadius: 30, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 0.08, green: 0.14, blue: 0.24).opacity(0.96),
+                                    Color(red: 0.19, green: 0.07, blue: 0.31).opacity(0.95)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                                .stroke(
+                                    LinearGradient(
+                                        colors: [
+                                            Color(red: 0.16, green: 0.88, blue: 0.98).opacity(0.92),
+                                            Color(red: 0.97, green: 0.43, blue: 0.84).opacity(0.82),
+                                            Color(red: 1.0, green: 0.67, blue: 0.29).opacity(0.9)
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ),
+                                    lineWidth: 1.2
+                                )
+                        }
+                        .shadow(color: Color(red: 0.09, green: 0.81, blue: 0.96).opacity(0.24), radius: 30, y: 12)
+
+                    Text(badgeTitle)
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Color.white.opacity(0.96))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.white.opacity(0.12), in: Capsule())
+                        .overlay(Capsule().stroke(Color.white.opacity(0.14), lineWidth: 0.8))
+                        .padding(16)
+
+                    VStack(spacing: 18) {
+                        ZStack {
+                            Circle()
+                                .fill(
+                                    RadialGradient(
+                                        colors: [
+                                            Color(red: 0.18, green: 0.94, blue: 0.99).opacity(0.75),
+                                            Color(red: 0.18, green: 0.94, blue: 0.99).opacity(0.06)
+                                        ],
+                                        center: .center,
+                                        startRadius: 2,
+                                        endRadius: 56
+                                    )
+                                )
+                                .frame(width: pulse ? 132 : 108, height: pulse ? 132 : 108)
+
+                            Circle()
+                                .stroke(
+                                    AngularGradient(
+                                        colors: [
+                                            Color(red: 0.17, green: 0.92, blue: 1.0),
+                                            Color(red: 0.98, green: 0.35, blue: 0.82),
+                                            Color(red: 1.0, green: 0.7, blue: 0.28),
+                                            Color(red: 0.17, green: 0.92, blue: 1.0)
+                                        ],
+                                        center: .center
+                                    ),
+                                    lineWidth: 3
+                                )
+                                .frame(width: 110, height: 110)
+                                .rotationEffect(.degrees(orbit ? 360 : 0))
+
+                            Circle()
+                                .stroke(Color.white.opacity(0.26), lineWidth: 1.3)
+                                .frame(width: pulse ? 88 : 74, height: pulse ? 88 : 74)
+
+                            Circle()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [
+                                            Color(red: 0.12, green: 0.89, blue: 0.99),
+                                            Color(red: 0.41, green: 0.38, blue: 1.0)
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .frame(width: 64, height: 64)
+                                .shadow(color: Color(red: 0.14, green: 0.88, blue: 1.0).opacity(0.55), radius: 18)
+
+                            Image(systemName: "translate")
+                                .font(.system(size: 28, weight: .bold))
+                                .foregroundStyle(.white)
+                        }
+                        .frame(height: 124)
+
+                        VStack(spacing: 10) {
+                            Text(title)
+                                .font(.system(size: 28, weight: .bold, design: .rounded))
+                                .foregroundStyle(.white)
+                                .multilineTextAlignment(.center)
+
+                            Text(detail)
+                                .font(.system(size: 14, weight: .medium, design: .rounded))
+                                .foregroundStyle(Color.white.opacity(0.84))
+                                .multilineTextAlignment(.center)
+                                .lineSpacing(4)
+                        }
+
+                        HStack(spacing: 8) {
+                            ForEach(0..<5, id: \.self) { index in
+                                Capsule(style: .continuous)
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [
+                                                Color.white.opacity(0.96),
+                                                Color(red: 0.19, green: 0.91, blue: 0.99)
+                                            ],
+                                            startPoint: .top,
+                                            endPoint: .bottom
+                                        )
+                                    )
+                                    .frame(width: 9, height: bars ? [14, 28, 38, 28, 14][index] : [26, 14, 28, 14, 26][index])
+                                    .shadow(color: Color(red: 0.16, green: 0.9, blue: 1.0).opacity(0.3), radius: 8)
+                                    .animation(
+                                        .easeInOut(duration: 0.76)
+                                            .repeatForever(autoreverses: true)
+                                            .delay(Double(index) * 0.08),
+                                        value: bars
+                                    )
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 30)
+                    .padding(.vertical, 30)
+                }
+                .frame(maxWidth: 460)
+                .padding(.horizontal, 24)
+
+                Spacer()
+
+                Button(action: onCancel) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 18, weight: .bold))
+                        Text(cancelTitle)
+                            .font(.system(size: 17, weight: .bold, design: .rounded))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 28)
+                    .padding(.vertical, 14)
+                    .frame(minWidth: 228)
+                    .background(
+                        LinearGradient(
+                            colors: [
+                                Color(red: 1.0, green: 0.41, blue: 0.33),
+                                Color(red: 1.0, green: 0.68, blue: 0.26)
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        ),
+                        in: Capsule(style: .continuous)
+                    )
+                    .overlay(
+                        Capsule(style: .continuous)
+                            .stroke(Color.white.opacity(0.34), lineWidth: 1)
+                    )
+                    .shadow(color: Color(red: 1.0, green: 0.6, blue: 0.18).opacity(0.42), radius: 20, y: 8)
+                    .scaleEffect(pulse ? 1.02 : 0.98)
+                }
+                .buttonStyle(.plain)
+                .padding(.bottom, 24)
+            }
+        }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.35).repeatForever(autoreverses: true)) {
+                pulse = true
+            }
+            withAnimation(.linear(duration: 7.2).repeatForever(autoreverses: false)) {
+                orbit = true
+            }
+            withAnimation(.easeInOut(duration: 0.72).repeatForever(autoreverses: true)) {
+                bars = true
+            }
+        }
+    }
+}
+
 @available(macOS 15.0, *)
 extension AnnotationEditorPanel {
 
@@ -3999,22 +4364,29 @@ extension AnnotationEditorPanel {
 
     func runOCRTranslateOverlay(sourceImage: NSImage) {
         guard !isOCRTranslating else { return }
+        let sessionToken = UUID()
+        ocrTranslateSessionToken = sessionToken
         isOCRTranslating = true
         showTranslateHUD()
+        syncFloatingToolbarVisibility()
 
-        Task { [weak self] in
+        ocrTranslateTask?.cancel()
+        ocrTranslateTask = Task { [weak self] in
             do {
                 let regions = try await OCRTranslateOverlayRunner.recognize(in: sourceImage)
+                guard !Task.isCancelled else { return }
                 if regions.isEmpty {
                     await MainActor.run {
-                        self?.hideTranslateHUD()
-                        self?.isOCRTranslating = false
-                        self?.isOCRTranslationApplied = false
-                        self?.preTranslationScreenshot = nil
-                        if self?.state.selectedTool == .ocrTranslate {
-                            self?.state.selectedTool = nil
+                        guard let self, self.isCurrentOCRTranslateSession(sessionToken) else { return }
+                        self.ocrTranslateTask = nil
+                        self.isOCRTranslating = false
+                        self.isOCRTranslationApplied = false
+                        self.preTranslationScreenshot = nil
+                        if self.state.selectedTool == .ocrTranslate {
+                            self.state.selectedTool = nil
                         }
-                        self?.showAlert(
+                        self.hideTranslateHUD()
+                        self.showAlert(
                             title: EditorL10n.tr(.ocrEmptyTitle),
                             message: EditorL10n.tr(.ocrTranslatableEmptyMessage)
                         )
@@ -4022,29 +4394,41 @@ extension AnnotationEditorPanel {
                     return
                 }
                 await MainActor.run {
-                    self?.beginTranslationSession(sourceImage: sourceImage, regions: regions)
+                    guard let self, self.isCurrentOCRTranslateSession(sessionToken) else { return }
+                    self.ocrTranslateTask = nil
+                    self.beginTranslationSession(sourceImage: sourceImage, regions: regions, sessionToken: sessionToken)
+                }
+            } catch is CancellationError {
+                await MainActor.run {
+                    if self?.ocrTranslateSessionToken == sessionToken {
+                        self?.ocrTranslateTask = nil
+                    }
                 }
             } catch {
                 await MainActor.run {
-                    self?.handleOCRTranslateFailure(error)
+                    guard let self, self.isCurrentOCRTranslateSession(sessionToken) else { return }
+                    self.ocrTranslateTask = nil
+                    self.handleOCRTranslateFailure(error)
                 }
             }
         }
     }
 
-    private func beginTranslationSession(sourceImage: NSImage, regions: [OCRTextRegion]) {
+    private func beginTranslationSession(sourceImage: NSImage, regions: [OCRTextRegion], sessionToken: UUID) {
         // Inject a hidden hosting view to drive .translationTask.
         let runner = OCRTranslationRunnerView(
             sources: regions.map { $0.original },
             onResult: { [weak self] translated in
-                self?.finishTranslation(
+                guard let self, self.isCurrentOCRTranslateSession(sessionToken) else { return }
+                self.finishTranslation(
                     sourceImage: sourceImage,
                     regions: regions,
                     translations: translated
                 )
             },
             onFailure: { [weak self] error in
-                self?.handleOCRTranslateFailure(error)
+                guard let self, self.isCurrentOCRTranslateSession(sessionToken) else { return }
+                self.handleOCRTranslateFailure(error)
             }
         )
         let hosting = NSHostingView(rootView: runner)
@@ -4054,8 +4438,30 @@ extension AnnotationEditorPanel {
         translationHostView = hosting
     }
 
+    private func isCurrentOCRTranslateSession(_ sessionToken: UUID) -> Bool {
+        isOCRTranslating && ocrTranslateSessionToken == sessionToken
+    }
+
+    private func cancelOCRTranslationProcess(restoreToolbar: Bool = true) {
+        ocrTranslateSessionToken = UUID()
+        ocrTranslateTask?.cancel()
+        ocrTranslateTask = nil
+        tearDownTranslationHost()
+        hideTranslateHUD(syncToolbar: restoreToolbar)
+        isOCRTranslating = false
+        isOCRTranslationApplied = false
+        preTranslationScreenshot = nil
+        if state.selectedTool == .ocrTranslate {
+            state.selectedTool = nil
+        }
+        if restoreToolbar {
+            syncFloatingToolbarVisibility()
+        }
+    }
+
     private func finishTranslation(sourceImage: NSImage, regions: [OCRTextRegion], translations: [String]) {
         tearDownTranslationHost()
+        ocrTranslateTask = nil
         var merged = regions
         var translatedCount = 0
         for idx in merged.indices where idx < translations.count {
@@ -4069,13 +4475,13 @@ extension AnnotationEditorPanel {
         }
 
         guard translatedCount > 0 else {
-            hideTranslateHUD()
             isOCRTranslating = false
             isOCRTranslationApplied = false
             preTranslationScreenshot = nil
             if state.selectedTool == .ocrTranslate {
                 state.selectedTool = nil
             }
+            hideTranslateHUD()
             showAlert(
                 title: EditorL10n.tr(.ocrEmptyTitle),
                 message: EditorL10n.tr(.ocrTranslatableEmptyMessage)
@@ -4085,21 +4491,22 @@ extension AnnotationEditorPanel {
 
         let composed = OCRTranslateOverlayRunner.compose(base: sourceImage, regions: merged)
         canvas.screenshot = composed
-        hideTranslateHUD()
         isOCRTranslating = false
         isOCRTranslationApplied = true
         state.selectedTool = .ocrTranslate
+        hideTranslateHUD()
     }
 
     private func handleOCRTranslateFailure(_ error: Error) {
         tearDownTranslationHost()
-        hideTranslateHUD()
+        ocrTranslateTask = nil
         isOCRTranslating = false
         isOCRTranslationApplied = false
         preTranslationScreenshot = nil
         if state.selectedTool == .ocrTranslate {
             state.selectedTool = nil
         }
+        hideTranslateHUD()
         showAlert(
             title: EditorL10n.tr(.ocrTranslateFailedTitle),
             message: EditorL10n.tr(.ocrTranslateFailedMessagePrefix) + error.localizedDescription
@@ -4113,50 +4520,35 @@ extension AnnotationEditorPanel {
 
     private func showTranslateHUD() {
         guard translateHUD == nil, let content = contentView else { return }
-        let label = NSTextField(labelWithString: EditorL10n.tr(.ocrTranslateInProgress))
-        label.font = NSFont.systemFont(ofSize: 13, weight: .medium)
-        label.textColor = .white
-        label.alignment = .center
+        let host = NSHostingView(
+            rootView: OCRTranslateProgressOverlay(
+                badgeTitle: EditorL10n.tr(.toolOCRTranslate),
+                title: EditorL10n.tr(.ocrTranslateInProgress),
+                detail: EditorL10n.tr(.ocrTranslateProgressDetail),
+                cancelTitle: EditorL10n.tr(.actionCancelTranslation),
+                onCancel: { [weak self] in
+                    self?.cancelOCRTranslationProcess()
+                }
+            )
+        )
+        host.translatesAutoresizingMaskIntoConstraints = false
 
-        let spinner = NSProgressIndicator()
-        spinner.style = .spinning
-        spinner.controlSize = .small
-        spinner.isIndeterminate = true
-        spinner.startAnimation(nil)
-
-        let stack = NSStackView(views: [spinner, label])
-        stack.orientation = .horizontal
-        stack.spacing = 8
-        stack.edgeInsets = NSEdgeInsets(top: 8, left: 14, bottom: 8, right: 14)
-
-        let wrapper = NSVisualEffectView()
-        wrapper.material = .hudWindow
-        wrapper.blendingMode = .withinWindow
-        wrapper.state = .active
-        wrapper.wantsLayer = true
-        wrapper.layer?.cornerRadius = 10
-        wrapper.translatesAutoresizingMaskIntoConstraints = false
-
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        wrapper.addSubview(stack)
+        content.addSubview(host)
         NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: wrapper.leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: wrapper.trailingAnchor),
-            stack.topAnchor.constraint(equalTo: wrapper.topAnchor),
-            stack.bottomAnchor.constraint(equalTo: wrapper.bottomAnchor)
+            host.leadingAnchor.constraint(equalTo: content.leadingAnchor),
+            host.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+            host.topAnchor.constraint(equalTo: content.topAnchor),
+            host.bottomAnchor.constraint(equalTo: content.bottomAnchor)
         ])
-
-        content.addSubview(wrapper)
-        NSLayoutConstraint.activate([
-            wrapper.centerXAnchor.constraint(equalTo: content.centerXAnchor),
-            wrapper.centerYAnchor.constraint(equalTo: content.centerYAnchor)
-        ])
-        translateHUD = wrapper
+        translateHUD = host
     }
 
-    private func hideTranslateHUD() {
+    private func hideTranslateHUD(syncToolbar: Bool = true) {
         translateHUD?.removeFromSuperview()
         translateHUD = nil
+        if syncToolbar {
+            syncFloatingToolbarVisibility()
+        }
     }
 }
 

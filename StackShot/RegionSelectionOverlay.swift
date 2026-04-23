@@ -6,7 +6,7 @@ enum RegionSelectionShape {
     case circle
 }
 
-/// 全屏半透明遮罩 + 拖拽选取 + 放大镜 + 色值取色器；Esc/右键取消。
+/// 全屏半透明遮罩 + 拖拽选取 + 放大镜 + 色值取色器；Esc/选框外右键取消。
 final class RegionSelectionOverlay: NSWindow {
     override var canBecomeKey: Bool { true }
 
@@ -146,7 +146,7 @@ private final class SelectionOverlayView: NSView {
 
     // Magnifier & auto-window-selection
     private var screenSnapshot: CGImage?
-    private var snapshotBitmapRep: NSBitmapImageRep?
+    private var screenPixelSampler: ScreenPixelSampler?
     private var windowSnapshot: WindowUnderMouseSnapshot?
     private let windowOrigin: CGPoint
     private var autoSelectedRect: CGRect?
@@ -171,7 +171,7 @@ private final class SelectionOverlayView: NSView {
     ) {
         self.shape = shape
         self.screenSnapshot = screenSnapshot
-        self.snapshotBitmapRep = screenSnapshot.map { NSBitmapImageRep(cgImage: $0) }
+        self.screenPixelSampler = screenSnapshot.flatMap(ScreenPixelSampler.init(cgImage:))
         self.windowSnapshot = windowSnapshot
         self.windowOrigin = windowOrigin
         self.autoSelectedRect = initialWindowRect
@@ -193,7 +193,7 @@ private final class SelectionOverlayView: NSView {
         initialWindowRect: CGRect?
     ) {
         self.screenSnapshot = screenSnapshot
-        self.snapshotBitmapRep = screenSnapshot.map { NSBitmapImageRep(cgImage: $0) }
+        self.screenPixelSampler = screenSnapshot.flatMap(ScreenPixelSampler.init(cgImage:))
         self.windowSnapshot = windowSnapshot
 
         guard selectionRect == nil, dragMode == nil else {
@@ -317,7 +317,11 @@ private final class SelectionOverlayView: NSView {
     }
 
     override func rightMouseDown(with event: NSEvent) {
-        onAbort()
+        let point = clampedPoint(convert(event.locationInWindow, from: nil))
+        mousePosition = point
+        if shouldAbortForSecondaryClick(at: point) {
+            onAbort()
+        }
     }
 
     override func otherMouseDown(with event: NSEvent) {
@@ -517,7 +521,7 @@ private final class SelectionOverlayView: NSView {
         let padding: CGFloat = 12
         let infoLineH: CGFloat = 18
         let panelWidth = zoomSize + padding * 2
-        let panelHeight = zoomSize + padding + 10 + infoLineH * 3 + padding
+        let panelHeight = zoomSize + padding + 10 + infoLineH * 4 + padding
 
         // Position: bottom-right of cursor
         var origin = CGPoint(
@@ -550,10 +554,9 @@ private final class SelectionOverlayView: NSView {
         )
 
         // Map mouse → snapshot pixel coordinates
-        let scaleX = CGFloat(snapshot.width) / bounds.width
-        let scaleY = CGFloat(snapshot.height) / bounds.height
-        let pixelCenterX = min(max(Int(round(mousePosition.x * scaleX)), 0), snapshot.width - 1)
-        let pixelCenterY = min(max(Int(round((bounds.height - mousePosition.y) * scaleY)), 0), snapshot.height - 1)
+        let sampledPixel = sampledSnapshotPixel(in: snapshot)
+        let pixelCenterX = sampledPixel.x
+        let pixelCenterY = sampledPixel.y
         let sampleSize = min(pixelCount, min(snapshot.width, snapshot.height))
         let halfPixels = sampleSize / 2
         let originX = min(max(pixelCenterX - halfPixels, 0), snapshot.width - sampleSize)
@@ -606,14 +609,9 @@ private final class SelectionOverlayView: NSView {
         NSGraphicsContext.restoreGraphicsState()
 
         // Color at cursor
-        var hexColor = "#000000"
-                if let rep = snapshotBitmapRep,
-                     let color = rep.colorAt(x: pixelCenterX, y: pixelCenterY)?.usingColorSpace(.sRGB) {
-            let r = Int(color.redComponent * 255)
-            let g = Int(color.greenComponent * 255)
-            let b = Int(color.blueComponent * 255)
-            hexColor = String(format: "#%02X%02X%02X", r, g, b)
-        }
+        let sampledColor = screenPixelSampler?.pixel(x: pixelCenterX, y: pixelCenterY)
+        let hexColor = sampledColor?.hexString ?? "#000000"
+        let rgbColor = sampledColor?.rgbString ?? "0,0,0"
 
         // Screen coordinates (Quartz: origin at top-left)
         let desktopBounds = NSScreen.screens.reduce(CGRect.null) { $0.union($1.frame) }
@@ -642,10 +640,14 @@ private final class SelectionOverlayView: NSView {
 
         textY -= infoLineH
 
-        // Color value
-        let colorLabel = L10n.tr("magnifier.color")
-        (colorLabel as NSString).draw(at: NSPoint(x: textX, y: textY), withAttributes: labelAttrs)
+        // Exact color values
+        ("HEX" as NSString).draw(at: NSPoint(x: textX, y: textY), withAttributes: labelAttrs)
         (hexColor as NSString).draw(at: NSPoint(x: valueX, y: textY), withAttributes: valueAttrs)
+
+        textY -= infoLineH
+
+        ("RGB" as NSString).draw(at: NSPoint(x: textX, y: textY), withAttributes: labelAttrs)
+        (rgbColor as NSString).draw(at: NSPoint(x: valueX, y: textY), withAttributes: valueAttrs)
 
         textY -= infoLineH
 
@@ -698,26 +700,29 @@ private final class SelectionOverlayView: NSView {
     // MARK: – Color copy
 
     private func copyColorToClipboard() {
-        guard let snapshot = screenSnapshot, let rep = snapshotBitmapRep else { return }
+          guard let snapshot = screenSnapshot,
+              let screenPixelSampler else { return }
 
-        let scaleX = CGFloat(snapshot.width) / bounds.width
-        let scaleY = CGFloat(snapshot.height) / bounds.height
-        let px = Int(mousePosition.x * scaleX)
-        let py = Int((bounds.height - mousePosition.y) * scaleY)
+          let sampledPixel = sampledSnapshotPixel(in: snapshot)
+          guard let sampledColor = screenPixelSampler.pixel(x: sampledPixel.x, y: sampledPixel.y) else { return }
 
-        guard px >= 0, px < snapshot.width, py >= 0, py < snapshot.height,
-              let color = rep.colorAt(x: px, y: py)?.usingColorSpace(.sRGB) else { return }
-
-        let r = Int(color.redComponent * 255)
-        let g = Int(color.greenComponent * 255)
-        let b = Int(color.blueComponent * 255)
-        let hex = String(format: "#%02X%02X%02X", r, g, b)
+        let hex = sampledColor.cssHexString
 
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(hex, forType: .string)
     }
 
     // MARK: – Helpers
+
+    private func sampledSnapshotPixel(in snapshot: CGImage) -> (x: Int, y: Int) {
+        guard bounds.width > 0, bounds.height > 0 else { return (0, 0) }
+
+        let scaleX = CGFloat(snapshot.width) / bounds.width
+        let scaleY = CGFloat(snapshot.height) / bounds.height
+        let pixelX = min(max(Int((mousePosition.x * scaleX).rounded()), 0), snapshot.width - 1)
+        let pixelY = min(max(Int(((bounds.height - mousePosition.y) * scaleY).rounded()), 0), snapshot.height - 1)
+        return (pixelX, pixelY)
+    }
 
     private func normalizedRect(from a: NSPoint, to b: NSPoint) -> CGRect {
         let x = min(a.x, b.x)
@@ -787,6 +792,18 @@ private final class SelectionOverlayView: NSView {
         return autoSelectedRect
     }
 
+    private func shouldAbortForSecondaryClick(at point: CGPoint) -> Bool {
+        if !selectionControls.isHidden, selectionControls.frame.contains(point) {
+            return false
+        }
+
+        guard let activeSelectionRect = currentDisplaySelectionRect() else {
+            return true
+        }
+
+        return !activeSelectionRect.contains(point)
+    }
+
     private func beginCreatingSelection(at point: NSPoint, restoring previousSelection: CGRect?) {
         dragMode = .creating
         startPoint = point
@@ -805,6 +822,7 @@ private final class SelectionOverlayView: NSView {
 
         if let draftRect = createdSelectionRectIfValid() {
             if commitSelectionImmediately {
+                selectionRect = draftRect
                 onFinish(draftRect)
                 return
             }
@@ -818,6 +836,7 @@ private final class SelectionOverlayView: NSView {
            autoRect.width >= committedSelectionThreshold,
            autoRect.height >= committedSelectionThreshold {
             if commitSelectionImmediately {
+                selectionRect = autoRect
                 onFinish(autoRect)
                 return
             }
@@ -1061,5 +1080,124 @@ private final class SelectionOverlayView: NSView {
 
     @objc private func handleConfirmButton() {
         confirmCurrentSelection()
+    }
+}
+
+private final class ScreenPixelSampler {
+    struct RGBA {
+        let red: UInt8
+        let green: UInt8
+        let blue: UInt8
+        let alpha: UInt8
+
+        var hexString: String {
+            String(format: "#%02X%02X%02X", Int(red), Int(green), Int(blue))
+        }
+
+        var hexaString: String {
+            String(format: "#%02X%02X%02X%02X", Int(red), Int(green), Int(blue), Int(alpha))
+        }
+
+        var cssHexString: String {
+            if alpha == .max {
+                return hexString
+            }
+            return hexaString
+        }
+
+        var cssRGBAString: String {
+            "rgba(\(Int(red)), \(Int(green)), \(Int(blue)), \(cssAlphaString))"
+        }
+
+        var rgbString: String {
+            "\(Int(red)),\(Int(green)),\(Int(blue))"
+        }
+
+        private var cssAlphaString: String {
+            if alpha == 0 {
+                return "0"
+            }
+            if alpha == .max {
+                return "1"
+            }
+
+            var value = String(format: "%.3f", Double(alpha) / 255.0)
+            while value.last == "0" {
+                value.removeLast()
+            }
+            if value.last == "." {
+                value.removeLast()
+            }
+            return value
+        }
+    }
+
+    private let width: Int
+    private let height: Int
+    private let bytesPerRow: Int
+    private let buffer: [UInt8]
+
+    init?(cgImage: CGImage) {
+        let width = cgImage.width
+        let height = cgImage.height
+        guard width > 0, height > 0 else { return nil }
+
+        let bytesPerRow = width * 4
+        var pixels = [UInt8](repeating: 0, count: height * bytesPerRow)
+        guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) else { return nil }
+
+        let bitmapInfo = CGBitmapInfo.byteOrder32Big.rawValue | CGImageAlphaInfo.premultipliedLast.rawValue
+        guard let context = pixels.withUnsafeMutableBytes({ ptr -> CGContext? in
+            guard let baseAddress = ptr.baseAddress else { return nil }
+            return CGContext(
+                data: baseAddress,
+                width: width,
+                height: height,
+                bitsPerComponent: 8,
+                bytesPerRow: bytesPerRow,
+                space: colorSpace,
+                bitmapInfo: bitmapInfo
+            )
+        }) else { return nil }
+
+        context.interpolationQuality = .none
+        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+        self.width = width
+        self.height = height
+        self.bytesPerRow = bytesPerRow
+        self.buffer = pixels
+    }
+
+    func pixel(x: Int, y: Int) -> RGBA? {
+        guard x >= 0, y >= 0, x < width, y < height else { return nil }
+
+        let offset = y * bytesPerRow + x * 4
+        let alpha = buffer[offset + 3]
+        if alpha == 0 {
+            return RGBA(red: 0, green: 0, blue: 0, alpha: 0)
+        }
+
+        if alpha == .max {
+            return RGBA(
+                red: buffer[offset],
+                green: buffer[offset + 1],
+                blue: buffer[offset + 2],
+                alpha: alpha
+            )
+        }
+
+        return RGBA(
+            red: Self.unpremultiply(buffer[offset], alpha: alpha),
+            green: Self.unpremultiply(buffer[offset + 1], alpha: alpha),
+            blue: Self.unpremultiply(buffer[offset + 2], alpha: alpha),
+            alpha: alpha
+        )
+    }
+
+    private static func unpremultiply(_ component: UInt8, alpha: UInt8) -> UInt8 {
+        guard alpha > 0 else { return 0 }
+        let value = (Double(component) * 255.0 / Double(alpha)).rounded()
+        return UInt8(max(0, min(255, Int(value))))
     }
 }
