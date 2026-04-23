@@ -591,7 +591,7 @@ private struct ScrollStitchingFrameUpdate {
     let stitchedCGImage: CGImage?
 }
 
-private final class ScrollStitchingWorker {
+private final class ScrollStitchingWorker: @unchecked Sendable {
     private var stitcher: ScrollImageStitcher
 
     init(backingScale: CGFloat) {

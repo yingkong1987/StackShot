@@ -62,7 +62,9 @@ final class CaptureSessionController {
     private func beginHoverTracking() {
         if hoverTimer == nil {
             hoverTimer = Timer.scheduledTimer(withTimeInterval: 0.07, repeats: true) { [weak self] _ in
-                self?.refreshHoveredWindow(force: false)
+                Task { @MainActor [weak self] in
+                    self?.refreshHoveredWindow(force: false)
+                }
             }
         }
         if globalClickMonitor == nil {

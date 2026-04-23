@@ -31,7 +31,7 @@
     <main>
       <section class="lang-panel" data-lang-panel="zh-Hans" hidden>
         <div class="page-heading">
-          <div class="eyebrow">隐私政策 · 更新于 2026-04-21</div>
+          <div class="eyebrow">隐私政策 · 更新于 2026-04-23</div>
           <h1>StackShot 隐私政策</h1>
           <p>StackShot 是一款面向 macOS 的本地优先截图工具。我们尽量只在你主动触发相关功能时访问系统权限，并优先在设备本机处理截图内容。</p>
         </div>
@@ -60,8 +60,8 @@
               <h2>“识别并翻译”如何工作</h2>
               <ul class="policy-list">
                 <li>StackShot 会先在设备上识别截图中的文字。</li>
-                <li>识别结果会复制到剪贴板，然后应用尝试打开系统“翻译”应用。</li>
-                <li>后续的翻译处理不由 StackShot 直接完成，而由系统应用或你选择的翻译应用处理。</li>
+                <li>在支持的 macOS 版本中，应用会通过 Apple 官方 Translation 框架在应用内完成翻译；首次使用某些语言对时，系统可能提示下载语言资源。</li>
+                <li>根据 Apple 的框架说明，Apple 可能会收集不包含原文内容的使用与性能指标，例如 App Bundle ID 与源/目标语言。</li>
               </ul>
             </article>
             <article class="policy-block">
@@ -76,7 +76,7 @@
           </div>
           <article class="page-panel">
             <h2>第三方与外部服务</h2>
-            <p>如果你在 OCR 翻译接力后继续使用系统“翻译”应用，后续翻译相关的数据处理将遵循 Apple 或对应翻译应用提供方的隐私政策，而不是由 StackShot 控制。</p>
+            <p>当你使用内置 OCR 翻译时，翻译流程由 Apple 官方 Translation 框架在应用内执行。根据 Apple 的框架说明，Apple 可能处理不包含原文内容的使用与性能指标，例如 App Bundle ID 与源/目标语言。</p>
             <p>本公开页面托管在 GitHub Pages 上。访问本页面时，GitHub 可能会依据其自身政策处理基础的网页请求日志。</p>
           </article>
           <article class="page-panel">
@@ -92,7 +92,7 @@
 
       <section class="lang-panel" data-lang-panel="zh-Hant" hidden>
         <div class="page-heading">
-          <div class="eyebrow">隱私政策 · 更新於 2026-04-21</div>
+          <div class="eyebrow">隱私政策 · 更新於 2026-04-23</div>
           <h1>StackShot 隱私政策</h1>
           <p>StackShot 是一款面向 macOS 的本機優先截圖工具。我們只在你主動使用相關功能時存取系統權限，並優先在裝置本機處理截圖內容。</p>
         </div>
@@ -121,8 +121,8 @@
               <h2>「辨識並翻譯」如何運作</h2>
               <ul class="policy-list">
                 <li>StackShot 會先在裝置上辨識截圖中的文字。</li>
-                <li>辨識結果會先複製到剪貼簿，之後 App 會嘗試打開系統「翻譯」App。</li>
-                <li>後續翻譯處理不由 StackShot 直接完成，而由系統 App 或你選擇的翻譯工具處理。</li>
+                <li>在支援的 macOS 版本中，App 會透過 Apple 官方 Translation 框架在 App 內完成翻譯；首次使用某些語言配對時，系統可能提示下載語言資源。</li>
+                <li>依 Apple 的框架說明，Apple 可能收集不包含原文內容的使用與效能指標，例如 App Bundle ID 與來源／目標語言。</li>
               </ul>
             </article>
             <article class="policy-block">
@@ -137,7 +137,7 @@
           </div>
           <article class="page-panel">
             <h2>第三方與外部服務</h2>
-            <p>如果你在 OCR 翻譯接力後繼續使用系統「翻譯」App，後續翻譯相關資料處理將遵循 Apple 或對應翻譯服務提供方的隱私政策，而不是由 StackShot 控制。</p>
+            <p>當你使用內建 OCR 翻譯時，翻譯流程會由 Apple 官方 Translation 框架在 App 內執行。依 Apple 的框架說明，Apple 可能處理不包含原文內容的使用與效能指標，例如 App Bundle ID 與來源／目標語言。</p>
             <p>本公開頁面託管於 GitHub Pages。造訪本頁面時，GitHub 可能會依其政策處理基礎的網頁請求日誌。</p>
           </article>
           <article class="page-panel">
@@ -153,7 +153,7 @@
 
       <section class="lang-panel" data-lang-panel="en" hidden>
         <div class="page-heading">
-          <div class="eyebrow">Privacy policy · Updated 2026-04-21</div>
+          <div class="eyebrow">Privacy policy · Updated 2026-04-23</div>
           <h1>StackShot Privacy Policy</h1>
           <p>StackShot is a local-first screenshot tool for macOS. We access system permissions only when you intentionally use related features, and we process captured content on-device whenever possible.</p>
         </div>
@@ -182,8 +182,8 @@
               <h2>How Recognize &amp; Translate works</h2>
               <ul class="policy-list">
                 <li>StackShot recognizes text from captured content on-device.</li>
-                <li>The recognized text is copied to the clipboard and the app attempts to open the system Translate app.</li>
-                <li>Any translation after that handoff is handled by Apple or by the translation app you continue with, not directly by StackShot.</li>
+                <li>On supported macOS versions, the app translates the recognized text in-app with Apple's public Translation framework. The system may prompt to download language resources the first time you use some language pairs.</li>
+                <li>According to Apple's framework documentation, Apple may collect usage and performance metrics that do not include the original content, such as the app bundle ID and source or target language.</li>
               </ul>
             </article>
             <article class="policy-block">
@@ -198,7 +198,7 @@
           </div>
           <article class="page-panel">
             <h2>Third-party and external services</h2>
-            <p>If you continue into the system Translate app after the OCR translation handoff, any later translation-related data handling follows Apple's policies, or the policies of the translation tool you choose, rather than StackShot's own processing.</p>
+            <p>When you use built-in OCR translation, the translation flow runs inside StackShot through Apple's public Translation framework. According to Apple's framework documentation, Apple may process limited usage and performance metrics that do not include the original content, such as the app bundle ID and source or target language.</p>
             <p>This public site is hosted on GitHub Pages. GitHub may process basic web request logs for the page under its own policies.</p>
           </article>
           <article class="page-panel">
@@ -243,8 +243,8 @@
               <h2>「認識して翻訳」の動作</h2>
               <ul class="policy-list">
                 <li>StackShot は取得した内容の文字をデバイス上で認識します。</li>
-                <li>認識した文字をクリップボードへコピーし、その後システムの「翻訳」アプリを開こうとします。</li>
-                <li>その後の翻訳処理は StackShot ではなく、Apple またはあなたが使う翻訳アプリ側で行われます。</li>
+                <li>対応する macOS バージョンでは、Apple の公開 Translation フレームワークを使ってアプリ内で翻訳します。言語の組み合わせによっては、初回に言語リソースのダウンロードを求められる場合があります。</li>
+                <li>Apple の説明によると、Apple は元の内容を含まない利用状況や性能指標（アプリの Bundle ID、元言語／対象言語など）を収集する場合があります。</li>
               </ul>
             </article>
             <article class="policy-block">
@@ -259,7 +259,7 @@
           </div>
           <article class="page-panel">
             <h2>外部サービスについて</h2>
-            <p>OCR 翻訳の引き継ぎ後にシステムの「翻訳」アプリを使い続ける場合、その後の翻訳関連のデータ処理は StackShot ではなく Apple または利用先アプリのポリシーに従います。</p>
+            <p>内蔵 OCR 翻訳を使う場合、翻訳処理は Apple の公開 Translation フレームワークを通じてアプリ内で行われます。Apple の説明によると、Apple は元の内容を含まない利用状況や性能指標（アプリの Bundle ID、元言語／対象言語など）を処理する場合があります。</p>
             <p>この公開サイトは GitHub Pages でホストされています。ページ閲覧時には、GitHub が自社ポリシーに従って基本的な Web リクエストログを処理する場合があります。</p>
           </article>
           <article class="page-panel">
