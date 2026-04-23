@@ -10,6 +10,20 @@ import NaturalLanguage
 import Translation
 #endif
 
+private enum AnnotationEditorFeatureAvailability {
+    static var supportsOCRTranslationUI: Bool {
+        guard AppStoreComplianceFeatures.isOCRTranslationOverlayEnabled else {
+            return false
+        }
+        #if canImport(Translation)
+        if #available(macOS 15.0, *) {
+            return true
+        }
+        #endif
+        return false
+    }
+}
+
 private enum AnnotationEditorMetrics {
     static let toolbarButtonSize: CGFloat = 36
     static let toolbarInterItemSpacing: CGFloat = 6
@@ -17,13 +31,16 @@ private enum AnnotationEditorMetrics {
     static let toolbarHorizontalPadding: CGFloat = 8
     static let toolbarVerticalPadding: CGFloat = 6
     static let toolbarGapToEditor: CGFloat = 4
-    static let toolbarItemCount: Int = 16
     static let toolbarBelowRowCount: Int = 2
     static let toolbarRightColumnCount: Int = 2
     static let ocrSidebarPreferredWidth: CGFloat = 290
     static let ocrSidebarMinWidth: CGFloat = 200
     static let ocrSidebarInset: CGFloat = 12
     static let ocrMinimumScanDuration: TimeInterval = 1.5
+
+    static var toolbarItemCount: Int {
+        AnnotationEditorFeatureAvailability.supportsOCRTranslationUI ? 18 : 17
+    }
 
     static var toolbarBelowColumnCount: Int {
         Int(ceil(Double(toolbarItemCount) / Double(toolbarBelowRowCount)))
@@ -291,6 +308,13 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate, ConsoleTraceLoggin
         sourceScreenSnapshot: CGImage? = nil,
         sourceDesktopBounds: CGRect? = nil
     ) {
+        let resolvedInitialTool: AnnotationTool? = {
+            guard initialTool == .ocrTranslate,
+                  !AnnotationEditorFeatureAvailability.supportsOCRTranslationUI else {
+                return initialTool
+            }
+            return nil
+        }()
         let initialFrame = Self.initialEditorFrame(for: screenshot, captureRect: captureRect)
         self.sourceScreenSnapshot = sourceScreenSnapshot
         self.sourceDesktopBounds = sourceDesktopBounds
@@ -334,16 +358,16 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate, ConsoleTraceLoggin
         }
 
         // Apply initial tool (e.g. pre-selected from the hover toolbar)
-        state.selectedTool = initialTool
+        state.selectedTool = resolvedInitialTool
         canvas.styleProvider = { [weak state] tool in
             state?.style(for: tool) ?? .default(for: tool)
         }
 
         // For OCR tools triggered from the hover toolbar, fire OCR automatically
         // after the window has appeared (short delay lets the window settle).
-        if initialTool == .ocr || initialTool == .ocrTranslate {
+        if resolvedInitialTool == .ocr || resolvedInitialTool == .ocrTranslate {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
-                self?.performOCR(translate: initialTool == .ocrTranslate)
+                self?.performOCR(translate: resolvedInitialTool == .ocrTranslate)
             }
         }
 
@@ -964,7 +988,7 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate, ConsoleTraceLoggin
             onConfirm:      { [weak self] in self?.confirmEditor() },
             onEmoji:        { [weak self] anchorView in self?.presentEmojiPicker(anchorView: anchorView) },
             onOCR:          { [weak self] in self?.performOCR(translate: false) },
-            onOCRTranslate: { [weak self] in self?.performOCR(translate: true) },
+            onOCRTranslate: { [weak self] in self?.performOCRTranslation() },
             onScrollCapture:{ [weak self] rect in self?.performScrollCapture(selectedCropRect: rect) }
         )
 
@@ -1148,6 +1172,10 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate, ConsoleTraceLoggin
     // MARK: OCR
 
     private func performOCR(translate: Bool) {
+        guard !translate else {
+            performOCRTranslation()
+            return
+        }
         guard !state.isOCRRunning else {
             debugLog("OCR 请求被忽略：已有 OCR 任务正在执行。")
             return
@@ -1162,59 +1190,39 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate, ConsoleTraceLoggin
                 let sessionToken = self.ocrSessionToken
                 switch result {
                 case let .success(snapshot):
-                    self.debugLog("OCR 识别成功，识别区域数=\(snapshot.regions.count)，translate=\(translate)。")
+                    self.debugLog("OCR 识别成功，识别区域数=\(snapshot.regions.count)，translate=false。")
                     let attributed = OCRStructuredTextComposer.makeAttributedString(
                         from: snapshot.regions,
                         imageSize: snapshot.imageSize,
                         preferredTextWidth: self.preferredOCRTextWidth
                     )
-                    if translate {
-                        self.handleOCRRecognizedTextForTranslation(attributed, sessionToken: sessionToken)
-                    } else {
-                        self.handleOCRRecognizedText(attributed, sessionToken: sessionToken)
-                    }
+                    self.handleOCRRecognizedText(attributed, sessionToken: sessionToken)
                 case let .failure(error):
-                    self.debugLog("OCR 识别失败：\(error.localizedDescription)，translate=\(translate)。")
-                    if translate {
-                        self.completeOCRAfterMinimumDuration(for: sessionToken) { panel in
-                            panel.restoreOCRUIAfterFailure { restoredPanel in
-                                if restoredPanel.state.selectedTool == .ocrTranslate {
-                                    restoredPanel.state.selectedTool = nil
-                                }
-                                restoredPanel.showAlert(
-                                    title: EditorL10n.tr(.ocrTranslateFailedTitle),
-                                    message: EditorL10n.tr(.ocrTranslateFailedMessagePrefix) + error.localizedDescription
-                                )
-                            }
-                        }
-                    } else {
-                        self.completeOCRAfterMinimumDuration(for: sessionToken) { panel in
-                            panel.restoreOCRUIAfterFailure()
-                        }
+                    self.debugLog("OCR 识别失败：\(error.localizedDescription)，translate=false。")
+                    self.completeOCRAfterMinimumDuration(for: sessionToken) { panel in
+                        panel.restoreOCRUIAfterFailure()
                     }
                 }
             }
         }
     }
 
-    private func legacyCopyTextThenOpenTranslate() {
-        let image = canvas.renderToImage()
-        guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return }
-        let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
-        let request = VNRecognizeTextRequest { [weak self] req, _ in
-            let lines = (req.results as? [VNRecognizedTextObservation])?
-                .compactMap { $0.topCandidates(1).first?.string } ?? []
-            let text = lines.joined(separator: "\n")
-            DispatchQueue.main.async {
-                self?.openTranslation(text: text)
-            }
+    private func performOCRTranslation() {
+#if canImport(Translation)
+        if #available(macOS 15.0, *) {
+            debugLog("开始执行 OCR 内置翻译。")
+            toggleOCRTranslateOverlay()
+            return
         }
-        request.recognitionLevel = .accurate
-        request.recognitionLanguages = ["zh-Hans", "zh-Hant", "en-US", "ja-JP"]
-        request.usesLanguageCorrection = true
-        DispatchQueue.global(qos: .userInitiated).async {
-            try? handler.perform([request])
+#endif
+        debugLog("OCR 内置翻译不可用：当前系统版本不支持 Apple Translation 框架。")
+        if state.selectedTool == .ocrTranslate {
+            state.selectedTool = nil
         }
+        showAlert(
+            title: EditorL10n.tr(.ocrTranslateFailedTitle),
+            message: EditorL10n.tr(.ocrTranslateUnavailableMessage)
+        )
     }
 
     private func handleOCRRecognizedText(_ attributedText: NSAttributedString, sessionToken: UUID) {
@@ -1232,35 +1240,6 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate, ConsoleTraceLoggin
         showOCRResultsUI(with: attributedText)
         completeOCRAfterMinimumDuration(for: sessionToken) { panel in
             panel.finishOCRLoadingUI()
-        }
-    }
-
-    private func handleOCRRecognizedTextForTranslation(_ attributedText: NSAttributedString, sessionToken: UUID) {
-        let plainText = attributedText.string.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !plainText.isEmpty else {
-            debugLog("OCR 翻译前识别完成，但没有可翻译文字。")
-            completeOCRAfterMinimumDuration(for: sessionToken) { panel in
-                panel.restoreOCRUIAfterFailure { restoredPanel in
-                    if restoredPanel.state.selectedTool == .ocrTranslate {
-                        restoredPanel.state.selectedTool = nil
-                    }
-                    restoredPanel.showAlert(
-                        title: EditorL10n.tr(.ocrEmptyTitle),
-                        message: EditorL10n.tr(.ocrTranslatableEmptyMessage)
-                    )
-                }
-            }
-            return
-        }
-
-        debugLog("OCR 翻译前识别完成，字符数=\(plainText.count)，准备调起翻译。")
-        showOCRResultsUI(with: attributedText)
-        completeOCRAfterMinimumDuration(for: sessionToken) { panel in
-            panel.finishOCRLoadingUI()
-            if panel.state.selectedTool == .ocrTranslate {
-                panel.state.selectedTool = nil
-            }
-            panel.openTranslation(text: plainText)
         }
     }
 
@@ -1296,32 +1275,6 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate, ConsoleTraceLoggin
         debugLog("取消待执行的 OCR 收尾任务。")
         ocrCompletionWorkItem?.cancel()
         ocrCompletionWorkItem = nil
-    }
-
-    private func openTranslation(text: String) {
-        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedText.isEmpty else {
-            debugLog("翻译请求被忽略：文本为空。")
-            showAlert(title: EditorL10n.tr(.ocrEmptyTitle), message: EditorL10n.tr(.ocrTranslatableEmptyMessage))
-            return
-        }
-
-        // Copy the recognized text first so the user can paste it manually
-        // if the system Translate app is unavailable or doesn't ingest it.
-        debugLog("准备打开系统翻译，先复制识别文本到剪贴板，字符数=\(trimmedText.count)。")
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(trimmedText, forType: .string)
-
-        if let url = URL(string: "translate://"), NSWorkspace.shared.open(url) {
-            debugLog("已成功调起系统翻译应用。")
-            return
-        }
-
-        debugLog("无法调起系统翻译应用，准备展示回退提示。")
-        showAlert(
-            title: EditorL10n.tr(.ocrTranslateFailedTitle),
-            message: EditorL10n.tr(.ocrTranslateOpenFallbackMessage)
-        )
     }
 
     // MARK: Helpers
@@ -1445,7 +1398,7 @@ private enum EditorL10nKey {
     case ocrTranslateInProgress
     case ocrTranslateFailedTitle
     case ocrTranslateFailedMessagePrefix
-    case ocrTranslateOpenFallbackMessage
+    case ocrTranslateUnavailableMessage
     case exportReadImageDataFailed
     case exportUnsupportedType
     case exportWriteFailed
@@ -1502,7 +1455,7 @@ private enum EditorL10n {
         .ocrTranslateInProgress: "正在翻译…",
         .ocrTranslateFailedTitle: "翻译失败",
         .ocrTranslateFailedMessagePrefix: "无法发起翻译：",
-        .ocrTranslateOpenFallbackMessage: "已将识别文字复制到剪贴板，但无法打开系统“翻译”。请手动打开“翻译”或其他翻译应用后粘贴。",
+        .ocrTranslateUnavailableMessage: "内置翻译需要 macOS 15 或更高版本，并使用 Apple 官方 Translation 框架。当前系统不支持时，可先使用“识别文字”。",
         .exportReadImageDataFailed: "无法读取图像数据。",
         .exportUnsupportedType: "不支持该文件格式。",
         .exportWriteFailed: "系统写入文件失败。",
@@ -1544,7 +1497,7 @@ private enum EditorL10n {
         .ocrTranslateInProgress: "翻譯中…",
         .ocrTranslateFailedTitle: "翻譯失敗",
         .ocrTranslateFailedMessagePrefix: "無法啟動翻譯：",
-        .ocrTranslateOpenFallbackMessage: "已將辨識文字複製到剪貼簿，但無法打開系統「翻譯」。請手動打開「翻譯」或其他翻譯應用程式後貼上。",
+        .ocrTranslateUnavailableMessage: "內建翻譯需要 macOS 15 或以上版本，並使用 Apple 官方 Translation 框架。若目前系統不支援，可先使用「辨識文字」。",
         .exportReadImageDataFailed: "無法讀取圖像資料。",
         .exportUnsupportedType: "不支援此檔案格式。",
         .exportWriteFailed: "系統寫入檔案失敗。",
@@ -1586,7 +1539,7 @@ private enum EditorL10n {
         .ocrTranslateInProgress: "Translating…",
         .ocrTranslateFailedTitle: "Translation Failed",
         .ocrTranslateFailedMessagePrefix: "Could not start translation: ",
-        .ocrTranslateOpenFallbackMessage: "Recognized text was copied to the clipboard, but the system Translate app couldn't be opened. Open Translate or another translation app and paste the text manually.",
+        .ocrTranslateUnavailableMessage: "Built-in translation requires macOS 15 or later and uses Apple's public Translation framework. If it isn't available on this system, use Recognize Text instead.",
         .exportReadImageDataFailed: "Unable to read image data.",
         .exportUnsupportedType: "This file type is not supported.",
         .exportWriteFailed: "The system failed to write the file.",
@@ -1628,7 +1581,7 @@ private enum EditorL10n {
         .ocrTranslateInProgress: "翻訳中…",
         .ocrTranslateFailedTitle: "翻訳に失敗しました",
         .ocrTranslateFailedMessagePrefix: "翻訳を開始できませんでした：",
-        .ocrTranslateOpenFallbackMessage: "認識したテキストはクリップボードにコピーされましたが、システムの「翻訳」を開けませんでした。「翻訳」または他の翻訳アプリを手動で開いて貼り付けてください。",
+        .ocrTranslateUnavailableMessage: "内蔵翻訳は macOS 15 以降で利用でき、Apple の公開 Translation フレームワークを使用します。現在のシステムで利用できない場合は、先に「テキスト認識」を使ってください。",
         .exportReadImageDataFailed: "画像データを読み取れませんでした。",
         .exportUnsupportedType: "このファイル形式はサポートされていません。",
         .exportWriteFailed: "ファイルの書き込みに失敗しました。",
@@ -3160,16 +3113,24 @@ private struct AnnotationToolbarView: View {
     var onScrollCapture:(CGRect) -> Void
 
     private let configurableTools: Set<AnnotationTool> = [.rectangle, .circle, .arrow, .pen, .mosaic, .text]
-    private let orderedTokens: [ToolbarToken] = [
-        .adjustSelection, .rectangle, .circle, .emoji, .arrow, .pen, .mosaic, .text, .ocrTranslate,
-        .ocr, .scrollCapture, .crop, .undo, .save, .pin, .share, .cancel, .confirm
-    ]
-
     private enum ToolbarToken: String {
         case adjustSelection
         case rectangle, circle, emoji, arrow, pen, mosaic, text, ocrTranslate, ocr, scrollCapture, crop
         case undo, save, pin, share
         case cancel, confirm
+    }
+
+    private var orderedTokens: [ToolbarToken] {
+        var tokens: [ToolbarToken] = [
+            .adjustSelection, .rectangle, .circle, .emoji, .arrow, .pen, .mosaic, .text
+        ]
+        if AnnotationEditorFeatureAvailability.supportsOCRTranslationUI {
+            tokens.append(.ocrTranslate)
+        }
+        tokens.append(contentsOf: [
+            .ocr, .scrollCapture, .crop, .undo, .save, .pin, .share, .cancel, .confirm
+        ])
+        return tokens
     }
 
     var body: some View {

@@ -163,7 +163,7 @@ final class MenuBarController: NSObject, NSWindowDelegate {
 }
 
 enum AppStoreComplianceFeatures {
-    static let isOCRTranslationOverlayEnabled = false
+    static let isOCRTranslationOverlayEnabled = true
 }
 
 enum AppComplianceL10n {
@@ -270,16 +270,16 @@ enum AppComplianceL10n {
                 en: "2. Accessibility: Used only to more accurately detect the frontmost window under the pointer. Without access, manual region capture still works, but hovered-window detection may be less precise."
             ),
             tr(
-                zhHans: "3. 剪贴板与文件：只有在你点击复制、OCR 翻译、分享或保存时，StackShot 才会把图像或文字写入剪贴板或导出到你选择的位置。",
-                zhHant: "3. 剪貼簿與檔案：只有在你點擊複製、OCR 翻譯、分享或儲存時，StackShot 才會把影像或文字寫入剪貼簿或匯出到你選擇的位置。",
-                ja: "3. クリップボードとファイル: 画像や文字をクリップボードへ書き込んだり、選択した場所へ保存したりするのは、コピー・OCR 翻訳・共有・保存をあなたが実行したときだけです。",
-                en: "3. Clipboard and files: StackShot writes images or text to the clipboard, or exports files to disk, only when you explicitly choose Copy, OCR Translate, Share, or Save."
+                zhHans: "3. 剪贴板与文件：只有在你明确执行复制、分享或保存时，StackShot 才会把图像或文字写入剪贴板，或导出到你选择的位置。",
+                zhHant: "3. 剪貼簿與檔案：只有在你明確執行複製、分享或儲存時，StackShot 才會把影像或文字寫入剪貼簿，或匯出到你選擇的位置。",
+                ja: "3. クリップボードとファイル: 画像や文字をクリップボードへ書き込んだり、選択した場所へ保存したりするのは、コピー・共有・保存をあなたが明示的に実行したときだけです。",
+                en: "3. Clipboard and files: StackShot writes images or text to the clipboard, or exports files to disk, only when you explicitly choose Copy, Share, or Save."
             ),
             tr(
-                zhHans: "4. OCR 翻译接力：当你点击 OCR 翻译时，StackShot 会先在本机识别文字、复制到剪贴板，再尝试打开系统“翻译”应用。后续翻译行为由系统应用处理，不由 StackShot 直接提供。",
-                zhHant: "4. OCR 翻譯接力：當你點擊 OCR 翻譯時，StackShot 會先在本機辨識文字、複製到剪貼簿，再嘗試打開系統「翻譯」App。後續翻譯行為由系統 App 處理，不由 StackShot 直接提供。",
-                ja: "4. OCR 翻訳の引き継ぎ: OCR 翻訳を実行すると、StackShot はまずデバイス上で文字を認識してクリップボードへコピーし、その後システムの「翻訳」アプリを開こうとします。以降の翻訳処理は StackShot ではなくシステムアプリ側が担当します。",
-                en: "4. OCR translation handoff: When you choose OCR Translate, StackShot recognizes text on-device, copies it to the clipboard, and then tries to open the system Translate app. Any translation after that point is handled by the system app, not directly by StackShot."
+                zhHans: "4. OCR 内置翻译：当你点击 OCR 翻译时，StackShot 会先在本机识别文字，再通过 Apple 官方 Translation 框架在应用内完成翻译（需 macOS 15 或更高版本）。根据 Apple 的框架说明，Apple 可能收集不含原文内容的使用与性能指标，例如 App Bundle ID 与源/目标语言。",
+                zhHant: "4. OCR 內建翻譯：當你點擊 OCR 翻譯時，StackShot 會先在本機辨識文字，再透過 Apple 官方 Translation 框架在 App 內完成翻譯（需 macOS 15 或以上版本）。依 Apple 框架說明，Apple 可能收集不包含原文內容的使用與效能指標，例如 App Bundle ID 與來源／目標語言。",
+                ja: "4. OCR 内蔵翻訳: OCR 翻訳を実行すると、StackShot はまずデバイス上で文字を認識し、Apple の公開 Translation フレームワークを使ってアプリ内で翻訳します（macOS 15 以降が必要です）。Apple の説明によると、Apple は元のテキスト内容を含まない利用状況や性能指標（アプリの Bundle ID、元言語／対象言語など）を収集する場合があります。",
+                en: "4. Built-in OCR translation: When you choose OCR Translate, StackShot recognizes text on-device and then uses Apple's public Translation framework to translate it within the app on macOS 15 or later. According to Apple's framework documentation, Apple may collect usage and performance metrics that don't include the original or translated content, such as the app bundle ID and source or target language."
             ),
             tr(
                 zhHans: "5. 本地处理：截图编辑、窗口识别、OCR 和大部分图像处理都在本机完成。应用不包含远程上传截图内容的网络同步逻辑。",
@@ -311,10 +311,10 @@ enum AppComplianceL10n {
 
     static var ocrTranslationUnavailableMessage: String {
         tr(
-            zhHans: "当前 App Store 提交版本已关闭内置 OCR 翻译覆盖层，以避免额外的沙盒例外权限。",
-            zhHant: "目前 App Store 提交版本已關閉內建 OCR 翻譯覆蓋層，以避免額外的沙盒例外權限。",
-            ja: "App Store 提出版では、追加のサンドボックス例外を避けるためアプリ内 OCR 翻訳オーバーレイを無効にしています。",
-            en: "This App Store submission build disables the in-app OCR translation overlay to avoid extra sandbox exception entitlements."
+            zhHans: "内置 OCR 翻译需要 macOS 15 或更高版本，并使用 Apple 官方 Translation 框架。当前系统不支持时，可先使用“识别文字”。",
+            zhHant: "內建 OCR 翻譯需要 macOS 15 或以上版本，並使用 Apple 官方 Translation 框架。若目前系統不支援，可先使用「辨識文字」。",
+            ja: "内蔵 OCR 翻訳は macOS 15 以降で利用でき、Apple の公開 Translation フレームワークを使用します。現在のシステムで利用できない場合は、先に「テキスト認識」を使ってください。",
+            en: "Built-in OCR translation requires macOS 15 or later and uses Apple's public Translation framework. If it isn't available on this system, use Recognize Text instead."
         )
     }
 }
