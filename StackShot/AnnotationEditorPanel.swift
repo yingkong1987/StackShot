@@ -426,7 +426,7 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate, ConsoleTraceLoggin
         contentContainer.wantsLayer = true
         contentContainer.layer?.backgroundColor = NSColor.clear.cgColor
         contentContainer.layer?.borderColor = NSColor.systemBlue.withAlphaComponent(0.92).cgColor
-        contentContainer.layer?.borderWidth = 2
+        contentContainer.layer?.borderWidth = 3
         contentContainer.layer?.masksToBounds = true
         contentView = contentContainer
         windowController?.window?.acceptsMouseMovedEvents = true
@@ -1821,13 +1821,13 @@ private final class AnnotationSelectionInteractionOverlayView: NSView {
         var cursor: NSCursor {
             switch self {
             case .left, .right:
-                return .resizeLeftRight
+                return .resizeAxisHorizontal
             case .top, .bottom:
-                return .resizeUpDown
+                return .resizeAxisVertical
             case .topLeft, .bottomRight:
-                return .crosshair
+                return .resizeDiagonalNWSE
             case .topRight, .bottomLeft:
-                return .crosshair
+                return .resizeDiagonalNESW
             }
         }
     }
@@ -1842,6 +1842,7 @@ private final class AnnotationSelectionInteractionOverlayView: NSView {
             }
             isHidden = !isInteractionEnabled
             needsDisplay = true
+            window?.invalidateCursorRects(for: self)
         }
     }
 
@@ -1849,6 +1850,7 @@ private final class AnnotationSelectionInteractionOverlayView: NSView {
     private var initialMouseLocation: CGPoint?
     private var initialWindowFrame: CGRect?
     private var trackingAreaRef: NSTrackingArea?
+    private var mouseMoveMonitor: Any?
 
     private let edgeHitInset: CGFloat = 8
     private let handleSize: CGFloat = 8
@@ -1858,6 +1860,44 @@ private final class AnnotationSelectionInteractionOverlayView: NSView {
 
     override var acceptsFirstResponder: Bool { true }
 
+    deinit {
+        if let monitor = mouseMoveMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if let monitor = mouseMoveMonitor {
+            NSEvent.removeMonitor(monitor)
+            mouseMoveMonitor = nil
+        }
+        guard window != nil else { return }
+        // Belt-and-suspenders: when the panel is key (the common case once shown),
+        // `addCursorRect` + `cursorUpdate` already drive cursor changes natively
+        // and flicker-free. The local monitor only adds a redundant `set()` so
+        // any window-level dispatch glitch is masked without polling.
+        mouseMoveMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged]) { [weak self] event in
+            self?.handleEventDrivenCursor(event)
+            return event
+        }
+    }
+
+    private func handleEventDrivenCursor(_ event: NSEvent) {
+        guard isInteractionEnabled, !isHidden, alphaValue > 0.01 else { return }
+        guard let window else { return }
+        if event.window === window {
+            let local = convert(event.locationInWindow, from: nil)
+            guard bounds.contains(local) else { return }
+            updateCursor(at: local)
+        } else {
+            // Pointer moved to a different window in our app (e.g. the floating
+            // toolbar). Reset to the system arrow so our custom selection
+            // cursor doesn't bleed over.
+            NSCursor.arrow.set()
+        }
+    }
+
     override func updateTrackingAreas() {
         if let trackingAreaRef {
             removeTrackingArea(trackingAreaRef)
@@ -1865,13 +1905,46 @@ private final class AnnotationSelectionInteractionOverlayView: NSView {
 
         let trackingArea = NSTrackingArea(
             rect: bounds,
-            options: [.mouseMoved, .activeAlways, .inVisibleRect, .cursorUpdate],
+            options: [.mouseMoved, .mouseEnteredAndExited, .activeAlways, .inVisibleRect, .cursorUpdate],
             owner: self,
             userInfo: nil
         )
         addTrackingArea(trackingArea)
         trackingAreaRef = trackingArea
         super.updateTrackingAreas()
+        window?.invalidateCursorRects(for: self)
+    }
+
+    override func resetCursorRects() {
+        super.resetCursorRects()
+        guard isInteractionEnabled, !isHidden, alphaValue > 0.01 else { return }
+
+        let inset = edgeHitInset
+        // Corners.
+        addCursorRect(CGRect(x: bounds.minX - inset, y: bounds.maxY - inset, width: inset * 2, height: inset * 2),
+                      cursor: .resizeDiagonalNWSE)
+        addCursorRect(CGRect(x: bounds.maxX - inset, y: bounds.maxY - inset, width: inset * 2, height: inset * 2),
+                      cursor: .resizeDiagonalNESW)
+        addCursorRect(CGRect(x: bounds.minX - inset, y: bounds.minY - inset, width: inset * 2, height: inset * 2),
+                      cursor: .resizeDiagonalNESW)
+        addCursorRect(CGRect(x: bounds.maxX - inset, y: bounds.minY - inset, width: inset * 2, height: inset * 2),
+                      cursor: .resizeDiagonalNWSE)
+        // Edges.
+        let verticalEdgeHeight = max(0, bounds.height - inset * 2)
+        let horizontalEdgeWidth = max(0, bounds.width - inset * 2)
+        addCursorRect(CGRect(x: bounds.minX - inset, y: bounds.minY + inset, width: inset * 2, height: verticalEdgeHeight),
+                      cursor: .resizeAxisHorizontal)
+        addCursorRect(CGRect(x: bounds.maxX - inset, y: bounds.minY + inset, width: inset * 2, height: verticalEdgeHeight),
+                      cursor: .resizeAxisHorizontal)
+        addCursorRect(CGRect(x: bounds.minX + inset, y: bounds.minY - inset, width: horizontalEdgeWidth, height: inset * 2),
+                      cursor: .resizeAxisVertical)
+        addCursorRect(CGRect(x: bounds.minX + inset, y: bounds.maxY - inset, width: horizontalEdgeWidth, height: inset * 2),
+                      cursor: .resizeAxisVertical)
+        // Interior.
+        let interior = bounds.insetBy(dx: inset, dy: inset)
+        if interior.width > 0, interior.height > 0 {
+            addCursorRect(interior, cursor: .moveAll)
+        }
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
@@ -1902,6 +1975,18 @@ private final class AnnotationSelectionInteractionOverlayView: NSView {
     override func cursorUpdate(with event: NSEvent) {
         guard isInteractionEnabled else { return }
         updateCursor(at: convert(event.locationInWindow, from: nil))
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        guard isInteractionEnabled else { return }
+        updateCursor(at: convert(event.locationInWindow, from: nil))
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        // Restore the system arrow when leaving the selection so anything that
+        // sits outside us (e.g. the floating toolbar) shows the default cursor.
+        guard !isHidden else { return }
+        NSCursor.arrow.set()
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -2153,7 +2238,7 @@ private final class AnnotationSelectionInteractionOverlayView: NSView {
 
     private func updateCursor(at point: CGPoint) {
         if case .moving = dragMode {
-            NSCursor.closedHand.set()
+            NSCursor.moveAll.set()
             return
         }
 
@@ -2167,7 +2252,102 @@ private final class AnnotationSelectionInteractionOverlayView: NSView {
             return
         }
 
-        NSCursor.openHand.set()
+        NSCursor.moveAll.set()
+    }
+}
+
+private extension NSCursor {
+    static let moveAll: NSCursor = makeSelectionAdjustCursor(
+        symbolName: "arrow.up.and.down.and.arrow.left.and.right",
+        fallbackSymbolName: "move.3d"
+    )
+
+    static let resizeDiagonalNWSE: NSCursor = makeSelectionAdjustCursor(
+        symbolName: "arrow.up.left.and.arrow.down.right",
+        fallbackSymbolName: "arrow.up.left.and.down.right.magnifyingglass"
+    )
+
+    static let resizeDiagonalNESW: NSCursor = makeSelectionAdjustCursor(
+        symbolName: "arrow.up.right.and.arrow.down.left",
+        fallbackSymbolName: "arrow.up.left.and.arrow.down.right"
+    )
+
+    static let resizeAxisHorizontal: NSCursor = makeSelectionAdjustCursor(
+        symbolName: "arrow.left.and.right",
+        fallbackSymbolName: "arrow.left.arrow.right"
+    )
+
+    static let resizeAxisVertical: NSCursor = makeSelectionAdjustCursor(
+        symbolName: "arrow.up.and.down",
+        fallbackSymbolName: "arrow.up.arrow.down"
+    )
+
+    private static func makeSelectionAdjustCursor(symbolName: String, fallbackSymbolName: String) -> NSCursor {
+        let canvasSize = NSSize(width: 28, height: 28)
+
+        let resolvedName = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil) != nil
+            ? symbolName
+            : fallbackSymbolName
+
+        let symbolConfig = NSImage.SymbolConfiguration(pointSize: 13, weight: .regular)
+        guard let symbolImage = NSImage(systemSymbolName: resolvedName, accessibilityDescription: nil)?
+            .withSymbolConfiguration(symbolConfig) else {
+            return NSCursor.openHand
+        }
+
+        // Render the (template) symbol into a black bitmap once so we can use
+        // it as a true alpha mask. We dilate that mask by drawing it at 16
+        // offsets around a 1.6pt radius, filled white — that's the visible
+        // outline. Then the original symbol is composited on top in black.
+        let symbolSize = symbolImage.size
+        let drawOrigin = NSPoint(
+            x: (canvasSize.width - symbolSize.width) / 2,
+            y: (canvasSize.height - symbolSize.height) / 2
+        )
+        let symbolRect = NSRect(origin: drawOrigin, size: symbolSize)
+        let maskRect = NSRect(origin: .zero, size: symbolSize)
+
+        let blackMaskImage = NSImage(size: symbolSize)
+        blackMaskImage.lockFocus()
+        symbolImage.draw(in: maskRect, from: .zero, operation: .sourceOver, fraction: 1.0)
+        NSGraphicsContext.current?.compositingOperation = .sourceIn
+        NSColor.black.setFill()
+        NSBezierPath(rect: maskRect).fill()
+        blackMaskImage.unlockFocus()
+
+        let cursorImage = NSImage(size: canvasSize)
+        cursorImage.lockFocus()
+        defer { cursorImage.unlockFocus() }
+
+        NSColor.clear.setFill()
+        NSBezierPath(rect: NSRect(origin: .zero, size: canvasSize)).fill()
+
+        // White outline: stamp the silhouette around a small ring so it
+        // extends ~1.5pt beyond the glyph in every direction.
+        let radius: CGFloat = 1.6
+        let stampCount = 16
+        for i in 0..<stampCount {
+            let angle = (CGFloat(i) / CGFloat(stampCount)) * .pi * 2
+            let dx = cos(angle) * radius
+            let dy = sin(angle) * radius
+            // Tint the stamped silhouette white via NSImage.draw + sourceIn
+            // by using a per-stamp white image rendered from the mask.
+            let whiteStamp = NSImage(size: symbolSize)
+            whiteStamp.lockFocus()
+            blackMaskImage.draw(in: maskRect, from: .zero, operation: .sourceOver, fraction: 1.0)
+            NSGraphicsContext.current?.compositingOperation = .sourceIn
+            NSColor.white.setFill()
+            NSBezierPath(rect: maskRect).fill()
+            whiteStamp.unlockFocus()
+            whiteStamp.draw(in: symbolRect.offsetBy(dx: dx, dy: dy),
+                            from: .zero, operation: .sourceOver, fraction: 1.0)
+        }
+
+        // Black core glyph on top.
+        symbolImage.draw(in: symbolRect, from: .zero, operation: .sourceOver, fraction: 1.0)
+
+        return NSCursor(image: cursorImage,
+                        hotSpot: NSPoint(x: canvasSize.width / 2, y: canvasSize.height / 2))
     }
 }
 
@@ -2286,8 +2466,16 @@ private final class AnnotationEditingBackdropView: NSView {
         }
     }
 
+    private var hasExistingSelection: Bool {
+        selectionFrame.width >= 2 && selectionFrame.height >= 2
+    }
+
+    private var canCreateNewSelection: Bool {
+        allowsSelectionCreation && !hasExistingSelection
+    }
+
     override func mouseDown(with event: NSEvent) {
-        if !allowsSelectionCreation {
+        if !canCreateNewSelection {
             if event.clickCount >= 2 {
                 onConfirmRequested?()
             }
@@ -2308,7 +2496,7 @@ private final class AnnotationEditingBackdropView: NSView {
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard allowsSelectionCreation, let dragStartPoint else { return }
+        guard canCreateNewSelection, let dragStartPoint else { return }
         let point = convert(event.locationInWindow, from: nil)
         let rect = snappedSelectionRect(from: dragStartPoint, to: point)
         draftSelectionRect = rect
@@ -2319,7 +2507,7 @@ private final class AnnotationEditingBackdropView: NSView {
     }
 
     override func mouseUp(with event: NSEvent) {
-        guard allowsSelectionCreation else { return }
+        guard canCreateNewSelection else { return }
         if let dragStartPoint {
             let point = convert(event.locationInWindow, from: nil)
             let rect = snappedSelectionRect(from: dragStartPoint, to: point)
@@ -2338,30 +2526,115 @@ private final class AnnotationEditingBackdropView: NSView {
 
     private func updateCursor(at point: CGPoint) {
         guard bounds.contains(point) else { return }
-        if allowsSelectionCreation {
-            NSCursor.crosshair.set()
+        if canCreateNewSelection {
+            Self.outlinedCrosshair.set()
             return
         }
         Self.disabledToolCursor.set()
     }
 
-    private static let disabledToolCursor: NSCursor = {
-        let baseCursor = NSCursor.arrow
-        let canvasSize = NSSize(
-            width: max(24, baseCursor.image.size.width + 8),
-            height: max(24, baseCursor.image.size.height + 8)
-        )
-        let image = NSImage(size: canvasSize)
-
+    private static let outlinedCrosshair: NSCursor = {
+        let size = NSSize(width: 28, height: 28)
+        let image = NSImage(size: size)
         image.lockFocus()
-        baseCursor.image.draw(
-            in: CGRect(origin: .zero, size: baseCursor.image.size),
+        defer { image.unlockFocus() }
+
+        let center = CGPoint(x: size.width / 2, y: size.height / 2)
+        let armLength: CGFloat = 9
+        let gap: CGFloat = 2
+
+        let path = NSBezierPath()
+        path.move(to: CGPoint(x: center.x - armLength, y: center.y))
+        path.line(to: CGPoint(x: center.x - gap, y: center.y))
+        path.move(to: CGPoint(x: center.x + gap, y: center.y))
+        path.line(to: CGPoint(x: center.x + armLength, y: center.y))
+        path.move(to: CGPoint(x: center.x, y: center.y - armLength))
+        path.line(to: CGPoint(x: center.x, y: center.y - gap))
+        path.move(to: CGPoint(x: center.x, y: center.y + gap))
+        path.line(to: CGPoint(x: center.x, y: center.y + armLength))
+
+        path.lineCapStyle = .round
+        // White outer stroke first, then black core.
+        NSColor.white.setStroke()
+        path.lineWidth = 3.6
+        path.stroke()
+
+        NSColor.black.setStroke()
+        path.lineWidth = 1.4
+        path.stroke()
+
+        // Small center dot with white halo.
+        let dotRadius: CGFloat = 1.0
+        let dotRect = CGRect(x: center.x - dotRadius, y: center.y - dotRadius, width: dotRadius * 2, height: dotRadius * 2)
+        let halo = NSBezierPath(ovalIn: dotRect.insetBy(dx: -1.2, dy: -1.2))
+        NSColor.white.setFill()
+        halo.fill()
+        let dot = NSBezierPath(ovalIn: dotRect)
+        NSColor.black.setFill()
+        dot.fill()
+
+        return NSCursor(image: image, hotSpot: center)
+    }()
+
+    private static let disabledToolCursor: NSCursor = {
+        let outlinedArrow = makeOutlinedArrowImage()
+        let arrowSize = outlinedArrow.image.size
+        let arrowHotSpot = outlinedArrow.hotSpot
+
+        let badgeRadius: CGFloat = 6
+        let badgeDiameter = badgeRadius * 2
+        let gap: CGFloat = 4
+
+        // Approximate the arrow's visible "tail" — the bottom-right tip of the
+        // pointer body — in image (top-left origin) coordinates.
+        let tailImg = CGPoint(x: arrowSize.width - 5, y: arrowSize.height - 5)
+
+        let dx = tailImg.x - arrowHotSpot.x
+        let dy = tailImg.y - arrowHotSpot.y
+        let length = max(hypot(dx, dy), 1)
+        let unitX = dx / length
+        let unitY = dy / length
+
+        // Place the badge so its closest edge sits `gap` px past the tail
+        // along the diagonal that extends from the cursor tip through the tail.
+        let centerOffset = gap + badgeRadius
+        let badgeCenterImg = CGPoint(
+            x: tailImg.x + centerOffset * unitX,
+            y: tailImg.y + centerOffset * unitY
+        )
+
+        let canvasSize = NSSize(
+            width: ceil(max(arrowSize.width, badgeCenterImg.x + badgeRadius) + 2),
+            height: ceil(max(arrowSize.height, badgeCenterImg.y + badgeRadius) + 2)
+        )
+
+        let image = NSImage(size: canvasSize)
+        image.lockFocus()
+        defer { image.unlockFocus() }
+
+        let arrowRect = CGRect(
+            x: 0,
+            y: canvasSize.height - arrowSize.height,
+            width: arrowSize.width,
+            height: arrowSize.height
+        )
+        outlinedArrow.image.draw(
+            in: arrowRect,
             from: .zero,
             operation: .sourceOver,
             fraction: 1
         )
 
-        let badgeRect = CGRect(x: round(baseCursor.image.size.width / 2), y: 2, width: 12, height: 12)
+        let badgeCenterCocoa = CGPoint(
+            x: badgeCenterImg.x,
+            y: canvasSize.height - badgeCenterImg.y
+        )
+        let badgeRect = CGRect(
+            x: badgeCenterCocoa.x - badgeRadius,
+            y: badgeCenterCocoa.y - badgeRadius,
+            width: badgeDiameter,
+            height: badgeDiameter
+        )
         let badge = NSBezierPath(ovalIn: badgeRect)
         NSColor.systemRed.setFill()
         badge.fill()
@@ -2376,9 +2649,8 @@ private final class AnnotationEditingBackdropView: NSView {
         slash.lineCapStyle = .round
         NSColor.white.setStroke()
         slash.stroke()
-        image.unlockFocus()
 
-        return NSCursor(image: image, hotSpot: baseCursor.hotSpot)
+        return NSCursor(image: image, hotSpot: arrowHotSpot)
     }()
 
     private func normalizedRect(from a: CGPoint, to b: CGPoint) -> CGRect {
@@ -2438,6 +2710,57 @@ private final class AnnotationEditingBackdropView: NSView {
         let dash: [CGFloat] = [6, 4]
         path.setLineDash(dash, count: dash.count, phase: 0)
         path.stroke()
+    }
+
+    /// Renders the system pointer with a thin white outer outline so it stays
+    /// readable on any background. The hot spot stays at the pointer tip.
+    fileprivate static func makeOutlinedArrowImage() -> (image: NSImage, hotSpot: NSPoint) {
+        let base = NSCursor.arrow
+        let baseImage = base.image
+        let baseSize = baseImage.size
+        let outlinePadding: CGFloat = 2
+        let canvasSize = NSSize(
+            width: baseSize.width + outlinePadding * 2,
+            height: baseSize.height + outlinePadding * 2
+        )
+        let image = NSImage(size: canvasSize)
+        image.lockFocus()
+        defer { image.unlockFocus() }
+
+        // Draw a white silhouette of the arrow at multiple offsets to act as
+        // an outer stroke, then composite the original arrow on top.
+        if let cgContext = NSGraphicsContext.current?.cgContext,
+           let baseCG = baseImage.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+            let imageRect = CGRect(
+                x: outlinePadding,
+                y: outlinePadding,
+                width: baseSize.width,
+                height: baseSize.height
+            )
+            cgContext.saveGState()
+            cgContext.clip(to: imageRect, mask: baseCG)
+            cgContext.setFillColor(NSColor.white.cgColor)
+            let offsets: [CGSize] = [
+                CGSize(width: 1.4, height: 0), CGSize(width: -1.4, height: 0),
+                CGSize(width: 0, height: 1.4), CGSize(width: 0, height: -1.4),
+                CGSize(width: 1, height: 1), CGSize(width: -1, height: 1),
+                CGSize(width: 1, height: -1), CGSize(width: -1, height: -1)
+            ]
+            for offset in offsets {
+                cgContext.fill(imageRect.offsetBy(dx: offset.width, dy: offset.height))
+            }
+            cgContext.restoreGState()
+        }
+
+        baseImage.draw(
+            in: CGRect(x: outlinePadding, y: outlinePadding, width: baseSize.width, height: baseSize.height),
+            from: .zero,
+            operation: .sourceOver,
+            fraction: 1
+        )
+
+        let hotSpot = NSPoint(x: base.hotSpot.x + outlinePadding, y: base.hotSpot.y + outlinePadding)
+        return (image, hotSpot)
     }
 }
 
@@ -2730,6 +3053,9 @@ private final class AnnotationToolbarFloatingPanel: NSPanel {
         backgroundColor = .clear
         hasShadow = true
         hidesOnDeactivate = false
+        // Allow toolbar buttons to receive their first click directly instead
+        // of consuming it to activate / make-key the panel.
+        becomesKeyOnlyIfNeeded = true
 
         let host = DraggableToolbarHostingView(rootView: initialRoot) {}
         host.frame = CGRect(origin: .zero, size: layout.frame.size)
@@ -2747,6 +3073,14 @@ private final class AnnotationToolbarFloatingPanel: NSPanel {
             host.rootView = host.rootView.withDock(layout.dock)
         }
     }
+
+    // The toolbar must never become key — it's a chromeless palette panel.
+    // Letting it become key (even briefly) means the first click on a button
+    // is consumed by AppKit "make key" handling instead of activating the
+    // button, which is the root cause of the user-visible "first click is
+    // ignored" bug.
+    override var canBecomeKey: Bool { false }
+    override var canBecomeMain: Bool { false }
 
     private static func layout(for editorFrame: CGRect) -> ToolbarLayout {
         let screen = NSScreen.screens.first(where: { $0.frame.contains(CGPoint(x: editorFrame.midX, y: editorFrame.midY)) })
@@ -2864,6 +3198,13 @@ private final class DraggableToolbarHostingView<Content: View>: NSHostingView<Co
     }
 }
 
+/// `NSButton` that responds on the very first click even when its window is
+/// not key — required because the toolbar lives in a `.nonactivatingPanel`
+/// that would otherwise swallow the first click activating itself.
+private final class FirstMouseButton: NSButton {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+
 // MARK: – Style popover (NSPopover：在 NSPanel + NSHostingView 中 SwiftUI .popover 常无法显示)
 
 private enum AnnotationStylePopoverSession {
@@ -2892,7 +3233,7 @@ private struct ConfigurableToolToolbarButton: NSViewRepresentable {
         container.wantsLayer = true
         container.layer?.cornerRadius = 10
 
-        let button = NSButton(frame: container.bounds)
+        let button = FirstMouseButton(frame: container.bounds)
         button.autoresizingMask = [.width, .height]
         button.isBordered = false
         button.imagePosition = .imageOnly
@@ -3046,7 +3387,7 @@ private struct EmojiToolbarButton: NSViewRepresentable {
         container.wantsLayer = true
         container.layer?.cornerRadius = 10
 
-        let button = NSButton(frame: container.bounds)
+        let button = FirstMouseButton(frame: container.bounds)
         button.autoresizingMask = [.width, .height]
         button.isBordered = false
         button.imagePosition = .imageOnly
@@ -3156,7 +3497,7 @@ private struct ToolbarActionButton: NSViewRepresentable {
         container.wantsLayer = true
         container.layer?.cornerRadius = 10
 
-        let button = NSButton(frame: container.bounds)
+        let button = FirstMouseButton(frame: container.bounds)
         button.autoresizingMask = [.width, .height]
         button.isBordered = false
         button.imagePosition = .imageOnly

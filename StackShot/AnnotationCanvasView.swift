@@ -81,6 +81,10 @@ final class AnnotationCanvasView: NSView {
         if currentTool == .mosaic {
             mosaicCursorPoint = point
         }
+        guard isCursorTopMostHere(event: event) else {
+            super.mouseMoved(with: event)
+            return
+        }
         updateEmojiCursor(at: point)
         if currentTool != .emoji {
             NSCursor.arrow.set()
@@ -94,10 +98,21 @@ final class AnnotationCanvasView: NSView {
         if currentTool == .mosaic {
             mosaicCursorPoint = point
         }
+        guard isCursorTopMostHere(event: event) else { return }
         updateEmojiCursor(at: point)
         if currentTool != .emoji {
             NSCursor.arrow.set()
         }
+    }
+
+    /// Returns true only when this canvas is the front-most hit-tested view at
+    /// the event location. Prevents this view from stealing cursor handling
+    /// from siblings (e.g. the selection-adjustment overlay) that sit on top.
+    private func isCursorTopMostHere(event: NSEvent) -> Bool {
+        guard let window else { return true }
+        let windowPoint = event.locationInWindow
+        let topHit = window.contentView?.hitTest(windowPoint)
+        return topHit === self
     }
 
     // MARK: – Mouse handling

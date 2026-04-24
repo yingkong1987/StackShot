@@ -356,9 +356,14 @@ final class CaptureSessionController {
         didWarmCaptureInfrastructureThisLaunch = true
 
         let primaryScreenHeight = NSScreen.screens.first?.frame.height
+        let mouseLocation = NSEvent.mouseLocation
         Task.detached(priority: .utility) {
             _ = Self.captureScreenSnapshot()
-            _ = WindowUnderMouseService.captureSnapshot(primaryScreenHeight: primaryScreenHeight)
+            let snapshot = WindowUnderMouseService.captureSnapshot(primaryScreenHeight: primaryScreenHeight)
+            // Prime the Accessibility hit-test subsystem so the first call
+            // from the selection overlay's main-thread mouseMoved handler
+            // does not stall the initial drag.
+            _ = WindowUnderMouseService.window(at: mouseLocation, snapshot: snapshot)
         }
     }
 

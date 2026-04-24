@@ -309,9 +309,10 @@ private final class SelectionOverlayView: NSView {
         }
 
         beginCreatingSelection(at: p, restoring: selectionRect)
-        if hasMagnifier {
-            updateWindowUnderMouse()
-        }
+        // The hover-driven `mouseMoved` handler already keeps `autoSelectedRect`
+        // current; calling `updateWindowUnderMouse()` here would issue another
+        // synchronous Accessibility hit-test on mouseDown and noticeably stall
+        // the very first drag of a session. Skip it.
         updateCursorAppearance(at: p)
         needsDisplay = true
     }
