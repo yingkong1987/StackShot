@@ -470,7 +470,7 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate, ConsoleTraceLoggin
             selectionInteractionOverlay.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
             selectionInteractionOverlay.topAnchor.constraint(equalTo: contentContainer.topAnchor),
             selectionInteractionOverlay.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor),
-            selectionInteractionOverlay.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
+            selectionInteractionOverlay.trailingAnchor.constraint(equalTo: ocrResultSidebar.leadingAnchor),
         ])
 
         updateSelectionAdjustmentAvailability()
@@ -498,7 +498,9 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate, ConsoleTraceLoggin
     }
 
     private var canAdjustSelectionInline: Bool {
-        sourceScreenSnapshot != nil && sourceDesktopBounds != nil && state.isSelectionAdjustmentMode
+        sourceScreenSnapshot != nil
+            && sourceDesktopBounds != nil
+            && (state.isSelectionAdjustmentMode || state.selectedTool == nil)
     }
 
     private func updateSelectionAdjustmentAvailability() {
@@ -4124,6 +4126,21 @@ private enum OCRStructuredTextComposer {
 }
 
 private struct OCRTranslateProgressOverlay: View {
+    private enum Layout {
+        static let verticalInset: CGFloat = 24
+        static let horizontalInset: CGFloat = 24
+        static let compactContentHeightThreshold: CGFloat = 420
+        static let regularCardToButtonSpacing: CGFloat = 16
+        static let compactCardToButtonSpacing: CGFloat = 12
+        static let cardMaxWidth: CGFloat = 420
+        static let cardTextMaxWidth: CGFloat = 340
+        static let cardHorizontalPadding: CGFloat = 28
+        static let cardVerticalPadding: CGFloat = 18
+        static let cardContentSpacing: CGFloat = 12
+        static let textBlockSpacing: CGFloat = 6
+        static let badgeInset: CGFloat = 14
+    }
+
     let badgeTitle: String
     let title: String
     let detail: String
@@ -4135,186 +4152,22 @@ private struct OCRTranslateProgressOverlay: View {
     @State private var bars = false
 
     var body: some View {
-        ZStack {
-            LinearGradient(
-                colors: [Color.black.opacity(0.24), Color.black.opacity(0.48)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
+        GeometryReader { proxy in
+            let isCompactHeight = proxy.size.height <= Layout.compactContentHeightThreshold
+            ZStack {
+                LinearGradient(
+                    colors: [Color.black.opacity(0.24), Color.black.opacity(0.48)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
 
-            VStack(spacing: 0) {
-                Spacer(minLength: 24)
-
-                ZStack(alignment: .topTrailing) {
-                    RoundedRectangle(cornerRadius: 30, style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color(red: 0.08, green: 0.14, blue: 0.24).opacity(0.96),
-                                    Color(red: 0.19, green: 0.07, blue: 0.31).opacity(0.95)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 30, style: .continuous)
-                                .stroke(
-                                    LinearGradient(
-                                        colors: [
-                                            Color(red: 0.16, green: 0.88, blue: 0.98).opacity(0.92),
-                                            Color(red: 0.97, green: 0.43, blue: 0.84).opacity(0.82),
-                                            Color(red: 1.0, green: 0.67, blue: 0.29).opacity(0.9)
-                                        ],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    ),
-                                    lineWidth: 1.2
-                                )
-                        }
-                        .shadow(color: Color(red: 0.09, green: 0.81, blue: 0.96).opacity(0.24), radius: 30, y: 12)
-
-                    Text(badgeTitle)
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
-                        .foregroundStyle(Color.white.opacity(0.96))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Color.white.opacity(0.12), in: Capsule())
-                        .overlay(Capsule().stroke(Color.white.opacity(0.14), lineWidth: 0.8))
-                        .padding(16)
-
-                    VStack(spacing: 18) {
-                        ZStack {
-                            Circle()
-                                .fill(
-                                    RadialGradient(
-                                        colors: [
-                                            Color(red: 0.18, green: 0.94, blue: 0.99).opacity(0.75),
-                                            Color(red: 0.18, green: 0.94, blue: 0.99).opacity(0.06)
-                                        ],
-                                        center: .center,
-                                        startRadius: 2,
-                                        endRadius: 56
-                                    )
-                                )
-                                .frame(width: pulse ? 132 : 108, height: pulse ? 132 : 108)
-
-                            Circle()
-                                .stroke(
-                                    AngularGradient(
-                                        colors: [
-                                            Color(red: 0.17, green: 0.92, blue: 1.0),
-                                            Color(red: 0.98, green: 0.35, blue: 0.82),
-                                            Color(red: 1.0, green: 0.7, blue: 0.28),
-                                            Color(red: 0.17, green: 0.92, blue: 1.0)
-                                        ],
-                                        center: .center
-                                    ),
-                                    lineWidth: 3
-                                )
-                                .frame(width: 110, height: 110)
-                                .rotationEffect(.degrees(orbit ? 360 : 0))
-
-                            Circle()
-                                .stroke(Color.white.opacity(0.26), lineWidth: 1.3)
-                                .frame(width: pulse ? 88 : 74, height: pulse ? 88 : 74)
-
-                            Circle()
-                                .fill(
-                                    LinearGradient(
-                                        colors: [
-                                            Color(red: 0.12, green: 0.89, blue: 0.99),
-                                            Color(red: 0.41, green: 0.38, blue: 1.0)
-                                        ],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
-                                )
-                                .frame(width: 64, height: 64)
-                                .shadow(color: Color(red: 0.14, green: 0.88, blue: 1.0).opacity(0.55), radius: 18)
-
-                            Image(systemName: "translate")
-                                .font(.system(size: 28, weight: .bold))
-                                .foregroundStyle(.white)
-                        }
-                        .frame(height: 124)
-
-                        VStack(spacing: 10) {
-                            Text(title)
-                                .font(.system(size: 28, weight: .bold, design: .rounded))
-                                .foregroundStyle(.white)
-                                .multilineTextAlignment(.center)
-
-                            Text(detail)
-                                .font(.system(size: 14, weight: .medium, design: .rounded))
-                                .foregroundStyle(Color.white.opacity(0.84))
-                                .multilineTextAlignment(.center)
-                                .lineSpacing(4)
-                        }
-
-                        HStack(spacing: 8) {
-                            ForEach(0..<5, id: \.self) { index in
-                                Capsule(style: .continuous)
-                                    .fill(
-                                        LinearGradient(
-                                            colors: [
-                                                Color.white.opacity(0.96),
-                                                Color(red: 0.19, green: 0.91, blue: 0.99)
-                                            ],
-                                            startPoint: .top,
-                                            endPoint: .bottom
-                                        )
-                                    )
-                                    .frame(width: 9, height: bars ? [14, 28, 38, 28, 14][index] : [26, 14, 28, 14, 26][index])
-                                    .shadow(color: Color(red: 0.16, green: 0.9, blue: 1.0).opacity(0.3), radius: 8)
-                                    .animation(
-                                        .easeInOut(duration: 0.76)
-                                            .repeatForever(autoreverses: true)
-                                            .delay(Double(index) * 0.08),
-                                        value: bars
-                                    )
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 30)
-                    .padding(.vertical, 30)
+                VStack(spacing: isCompactHeight ? Layout.compactCardToButtonSpacing : Layout.regularCardToButtonSpacing) {
+                    progressCard
+                    cancelButton
                 }
-                .frame(maxWidth: 460)
-                .padding(.horizontal, 24)
-
-                Spacer()
-
-                Button(action: onCancel) {
-                    HStack(spacing: 10) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 18, weight: .bold))
-                        Text(cancelTitle)
-                            .font(.system(size: 17, weight: .bold, design: .rounded))
-                    }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 28)
-                    .padding(.vertical, 14)
-                    .frame(minWidth: 228)
-                    .background(
-                        LinearGradient(
-                            colors: [
-                                Color(red: 1.0, green: 0.41, blue: 0.33),
-                                Color(red: 1.0, green: 0.68, blue: 0.26)
-                            ],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        ),
-                        in: Capsule(style: .continuous)
-                    )
-                    .overlay(
-                        Capsule(style: .continuous)
-                            .stroke(Color.white.opacity(0.34), lineWidth: 1)
-                    )
-                    .shadow(color: Color(red: 1.0, green: 0.6, blue: 0.18).opacity(0.42), radius: 20, y: 8)
-                    .scaleEffect(pulse ? 1.02 : 0.98)
-                }
-                .buttonStyle(.plain)
-                .padding(.bottom, 24)
+                .padding(.horizontal, Layout.horizontalInset)
+                .padding(.vertical, Layout.verticalInset)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             }
         }
         .onAppear {
@@ -4328,6 +4181,182 @@ private struct OCRTranslateProgressOverlay: View {
                 bars = true
             }
         }
+    }
+
+    private var progressCard: some View {
+        VStack(spacing: Layout.cardContentSpacing) {
+            ZStack {
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [
+                                Color(red: 0.18, green: 0.94, blue: 0.99).opacity(0.75),
+                                Color(red: 0.18, green: 0.94, blue: 0.99).opacity(0.06)
+                            ],
+                            center: .center,
+                            startRadius: 2,
+                            endRadius: 56
+                        )
+                    )
+                    .frame(width: pulse ? 126 : 102, height: pulse ? 126 : 102)
+
+                Circle()
+                    .stroke(
+                        AngularGradient(
+                            colors: [
+                                Color(red: 0.17, green: 0.92, blue: 1.0),
+                                Color(red: 0.98, green: 0.35, blue: 0.82),
+                                Color(red: 1.0, green: 0.7, blue: 0.28),
+                                Color(red: 0.17, green: 0.92, blue: 1.0)
+                            ],
+                            center: .center
+                        ),
+                        lineWidth: 3
+                    )
+                    .frame(width: 104, height: 104)
+                    .rotationEffect(.degrees(orbit ? 360 : 0))
+
+                Circle()
+                    .stroke(Color.white.opacity(0.26), lineWidth: 1.3)
+                    .frame(width: pulse ? 84 : 70, height: pulse ? 84 : 70)
+
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color(red: 0.12, green: 0.89, blue: 0.99),
+                                Color(red: 0.41, green: 0.38, blue: 1.0)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 60, height: 60)
+                    .shadow(color: Color(red: 0.14, green: 0.88, blue: 1.0).opacity(0.55), radius: 18)
+
+                Image(systemName: "translate")
+                    .font(.system(size: 26, weight: .bold))
+                    .foregroundStyle(.white)
+            }
+            .frame(width: 126, height: 126)
+
+            VStack(spacing: Layout.textBlockSpacing) {
+                Text(title)
+                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text(detail)
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundStyle(Color.white.opacity(0.84))
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: Layout.cardTextMaxWidth)
+
+            HStack(spacing: 8) {
+                ForEach(0..<5, id: \.self) { index in
+                    Capsule(style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(0.96),
+                                    Color(red: 0.19, green: 0.91, blue: 0.99)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                        .frame(width: 9, height: bars ? [14, 28, 38, 28, 14][index] : [26, 14, 28, 14, 26][index])
+                        .shadow(color: Color(red: 0.16, green: 0.9, blue: 1.0).opacity(0.3), radius: 8)
+                        .animation(
+                            .easeInOut(duration: 0.76)
+                                .repeatForever(autoreverses: true)
+                                .delay(Double(index) * 0.08),
+                            value: bars
+                        )
+                }
+            }
+        }
+        .padding(.horizontal, Layout.cardHorizontalPadding)
+        .padding(.vertical, Layout.cardVerticalPadding)
+        .frame(maxWidth: Layout.cardMaxWidth)
+        .fixedSize(horizontal: false, vertical: true)
+        .background(
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.08, green: 0.14, blue: 0.24).opacity(0.96),
+                            Color(red: 0.19, green: 0.07, blue: 0.31).opacity(0.95)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 30, style: .continuous)
+                        .stroke(
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 0.16, green: 0.88, blue: 0.98).opacity(0.92),
+                                    Color(red: 0.97, green: 0.43, blue: 0.84).opacity(0.82),
+                                    Color(red: 1.0, green: 0.67, blue: 0.29).opacity(0.9)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1.2
+                        )
+                }
+                .shadow(color: Color(red: 0.09, green: 0.81, blue: 0.96).opacity(0.24), radius: 30, y: 12)
+        )
+        .overlay(alignment: .topTrailing) {
+            Text(badgeTitle)
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .foregroundStyle(Color.white.opacity(0.96))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color.white.opacity(0.12), in: Capsule())
+                .overlay(Capsule().stroke(Color.white.opacity(0.14), lineWidth: 0.8))
+                .padding(Layout.badgeInset)
+        }
+        .padding(.horizontal, Layout.horizontalInset)
+    }
+
+    private var cancelButton: some View {
+        Button(action: onCancel) {
+            HStack(spacing: 10) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 18, weight: .bold))
+                Text(cancelTitle)
+                    .font(.system(size: 17, weight: .bold, design: .rounded))
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 28)
+            .padding(.vertical, 14)
+            .frame(minWidth: 228)
+            .background(
+                LinearGradient(
+                    colors: [
+                        Color(red: 1.0, green: 0.41, blue: 0.33),
+                        Color(red: 1.0, green: 0.68, blue: 0.26)
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                ),
+                in: Capsule(style: .continuous)
+            )
+            .overlay(
+                Capsule(style: .continuous)
+                    .stroke(Color.white.opacity(0.34), lineWidth: 1)
+            )
+            .shadow(color: Color(red: 1.0, green: 0.6, blue: 0.18).opacity(0.42), radius: 20, y: 8)
+            .scaleEffect(pulse ? 1.02 : 0.98)
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -4482,6 +4511,7 @@ extension AnnotationEditorPanel {
                 state.selectedTool = nil
             }
             hideTranslateHUD()
+            scheduleToolbarRestore()
             showAlert(
                 title: EditorL10n.tr(.ocrEmptyTitle),
                 message: EditorL10n.tr(.ocrTranslatableEmptyMessage)
@@ -4495,6 +4525,7 @@ extension AnnotationEditorPanel {
         isOCRTranslationApplied = true
         state.selectedTool = .ocrTranslate
         hideTranslateHUD()
+        scheduleToolbarRestore()
     }
 
     private func handleOCRTranslateFailure(_ error: Error) {
@@ -4507,10 +4538,20 @@ extension AnnotationEditorPanel {
             state.selectedTool = nil
         }
         hideTranslateHUD()
+        scheduleToolbarRestore()
         showAlert(
             title: EditorL10n.tr(.ocrTranslateFailedTitle),
             message: EditorL10n.tr(.ocrTranslateFailedMessagePrefix) + error.localizedDescription
         )
+    }
+
+    private func scheduleToolbarRestore() {
+        // SwiftUI 的 translationTask 回调返回主线程时，AppKit panel 的
+        // orderFrontRegardless() 偶发不生效（仍在 SwiftUI 事务内）。
+        // 推到下一轮 runloop 再同步一次，确保翻译完成后工具栏可见。
+        DispatchQueue.main.async { [weak self] in
+            self?.syncFloatingToolbarVisibility()
+        }
     }
 
     private func tearDownTranslationHost() {
