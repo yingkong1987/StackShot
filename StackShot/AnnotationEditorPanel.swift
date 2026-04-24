@@ -1434,6 +1434,9 @@ private enum EditorL10nKey {
     case ocrTranslateProgressDetail
     case ocrTranslatePreparingLanguageTitle
     case ocrTranslatePreparingLanguageDetail
+    case ocrTranslateLanguagePackMissingTitle
+    case ocrTranslateLanguagePackMissingMessage
+    case ocrTranslateLanguagePackOpenSettings
     case ocrTranslateFailedTitle
     case ocrTranslateFailedMessagePrefix
     case ocrTranslateUnavailableMessage
@@ -1495,6 +1498,9 @@ private enum EditorL10n {
         .ocrTranslateProgressDetail: "工具栏已暂时隐藏。正在匹配语言并生成译文，你可以随时点击底部按钮取消。",
         .ocrTranslatePreparingLanguageTitle: "正在准备翻译语言包…",
         .ocrTranslatePreparingLanguageDetail: "首次使用此语言对，系统正在下载所需的翻译模型，请稍候；下载完成后会自动继续翻译。",
+        .ocrTranslateLanguagePackMissingTitle: "缺少翻译语言包",
+        .ocrTranslateLanguagePackMissingMessage: "本次翻译需要下载系统翻译语言包，但当前未完成下载。你可以打开「系统设置 › 通用 › 语言与地区 › 翻译语言」下载所需语言后再试。",
+        .ocrTranslateLanguagePackOpenSettings: "打开系统设置",
         .ocrTranslateFailedTitle: "翻译失败",
         .ocrTranslateFailedMessagePrefix: "无法发起翻译：",
         .ocrTranslateUnavailableMessage: "内置翻译需要 macOS 15 或更高版本，并使用 Apple 官方 Translation 框架。当前系统不支持时，可先使用“识别文字”。",
@@ -1541,6 +1547,9 @@ private enum EditorL10n {
         .ocrTranslateProgressDetail: "工具列已暫時隱藏。正在配對語言並產生譯文，你可以隨時點擊底部按鈕取消。",
         .ocrTranslatePreparingLanguageTitle: "正在準備翻譯語言包…",
         .ocrTranslatePreparingLanguageDetail: "首次使用此語言配對，系統正在下載所需的翻譯模型，請稍候；下載完成後會自動繼續翻譯。",
+        .ocrTranslateLanguagePackMissingTitle: "缺少翻譯語言包",
+        .ocrTranslateLanguagePackMissingMessage: "本次翻譯需要下載系統翻譯語言包，但目前尚未完成下載。你可以打開「系統設定 › 一般 › 語言與地區 › 翻譯語言」下載所需語言後再試。",
+        .ocrTranslateLanguagePackOpenSettings: "打開系統設定",
         .ocrTranslateFailedTitle: "翻譯失敗",
         .ocrTranslateFailedMessagePrefix: "無法啟動翻譯：",
         .ocrTranslateUnavailableMessage: "內建翻譯需要 macOS 15 或以上版本，並使用 Apple 官方 Translation 框架。若目前系統不支援，可先使用「辨識文字」。",
@@ -1587,6 +1596,9 @@ private enum EditorL10n {
         .ocrTranslateProgressDetail: "The toolbar is temporarily hidden while StackShot prepares recognition and translation. Use the button below to cancel at any time.",
         .ocrTranslatePreparingLanguageTitle: "Preparing translation language pack…",
         .ocrTranslatePreparingLanguageDetail: "macOS is downloading the translation model needed for this language pair. This only happens the first time — translation will resume automatically once the download finishes.",
+        .ocrTranslateLanguagePackMissingTitle: "Translation Language Pack Missing",
+        .ocrTranslateLanguagePackMissingMessage: "This translation requires a language pack that hasn't finished downloading. Open System Settings › General › Language & Region › Translation Languages to install the required language, then try again.",
+        .ocrTranslateLanguagePackOpenSettings: "Open System Settings",
         .ocrTranslateFailedTitle: "Translation Failed",
         .ocrTranslateFailedMessagePrefix: "Could not start translation: ",
         .ocrTranslateUnavailableMessage: "Built-in translation requires macOS 15 or later and uses Apple's public Translation framework. If it isn't available on this system, use Recognize Text instead.",
@@ -1633,6 +1645,9 @@ private enum EditorL10n {
         .ocrTranslateProgressDetail: "翻訳中はツールバーが一時的に非表示になります。認識と言語変換を準備している間、下のボタンからいつでもキャンセルできます。",
         .ocrTranslatePreparingLanguageTitle: "翻訳用の言語パックを準備中…",
         .ocrTranslatePreparingLanguageDetail: "この言語ペアの翻訳モデルを初めて利用するため、macOS が必要なモデルをダウンロードしています。完了すると自動的に翻訳を続行します。",
+        .ocrTranslateLanguagePackMissingTitle: "翻訳用の言語パックが不足しています",
+        .ocrTranslateLanguagePackMissingMessage: "この翻訳に必要な言語パックがまだダウンロードされていません。「システム設定 › 一般 › 言語と地域 › 翻訳言語」を開き、必要な言語をインストールしてから再度お試しください。",
+        .ocrTranslateLanguagePackOpenSettings: "システム設定を開く",
         .ocrTranslateFailedTitle: "翻訳に失敗しました",
         .ocrTranslateFailedMessagePrefix: "翻訳を開始できませんでした：",
         .ocrTranslateUnavailableMessage: "内蔵翻訳は macOS 15 以降で利用でき、Apple の公開 Translation フレームワークを使用します。現在のシステムで利用できない場合は、先に「テキスト認識」を使ってください。",
@@ -4914,10 +4929,50 @@ extension AnnotationEditorPanel {
         }
         hideTranslateHUD()
         scheduleToolbarRestore()
+
+        if #available(macOS 15.0, *),
+           let runtimeError = error as? OCRTranslateRuntimeError,
+           runtimeError == .languagePackUnavailable || runtimeError == .unsupportedLanguagePair {
+            showLanguagePackMissingAlert()
+            return
+        }
+
         showAlert(
             title: EditorL10n.tr(.ocrTranslateFailedTitle),
             message: EditorL10n.tr(.ocrTranslateFailedMessagePrefix) + error.localizedDescription
         )
+    }
+
+    private func showLanguagePackMissingAlert() {
+        debugLog("OCR 翻译失败：缺少语言包，提示用户打开系统设置。")
+        let alert = NSAlert()
+        alert.messageText = EditorL10n.tr(.ocrTranslateLanguagePackMissingTitle)
+        alert.informativeText = EditorL10n.tr(.ocrTranslateLanguagePackMissingMessage)
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: EditorL10n.tr(.ocrTranslateLanguagePackOpenSettings))
+        alert.addButton(withTitle: EditorL10n.tr(.okButton))
+        alert.beginSheetModal(for: self) { response in
+            if response == .alertFirstButtonReturn {
+                Self.openTranslationLanguageSettings()
+            }
+        }
+    }
+
+    /// Opens System Settings → General → Language & Region, where the
+    /// user manages downloaded translation language packs. Uses the
+    /// public `x-apple.systempreferences:` URL scheme (App-Store-safe;
+    /// no private API).
+    private static func openTranslationLanguageSettings() {
+        let candidateURLs = [
+            "x-apple.systempreferences:com.apple.Localization-Settings.extension",
+            "x-apple.systempreferences:com.apple.preference.general"
+        ]
+        for raw in candidateURLs {
+            if let url = URL(string: raw),
+               NSWorkspace.shared.open(url) {
+                return
+            }
+        }
     }
 
     private func scheduleToolbarRestore() {
@@ -5096,6 +5151,15 @@ private enum OCRTranslateOverlayRunner {
     }
 }
 
+/// Typed error for the OCR translation runner so the host can show a
+/// targeted alert (e.g. offer the user a "Open System Settings" path
+/// when the missing piece is the language pack itself).
+@available(macOS 15.0, *)
+enum OCRTranslateRuntimeError: Error {
+    case languagePackUnavailable
+    case unsupportedLanguagePair
+}
+
 /// SwiftUI host that drives Apple's Translation framework session.
 @available(macOS 15.0, *)
 private struct OCRTranslationRunnerView: View {
@@ -5158,11 +5222,7 @@ private struct OCRTranslationRunnerView: View {
                 needsDownload = true
             case .unsupported:
                 await MainActor.run {
-                    onFailure(NSError(
-                        domain: "StackShot.OCRTranslate",
-                        code: -1,
-                        userInfo: [NSLocalizedDescriptionKey: "Language pair not supported."]
-                    ))
+                    onFailure(OCRTranslateRuntimeError.unsupportedLanguagePair)
                 }
                 return
             @unknown default:
@@ -5226,17 +5286,28 @@ private struct OCRTranslationRunnerView: View {
         }
 
         // 5. Per-item fallback: each failure is contained.
+        var anySucceeded = false
         for (idx, text) in translatable {
             do {
                 let response = try await session.translate(text)
                 let translated = response.targetText
                 if !translated.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     results[idx] = translated
+                    anySucceeded = true
                 }
             } catch {
                 // Keep the original text for this region.
                 continue
             }
+        }
+
+        // If nothing translated and the language pack wasn't installed
+        // when we started, surface a typed error so the host can offer
+        // a "Open System Settings" path instead of the generic Translation
+        // framework message ("Connection interrupted" etc.).
+        if !anySucceeded, needsDownload {
+            await MainActor.run { onFailure(OCRTranslateRuntimeError.languagePackUnavailable) }
+            return
         }
         await MainActor.run { onResult(results) }
     }
