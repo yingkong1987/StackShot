@@ -1052,39 +1052,17 @@ fileprivate enum ScrollCaptureL10nKey {
 
 enum ScrollCaptureL10n {
     fileprivate static func tr(_ key: ScrollCaptureL10nKey) -> String {
-        let locale = L10n.currentSelectionCode()
-        switch locale {
-        case "zh-Hans": return zhHans[key] ?? en[key] ?? ""
-        case "zh-Hant": return zhHant[key] ?? en[key] ?? ""
-        case "ja":      return ja[key] ?? en[key] ?? ""
-        default:        return en[key] ?? ""
+        switch key {
+        case .done:
+            return L10n.tr("common.done")
+        case .cancel:
+            return L10n.tr("toolbar.action.cancel")
+        case .toolScrollCapture:
+            return L10n.tr("editor.tool.scroll_capture")
+        case .previewTitle:
+            return L10n.tr("common.live_preview")
         }
     }
-
-    private static let zhHans: [ScrollCaptureL10nKey: String] = [
-        .done: "完成",
-        .cancel: "取消",
-        .toolScrollCapture: "滚动截图",
-        .previewTitle: "实时预览",
-    ]
-    private static let zhHant: [ScrollCaptureL10nKey: String] = [
-        .done: "完成",
-        .cancel: "取消",
-        .toolScrollCapture: "捲動截圖",
-        .previewTitle: "即時預覽",
-    ]
-    private static let en: [ScrollCaptureL10nKey: String] = [
-        .done: "Done",
-        .cancel: "Cancel",
-        .toolScrollCapture: "Scroll Capture",
-        .previewTitle: "Live Preview",
-    ]
-    private static let ja: [ScrollCaptureL10nKey: String] = [
-        .done: "完了",
-        .cancel: "キャンセル",
-        .toolScrollCapture: "スクロールキャプチャ",
-        .previewTitle: "ライブプレビュー",
-    ]
 }
 
 // MARK: - Helpers

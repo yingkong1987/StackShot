@@ -167,79 +167,52 @@ enum AppStoreComplianceFeatures {
 }
 
 enum AppComplianceL10n {
-    static func tr(zhHans: String, zhHant: String, ja: String, en: String) -> String {
-        switch L10n.currentSelectionCode() {
-        case let code where code.hasPrefix("zh-Hans"): return zhHans
-        case let code where code.hasPrefix("zh-Hant"): return zhHant
-        case let code where code.hasPrefix("ja"): return ja
-        default: return en
-        }
-    }
-
     static var privacyMenuItem: String {
-        tr(zhHans: "隐私政策", zhHant: "隱私政策", ja: "プライバシーポリシー", en: "Privacy Policy")
+        L10n.tr("compliance.privacy.menu_item")
     }
 
     static var privacySectionTitle: String {
-        tr(zhHans: "隐私", zhHant: "隱私", ja: "プライバシー", en: "Privacy")
+        L10n.tr("compliance.privacy.section_title")
     }
 
     static var privacyCardSummary: String {
-        tr(
-            zhHans: "查看 StackShot 如何使用屏幕录制、辅助功能、剪贴板和本地文件访问权限。",
-            zhHant: "查看 StackShot 如何使用螢幕錄製、輔助使用、剪貼簿和本機檔案存取權限。",
-            ja: "StackShot が画面収録、アクセシビリティ、クリップボード、ローカルファイルアクセスをどう扱うか確認できます。",
-            en: "Review how StackShot uses Screen Recording, Accessibility, the clipboard, and local file access."
-        )
+        L10n.tr("compliance.privacy.card_summary")
     }
 
     static var openPrivacyPolicy: String {
-        tr(zhHans: "打开隐私政策", zhHant: "打開隱私政策", ja: "プライバシーポリシーを開く", en: "Open Privacy Policy")
+        L10n.tr("compliance.privacy.open_policy")
     }
 
     static var screenRecordingTitle: String {
-        tr(zhHans: "屏幕录制", zhHant: "螢幕錄製", ja: "画面収録", en: "Screen Recording")
+        L10n.tr("compliance.screen_recording.title")
     }
 
     static var screenRecordingSummary: String {
-        tr(
-            zhHans: "用于截图、滚动长截图，以及对已捕获画面执行 OCR/保存/导出。授权后若未立即生效，请完全退出并重新打开 StackShot。",
-            zhHant: "用於截圖、捲動長截圖，以及對已擷取畫面執行 OCR／儲存／匯出。授權後若未立即生效，請完全結束並重新開啟 StackShot。",
-            ja: "スクリーンショット、スクロールキャプチャ、取得済み画像の OCR / 保存 / 書き出しに使用します。許可後に反映されない場合は StackShot を完全終了して再起動してください。",
-            en: "Used for screenshots, scrolling capture, and OCR/save/export on captured content. If permission doesn't apply immediately, fully quit and reopen StackShot."
-        )
+        L10n.tr("compliance.screen_recording.summary")
     }
 
     static var accessibilityTitle: String {
-        tr(zhHans: "辅助功能（可选）", zhHant: "輔助使用（選用）", ja: "アクセシビリティ（任意）", en: "Accessibility (Optional)")
+        L10n.tr("compliance.accessibility.title")
     }
 
     static func accessibilitySummary(isGranted: Bool) -> String {
-        if isGranted {
-            return tr(
-                zhHans: "已授权。StackShot 可以更准确地识别鼠标下的前台窗口。",
-                zhHant: "已授權。StackShot 可以更準確地辨識游標下的前景視窗。",
-                ja: "許可済みです。StackShot はポインタ下の最前面ウィンドウをより正確に判定できます。",
-                en: "Granted. StackShot can more accurately detect the frontmost window under the pointer."
-            )
-        }
-
-        return tr(
-            zhHans: "未授权时仍可手动框选截图，但悬停识别窗口会退回到屏幕快照匹配，精度可能降低。",
-            zhHant: "未授權時仍可手動框選截圖，但懸停辨識視窗會退回到螢幕快照比對，精度可能較低。",
-            ja: "未許可でも手動範囲選択は使えますが、ホバー時のウィンドウ判定は画面スナップショット照合にフォールバックするため精度が下がる場合があります。",
-            en: "Without access, manual region capture still works, but hovered-window targeting falls back to screen-snapshot matching and may be less precise."
+        L10n.tr(
+            isGranted
+                ? "compliance.accessibility.summary.granted"
+                : "compliance.accessibility.summary.not_granted"
         )
     }
 
     static func accessibilityButtonTitle(isGranted: Bool) -> String {
-        isGranted
-            ? tr(zhHans: "打开辅助功能设置", zhHant: "打開輔助使用設定", ja: "アクセシビリティ設定を開く", en: "Open Accessibility Settings")
-            : tr(zhHans: "请求辅助功能权限", zhHant: "要求輔助使用權限", ja: "アクセシビリティ権限を要求", en: "Request Accessibility Access")
+        L10n.tr(
+            isGranted
+                ? "compliance.accessibility.button.open_settings"
+                : "compliance.accessibility.button.request_access"
+        )
     }
 
     static var openScreenRecordingSettings: String {
-        tr(zhHans: "打开屏幕录制设置", zhHant: "打開螢幕錄製設定", ja: "画面収録設定を開く", en: "Open Screen Recording Settings")
+        L10n.tr("compliance.screen_recording.open_settings")
     }
 
     static var privacyWindowTitle: String {
@@ -247,75 +220,23 @@ enum AppComplianceL10n {
     }
 
     static var privacyWindowIntro: String {
-        tr(
-            zhHans: "StackShot 是一款本地截图工具。我们尽量只在用户明确触发的情况下访问系统权限，并优先在设备本地处理图像内容。",
-            zhHant: "StackShot 是一款本機截圖工具。我們盡量只在使用者明確觸發時存取系統權限，並優先在裝置本機處理影像內容。",
-            ja: "StackShot はローカル処理中心のスクリーンショットツールです。権限はユーザーの明示操作時にのみ使い、画像処理はできる限りデバイス上で行います。",
-            en: "StackShot is a local-first screenshot utility. It accesses system permissions only when you explicitly use related features, and it processes captured content on-device whenever possible."
-        )
+        L10n.tr("compliance.privacy.window.intro")
     }
 
     static var privacyPolicyParagraphs: [String] {
-        [
-            tr(
-                zhHans: "1. 屏幕录制：用于截图、滚动截图和对已捕获画面进行后续编辑。未经你的操作，StackShot 不会自动开始录屏。",
-                zhHant: "1. 螢幕錄製：用於截圖、捲動截圖以及對已擷取畫面進行後續編輯。未經你的操作，StackShot 不會自動開始錄屏。",
-                ja: "1. 画面収録: スクリーンショット、スクロールキャプチャ、取得済み画像の編集にのみ使用します。あなたが操作しない限り、自動で収録を開始しません。",
-                en: "1. Screen Recording: Used only for screenshots, scrolling capture, and follow-up editing of captured content. StackShot doesn't start recording automatically without your action."
-            ),
-            tr(
-                zhHans: "2. 辅助功能：仅用于更准确识别鼠标下的前台窗口。未授予时，应用仍可使用手动框选截图，但窗口悬停识别精度可能降低。",
-                zhHant: "2. 輔助使用：僅用於更準確辨識游標下的前景視窗。未授權時，應用仍可使用手動框選截圖，但視窗懸停辨識精度可能降低。",
-                ja: "2. アクセシビリティ: ポインタ下の最前面ウィンドウをより正確に識別するためだけに使用します。許可しなくても手動範囲選択は利用できますが、ホバー判定の精度は下がる場合があります。",
-                en: "2. Accessibility: Used only to more accurately detect the frontmost window under the pointer. Without access, manual region capture still works, but hovered-window detection may be less precise."
-            ),
-            tr(
-                zhHans: "3. 剪贴板与文件：只有在你明确执行复制、分享或保存时，StackShot 才会把图像或文字写入剪贴板，或导出到你选择的位置。",
-                zhHant: "3. 剪貼簿與檔案：只有在你明確執行複製、分享或儲存時，StackShot 才會把影像或文字寫入剪貼簿，或匯出到你選擇的位置。",
-                ja: "3. クリップボードとファイル: 画像や文字をクリップボードへ書き込んだり、選択した場所へ保存したりするのは、コピー・共有・保存をあなたが明示的に実行したときだけです。",
-                en: "3. Clipboard and files: StackShot writes images or text to the clipboard, or exports files to disk, only when you explicitly choose Copy, Share, or Save."
-            ),
-            tr(
-                zhHans: "4. OCR 内置翻译：当你点击 OCR 翻译时，StackShot 会先在本机识别文字，再通过 Apple 官方 Translation 框架在应用内完成翻译（需 macOS 15 或更高版本）。根据 Apple 的框架说明，Apple 可能收集不含原文内容的使用与性能指标，例如 App Bundle ID 与源/目标语言。",
-                zhHant: "4. OCR 內建翻譯：當你點擊 OCR 翻譯時，StackShot 會先在本機辨識文字，再透過 Apple 官方 Translation 框架在 App 內完成翻譯（需 macOS 15 或以上版本）。依 Apple 框架說明，Apple 可能收集不包含原文內容的使用與效能指標，例如 App Bundle ID 與來源／目標語言。",
-                ja: "4. OCR 内蔵翻訳: OCR 翻訳を実行すると、StackShot はまずデバイス上で文字を認識し、Apple の公開 Translation フレームワークを使ってアプリ内で翻訳します（macOS 15 以降が必要です）。Apple の説明によると、Apple は元のテキスト内容を含まない利用状況や性能指標（アプリの Bundle ID、元言語／対象言語など）を収集する場合があります。",
-                en: "4. Built-in OCR translation: When you choose OCR Translate, StackShot recognizes text on-device and then uses Apple's public Translation framework to translate it within the app on macOS 15 or later. According to Apple's framework documentation, Apple may collect usage and performance metrics that don't include the original or translated content, such as the app bundle ID and source or target language."
-            ),
-            tr(
-                zhHans: "5. 本地处理：截图编辑、窗口识别、OCR 和大部分图像处理都在本机完成。应用不包含远程上传截图内容的网络同步逻辑。",
-                zhHant: "5. 本機處理：截圖編輯、視窗辨識、OCR 和大部分影像處理都在本機完成。應用不包含遠端上傳截圖內容的網路同步邏輯。",
-                ja: "5. ローカル処理: スクリーンショット編集、ウィンドウ判定、OCR、ほとんどの画像処理はデバイス上で完結します。取得した画像を自動送信する同期機能は含みません。",
-                en: "5. Local processing: Screenshot editing, window detection, OCR, and most image processing run on-device. The app doesn't include automatic network sync that uploads captured content."
-            ),
-            tr(
-                zhHans: "6. 偏好设置：语言、Dock 显示和快捷键等设置只保存在本机的应用偏好中，用于恢复你的使用习惯。",
-                zhHant: "6. 偏好設定：語言、Dock 顯示和快捷鍵等設定只保存在本機的應用偏好中，用於還原你的使用習慣。",
-                ja: "6. 設定情報: 言語、Dock 表示、ショートカットなどの設定は、この Mac 上のアプリ設定にのみ保存され、利用環境の復元に使われます。",
-                en: "6. Preferences: Language, Dock visibility, and shortcut settings are stored only in the app's local preferences on this Mac so your workflow can be restored."
-            )
-        ]
+        (1...6).map { L10n.tr("compliance.privacy.paragraph.\($0)") }
     }
 
     static var privacyWindowFooter: String {
-        tr(
-            zhHans: "如需在 App Store 中提交版本，还需要在 App Store Connect 中填写外部隐私政策链接和隐私营养标签。",
-            zhHant: "如需在 App Store 中提交版本，仍需在 App Store Connect 中填寫外部隱私政策連結與隱私營養標籤。",
-            ja: "App Store 提出時は、App Store Connect 側でも外部プライバシーポリシー URL とプライバシー情報を設定してください。",
-            en: "For App Store submission, you still need to provide the external privacy policy URL and privacy details in App Store Connect."
-        )
+        L10n.tr("compliance.privacy.window.footer")
     }
 
     static var close: String {
-        tr(zhHans: "关闭", zhHant: "關閉", ja: "閉じる", en: "Close")
+        L10n.tr("common.close")
     }
 
     static var ocrTranslationUnavailableMessage: String {
-        tr(
-            zhHans: "内置 OCR 翻译需要 macOS 15 或更高版本，并使用 Apple 官方 Translation 框架。当前系统不支持时，可先使用“识别文字”。",
-            zhHant: "內建 OCR 翻譯需要 macOS 15 或以上版本，並使用 Apple 官方 Translation 框架。若目前系統不支援，可先使用「辨識文字」。",
-            ja: "内蔵 OCR 翻訳は macOS 15 以降で利用でき、Apple の公開 Translation フレームワークを使用します。現在のシステムで利用できない場合は、先に「テキスト認識」を使ってください。",
-            en: "Built-in OCR translation requires macOS 15 or later and uses Apple's public Translation framework. If it isn't available on this system, use Recognize Text instead."
-        )
+        L10n.tr("editor.ocr.translate.unavailable")
     }
 }
 

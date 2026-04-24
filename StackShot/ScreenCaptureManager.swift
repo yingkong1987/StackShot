@@ -305,7 +305,7 @@ private extension ScreenCaptureTarget {
     var traceDescription: String {
         switch self {
         case .window(let window):
-            let title = window.title?.isEmpty == false ? window.title! : "未命名窗口"
+            let title = window.title?.isEmpty == false ? window.title! : L10n.tr("capture.window.untitled")
             return "window(id=\(window.windowID), title=\(title))"
         case .display(let display, let excludingApplications):
             return "display(id=\(display.displayID), excludingApps=\(excludingApplications.count))"

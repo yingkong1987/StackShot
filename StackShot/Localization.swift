@@ -2,14 +2,14 @@ import Foundation
 import AppKit
 
 enum L10n {
-    /// App Store Connect (2026-03 更新后)支持的 50 种本地化语言代码。
+    /// App Store Connect (2026-04 范围确认后)支持的 47 种本地化语言代码。
     static let supportedAppStoreLocales: [String] = [
         "ar", "bn", "ca", "zh-Hans", "zh-Hant", "hr", "cs", "da", "nl",
         "en-AU", "en-CA", "en-GB", "en-US",
         "fi", "fr", "fr-CA", "de", "el", "gu", "he", "hi", "hu", "id", "it",
-        "ja", "kn", "ko", "ms", "ml", "mr", "no", "or", "pl",
+        "ja", "kn", "ko", "ms", "mr", "no", "or", "pl",
         "pt-BR", "pt-PT", "pa", "ro", "ru", "sk", "sl",
-        "es-MX", "es-ES", "sv", "ta", "te", "th", "tr", "uk", "ur", "vi"
+        "es-MX", "es-ES", "sv", "th", "tr", "uk", "ur", "vi"
     ]
 
     private static let languageOverrideKey = "StackShotLanguageOverride"
@@ -20,17 +20,16 @@ enum L10n {
         #endif
 
         let locale = resolvedLocaleCode()
-        if let value = tables[locale]?[key] {
+        if let value = localizedValue(for: key, locale: locale) {
             return value
         }
 
-        let lang = locale.split(separator: "-").first.map(String.init) ?? "en"
-        if let fallbackLocale = languageFallbackLocale[lang],
-           let fallbackValue = tables[fallbackLocale]?[key] {
+        if let fallbackLocale = fallbackLocale(for: locale),
+           let fallbackValue = localizedValue(for: key, locale: fallbackLocale) {
             return fallbackValue
         }
 
-        return tables["en-US"]?[key] ?? key
+        return localizedValue(for: key, locale: "en-US") ?? key
     }
 
     static func currentSelectionCode() -> String {
@@ -87,18 +86,7 @@ enum L10n {
     }
 
     static func languageSettingTitle() -> String {
-        switch resolvedLocaleCode() {
-        case "zh-Hans":
-            return "语言设置"
-        case "zh-Hant":
-            return "語言設定"
-        case "ja":
-            return "言語設定"
-        case "ko":
-            return "언어 설정"
-        default:
-            return "Language Settings"
-        }
+        tr("settings.language.title")
     }
 
     static func languagePickerWidth() -> CGFloat {
@@ -117,9 +105,9 @@ enum L10n {
     private static let languageFallbackLocale: [String: String] = [
         "ar": "ar", "bn": "bn", "ca": "ca", "zh": "zh-Hans", "hr": "hr", "cs": "cs", "da": "da", "nl": "nl",
         "en": "en-US", "fi": "fi", "fr": "fr", "de": "de", "el": "el", "gu": "gu", "he": "he", "hi": "hi",
-        "hu": "hu", "id": "id", "it": "it", "ja": "ja", "kn": "kn", "ko": "ko", "ms": "ms", "ml": "ml",
+        "hu": "hu", "id": "id", "it": "it", "ja": "ja", "kn": "kn", "ko": "ko", "ms": "ms",
         "mr": "mr", "no": "no", "or": "or", "pl": "pl", "pt": "pt-PT", "pa": "pa", "ro": "ro", "ru": "ru",
-        "sk": "sk", "sl": "sl", "es": "es-ES", "sv": "sv", "ta": "ta", "te": "te", "th": "th", "tr": "tr",
+        "sk": "sk", "sl": "sl", "es": "es-ES", "sv": "sv", "th": "th", "tr": "tr",
         "uk": "uk", "ur": "ur", "vi": "vi",
     ]
 
@@ -159,14 +147,48 @@ enum L10n {
         guard !didValidateCoverage else { return }
         didValidateCoverage = true
 
-        let referenceKeys = Set(tables["en-US"]?.keys.map { $0 } ?? [])
+        let referenceKeys = Set(mergedTable(for: "en-US").keys)
         for locale in supportedAppStoreLocales {
-            let localeKeys = Set(tables[locale]?.keys.map { $0 } ?? [])
+            let localeKeys = Set(mergedTable(for: locale).keys)
             let missing = referenceKeys.subtracting(localeKeys)
             precondition(missing.isEmpty, "Missing localization keys for locale \(locale): \(missing.sorted())")
         }
     }
     #endif
+
+    private static func localizedValue(for key: String, locale: String) -> String? {
+        if let value = overrideTables[locale]?[key] {
+            return value
+        }
+        return tables[locale]?[key]
+    }
+
+    private static func mergedTable(for locale: String) -> [String: String] {
+        var merged = [String: String]()
+
+        let enBase = tables["en-US"] ?? [:]
+        let enOverrides = overrideTables["en-US"] ?? [:]
+        merged = enBase.merging(enOverrides) { _, override in override }
+
+        if let fallbackLocale = fallbackLocale(for: locale), fallbackLocale != locale {
+            let fallbackBase = tables[fallbackLocale] ?? [:]
+            let fallbackOverrides = overrideTables[fallbackLocale] ?? [:]
+            merged = merged
+                .merging(fallbackBase) { _, current in current }
+                .merging(fallbackOverrides) { _, override in override }
+        }
+
+        let base = tables[locale] ?? [:]
+        let overrides = overrideTables[locale] ?? [:]
+        return merged
+            .merging(base) { _, current in current }
+            .merging(overrides) { _, override in override }
+    }
+
+    private static func fallbackLocale(for locale: String) -> String? {
+        let lang = locale.split(separator: "-").first.map(String.init) ?? "en"
+        return languageFallbackLocale[lang]
+    }
 
     private static let tables: [String: [String: String]] = [
         "en-US": [
@@ -195,6 +217,95 @@ enum L10n {
             "magnifier.coordinates": "Coord",
             "magnifier.color": "Color",
             "magnifier.copy_hint": "Press ⌘+C to copy color",
+            "settings.language.title": "Language Settings",
+            "toolbar.tool.rectangle_select": "Rectangle Selection",
+            "toolbar.tool.circle_select": "Circle Selection",
+            "toolbar.tool.emoji": "Emoji & Symbols",
+            "toolbar.tool.arrow": "Arrow",
+            "toolbar.tool.pen": "Pen",
+            "toolbar.tool.mosaic": "Mosaic",
+            "toolbar.tool.text": "Text",
+            "toolbar.tool.ocr_translate": "OCR Translate",
+            "toolbar.tool.ocr": "Recognize Text",
+            "toolbar.tool.crop": "Crop",
+            "toolbar.action.undo": "Undo",
+            "toolbar.action.save": "Save",
+            "toolbar.action.pin": "Pin",
+            "toolbar.action.share": "Share",
+            "toolbar.action.cancel": "Cancel",
+            "toolbar.action.confirm_copy": "Capture and Copy",
+            "toolbar.action.start_capture": "Start Capture",
+            "capture.error.window_blocked": "Window capture failed. It may be blocked by system privacy settings.",
+            "capture.error.create_image": "Unable to create image. It may be blocked by system privacy settings.",
+            "capture.error.empty_image": "Captured image is empty. Allow StackShot in System Settings -> Privacy & Security -> Screen Recording.",
+            "capture.alert.permission.title": "Screen Recording Permission Required",
+            "capture.alert.permission.body": "StackShot uses this permission for screenshots, scrolling screenshots, and editing, OCR, saving, and exporting captured content.\n\nPlease follow these steps:\n1. Click \"Open System Settings\"\n2. In \"Screen Recording\", find StackShot and turn it on\n3. If already enabled but still prompted, fully quit and reopen StackShot\n4. Press Shift + Command + A again to capture",
+            "capture.alert.permission.open_settings": "Open System Settings",
+            "capture.alert.permission.later": "Later",
+            "capture.alert.failed.title": "Capture Failed",
+            "capture.alert.ok": "OK",
+            "canvas.text.placeholder": "Enter text...",
+            "launch_at_login.error_format": "Failed to set launch at login: %@",
+            "capture.window.untitled": "Untitled Window",
+            "common.done": "Done",
+            "common.close": "Close",
+            "common.live_preview": "Live Preview",
+            "compliance.privacy.menu_item": "Privacy Policy",
+            "compliance.privacy.section_title": "Privacy",
+            "compliance.privacy.card_summary": "Review how StackShot uses Screen Recording, Accessibility, the clipboard, and local file access.",
+            "compliance.privacy.open_policy": "Open Privacy Policy",
+            "compliance.screen_recording.title": "Screen Recording",
+            "compliance.screen_recording.summary": "Used for screenshots, scrolling capture, and OCR/save/export on captured content. If permission doesn't apply immediately, fully quit and reopen StackShot.",
+            "compliance.accessibility.title": "Accessibility (Optional)",
+            "compliance.accessibility.summary.granted": "Granted. StackShot can more accurately detect the frontmost window under the pointer.",
+            "compliance.accessibility.summary.not_granted": "Without access, manual region capture still works, but hovered-window targeting falls back to screen-snapshot matching and may be less precise.",
+            "compliance.accessibility.button.open_settings": "Open Accessibility Settings",
+            "compliance.accessibility.button.request_access": "Request Accessibility Access",
+            "compliance.screen_recording.open_settings": "Open Screen Recording Settings",
+            "compliance.privacy.window.intro": "StackShot is a local-first screenshot utility. It accesses system permissions only when you explicitly use related features, and it processes captured content on-device whenever possible.",
+            "compliance.privacy.paragraph.1": "1. Screen Recording: Used only for screenshots, scrolling capture, and follow-up editing of captured content. StackShot doesn't start recording automatically without your action.",
+            "compliance.privacy.paragraph.2": "2. Accessibility: Used only to more accurately detect the frontmost window under the pointer. Without access, manual region capture still works, but hovered-window detection may be less precise.",
+            "compliance.privacy.paragraph.3": "3. Clipboard and files: StackShot writes images or text to the clipboard, or exports files to disk, only when you explicitly choose Copy, Share, or Save.",
+            "compliance.privacy.paragraph.4": "4. Built-in OCR translation: When you choose OCR Translate, StackShot recognizes text on-device and then uses Apple's public Translation framework to translate it within the app on macOS 15 or later. According to Apple's framework documentation, Apple may collect usage and performance metrics that don't include the original or translated content, such as the app bundle ID and source or target language.",
+            "compliance.privacy.paragraph.5": "5. Local processing: Screenshot editing, window detection, OCR, and most image processing run on-device. The app doesn't include automatic network sync that uploads captured content.",
+            "compliance.privacy.paragraph.6": "6. Preferences: Language, Dock visibility, and shortcut settings are stored only in the app's local preferences on this Mac so your workflow can be restored.",
+            "compliance.privacy.window.footer": "For App Store submission, you still need to provide the external privacy policy URL and privacy details in App Store Connect.",
+            "scroll.flow.hud.watching": "Monitoring scroll...",
+            "scroll.flow.hud.hint": "Hover the target window and scroll slowly. Click Done or Cancel to stop.",
+            "scroll.flow.hud.frames_format": "Stitched %3$dpx · Frames %1$d/%2$d",
+            "scroll.flow.result.title": "Scrolling Screenshot",
+            "scroll.flow.result.save": "Save to Disk...",
+            "scroll.flow.result.copy": "Copy to Clipboard",
+            "scroll.flow.result.copied": "Copied",
+            "scroll.flow.result.empty.title": "No scrolling was captured",
+            "scroll.flow.result.empty.hint": "Try again. Scroll inside the selected window region.",
+            "scroll.flow.save.default_name": "Scrolling Screenshot",
+            "editor.window.title": "Edit Screenshot",
+            "editor.save.failed.title": "Save Failed",
+            "editor.save.failed.message_prefix": "Unable to save the image. Please try again.",
+            "editor.export.format_label": "Format:",
+            "editor.ocr.empty.title": "No Text Detected",
+            "editor.ocr.empty.message": "No recognizable text was found in the image.",
+            "editor.ocr.done.title": "Text Recognition Complete",
+            "editor.ocr.done.message_format": "Recognized %d characters and copied them to the clipboard.",
+            "editor.ocr.translatable_empty.message": "No translatable text was found in the image.",
+            "editor.ocr.translate.in_progress": "Translating...",
+            "editor.ocr.translate.failed.title": "Translation Failed",
+            "editor.ocr.translate.failed.message_prefix": "Could not start translation: ",
+            "editor.ocr.translate.unavailable": "Built-in translation requires macOS 15 or later and uses Apple's public Translation framework. If it isn't available on this system, use Recognize Text instead.",
+            "editor.export.read_image_data_failed": "Unable to read image data.",
+            "editor.export.unsupported_type": "This file type is not supported.",
+            "editor.export.write_failed": "The system failed to write the file.",
+            "editor.tool.rectangle": "Rectangle",
+            "editor.tool.circle": "Circle",
+            "editor.tool.ocr_translate": "Recognize & Translate",
+            "editor.tool.scroll_capture": "Scroll Capture",
+            "editor.action.adjust_selection": "Adjust Selection",
+            "editor.action.confirm_copy": "Confirm & Copy",
+            "editor.emoji_picker.title": "Emoji",
+            "editor.text_style.font": "Font",
+            "editor.text_style.size": "Size",
+            "editor.mosaic.radius": "Radius",
         ],
         "en-GB": [
             "app.name": "StackShot",

@@ -35,74 +35,64 @@ import CoreGraphics
 import UniformTypeIdentifiers
 import OSLog
 
-// MARK: - Localization helper (zh-Hans / zh-Hant / en / ja per user-memory rule)
+// MARK: - Localization helper
 
 private enum ScrollFlowL10n {
-    static func tr(zhHans: String, zhHant: String, ja: String, en: String) -> String {
-        switch L10n.currentSelectionCode() {
-        case let code where code.hasPrefix("zh-Hans"): return zhHans
-        case let code where code.hasPrefix("zh-Hant"): return zhHant
-        case let code where code.hasPrefix("ja"):      return ja
-        default:                                       return en
-        }
+    static var hudWatching: String {
+        L10n.tr("scroll.flow.hud.watching")
     }
 
-    static var hudWatching: String {
-        tr(zhHans: "正在监控滚动…",
-           zhHant: "正在監控捲動…",
-           ja:     "スクロールを監視中…",
-           en:     "Monitoring scroll…")
-    }
     static var hudHint: String {
-        tr(zhHans: "把鼠标移到目标窗口慢慢滚动；点击「完成」或「取消」结束。",
-           zhHant: "把滑鼠移到目標視窗慢慢捲動；點擊「完成」或「取消」結束。",
-           ja:     "対象ウィンドウにカーソルを移動してスクロール。「完了」または「キャンセル」で停止。",
-           en:     "Hover the target window and scroll slowly. Click Done or Cancel to stop.")
+        L10n.tr("scroll.flow.hud.hint")
     }
+
     static var hudDone: String {
-        tr(zhHans: "完成", zhHant: "完成", ja: "完了", en: "Done")
+        L10n.tr("common.done")
     }
+
     static var hudCancel: String {
-        tr(zhHans: "取消", zhHant: "取消", ja: "キャンセル", en: "Cancel")
+        L10n.tr("toolbar.action.cancel")
     }
+
     static func hudFramesFormat(_ accepted: Int, _ total: Int, _ pixels: Int) -> String {
-        tr(zhHans: "已拼接 \(pixels)px · 帧 \(accepted)/\(total)",
-           zhHant: "已拼接 \(pixels)px · 幀 \(accepted)/\(total)",
-           ja:     "縫合 \(pixels)px · フレーム \(accepted)/\(total)",
-           en:     "Stitched \(pixels)px · Frames \(accepted)/\(total)")
+        let format = L10n.tr("scroll.flow.hud.frames_format")
+        return String(format: format, accepted, total, pixels)
     }
+
     static var previewTitle: String {
-        tr(zhHans: "实时预览", zhHant: "即時預覽", ja: "ライブプレビュー", en: "Live Preview")
+        L10n.tr("common.live_preview")
     }
+
     static var resultTitle: String {
-        tr(zhHans: "滚动长截图", zhHant: "捲動長截圖", ja: "スクロール長尺スクリーンショット", en: "Scrolling Screenshot")
+        L10n.tr("scroll.flow.result.title")
     }
+
     static var resultSave: String {
-        tr(zhHans: "保存到本地…", zhHant: "儲存到本機…", ja: "ローカルに保存…", en: "Save to Disk…")
+        L10n.tr("scroll.flow.result.save")
     }
+
     static var resultCopy: String {
-        tr(zhHans: "复制到剪贴板", zhHant: "複製到剪貼簿", ja: "クリップボードにコピー", en: "Copy to Clipboard")
+        L10n.tr("scroll.flow.result.copy")
     }
+
     static var resultCopied: String {
-        tr(zhHans: "已复制", zhHant: "已複製", ja: "コピーしました", en: "Copied")
+        L10n.tr("scroll.flow.result.copied")
     }
+
     static var resultClose: String {
-        tr(zhHans: "关闭", zhHant: "關閉", ja: "閉じる", en: "Close")
+        L10n.tr("common.close")
     }
+
     static var resultEmptyTitle: String {
-        tr(zhHans: "未捕获到滚动",
-           zhHant: "未擷取到捲動",
-           ja:     "スクロールを取得できませんでした",
-           en:     "No scrolling was captured")
+        L10n.tr("scroll.flow.result.empty.title")
     }
+
     static var resultEmptyHint: String {
-        tr(zhHans: "请在选区内的窗口中滚动后再次尝试。",
-           zhHant: "請在選區內的視窗中捲動後再次嘗試。",
-           ja:     "選択領域内のウィンドウでスクロールしてから再試行してください。",
-           en:     "Try again — scroll inside the selected window region.")
+        L10n.tr("scroll.flow.result.empty.hint")
     }
+
     static var saveDefaultName: String {
-        tr(zhHans: "滚动长截图", zhHant: "捲動長截圖", ja: "スクロール長尺", en: "Scrolling Screenshot")
+        L10n.tr("scroll.flow.save.default_name")
     }
 }
 

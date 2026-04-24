@@ -1,6 +1,7 @@
 # StackShot App Store Connect Metadata
 
 This file is a ready-to-edit draft for App Store Connect submission.
+It now reflects the current 47-locale shipping plan for StackShot.
 
 ## Signing
 
@@ -23,6 +24,15 @@ This file is a ready-to-edit draft for App Store Connect submission.
 - Secondary category: optional, `Utilities`
 - Age rating: likely low / no objectionable content
 - Review contact email: use a monitored address that can answer reviewer questions quickly
+
+## Locale Coverage Plan
+
+- In-app locale target: 47 App Store Connect locales.
+- Explicitly excluded for this release: `ml`, `ta`, `te`.
+- Metadata blocks in this file: all 47 supported locales are present as individual sections.
+- `zh-Hans`, `zh-Hant`, `en-US`, and `ja` are fully authored.
+- The other 43 locale blocks currently use English baseline copy and should be replaced with bespoke localized marketing text before final submission where possible.
+- Public GitHub Pages pages currently ship four authored languages (`zh-Hans`, `zh-Hant`, `en`, `ja`). That is acceptable for privacy/support URLs, but do not describe the public website itself as 47-language coverage.
 
 ## zh-Hans
 
@@ -104,6 +114,823 @@ This file is a ready-to-edit draft for App Store Connect submission.
   - `初回公開バージョン。`
   - `範囲/ウインドウキャプチャ、スクロール長尺キャプチャ、注釈、OCR、および Apple Translation フレームワークによる内蔵翻訳に対応。`
 
+## ar
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## bn
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## ca
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## hr
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## cs
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## da
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## nl
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## en-AU
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## en-CA
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## en-GB
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## fi
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## fr
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## fr-CA
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## de
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## el
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## gu
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## he
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## hi
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## hu
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## id
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## it
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## kn
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## ko
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## ms
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## mr
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## no
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## or
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## pl
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## pt-BR
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## pt-PT
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## pa
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## ro
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## ru
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## sk
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## sl
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## es-MX
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## es-ES
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## sv
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## th
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## tr
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## uk
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## ur
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
+## vi
+
+- App Name
+  - `StackShot`
+- Subtitle
+  - `Scrolling Screenshots and OCR`
+- Promotional Text
+  - `A macOS menu bar screenshot tool with window capture, region capture, scrolling screenshots, annotation, OCR, and built-in translation powered by Apple's public Translation framework on supported macOS versions.`
+- Description
+  - `StackShot is a menu bar screenshot tool built for macOS.`
+  - `Capture regions, windows, and scrolling content, then annotate with shapes, arrows, pen, mosaic, text, and emoji.`
+  - `Save, share, copy, or pin captures to the screen, and run OCR on captured content.`
+  - `Recognize & Translate uses Apple's public Translation framework on macOS 15 or later.`
+- Keywords
+  - `screenshot,scrolling screenshot,OCR,text recognition,annotation,menu bar,screen capture,window capture,translate`
+- What's New
+  - `Initial public release.`
+  - `Includes region and window capture, scrolling screenshots, annotation tools, OCR, and built-in translation powered by Apple's public Translation framework.`
+
 ## App Review Notes
 
 - Language: `English`
@@ -119,9 +946,12 @@ This file is a ready-to-edit draft for App Store Connect submission.
 
 `The app does not upload captured screenshots to a remote sync service.`
 
+`The current release ships 47 in-app locales. Malayalam, Tamil, and Telugu are intentionally excluded from this release plan.`
+
 ## Submission Checklist
 
 - Enable GitHub Pages from the default branch `/docs` folder and verify the three public URLs load over HTTPS
+- Review each of the 47 locale blocks and replace baseline English copy with locale-specific marketing text before submission where possible
 - Upload screenshots that accurately reflect translation availability on supported macOS versions
 - Verify the final subtitle and keywords length in App Store Connect before submission
 - Archive with `Release` configuration after confirming automatic signing resolves correctly in Xcode

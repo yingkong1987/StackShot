@@ -688,7 +688,7 @@ final class AnnotationCanvasView: NSView {
         tf.drawsBackground     = false
         tf.textColor           = resolvedColor
         tf.font                = resolvedFont
-        tf.placeholderString   = "输入文字…"
+        tf.placeholderString   = L10n.tr("canvas.text.placeholder")
         tf.stringValue         = initialText
         activeTextEditingIndex = editingIndex
         tf.onCommit = { [weak self, weak tf] text in

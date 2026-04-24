@@ -25,7 +25,8 @@ final class LaunchAtLoginManager: ObservableObject {
             lastErrorMessage = nil
         } catch {
             isEnabled = (SMAppService.mainApp.status == .enabled)
-            lastErrorMessage = "设置开机启动失败：\(error.localizedDescription)"
+            let format = L10n.tr("launch_at_login.error_format")
+            lastErrorMessage = String(format: format, error.localizedDescription)
         }
     }
 }

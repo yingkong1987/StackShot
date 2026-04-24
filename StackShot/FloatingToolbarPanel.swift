@@ -358,10 +358,10 @@ private struct ToolbarContent: View {
 
         var title: String {
             switch self {
-            case .rectangle: return "矩形选取"
-            case .circle: return "圆形选取"
-            case .arrow: return "箭头"
-            case .pen: return "画笔"
+            case .rectangle: return L10n.tr("toolbar.tool.rectangle_select")
+            case .circle: return L10n.tr("toolbar.tool.circle_select")
+            case .arrow: return L10n.tr("toolbar.tool.arrow")
+            case .pen: return L10n.tr("toolbar.tool.pen")
             }
         }
     }
@@ -370,28 +370,28 @@ private struct ToolbarContent: View {
         HStack(spacing: 6) {
 
             // ── Group 1: Capture / Draw ─────────────────────────────────────
-            configBtn(.rectangle, "square", "矩形选取")
-            configBtn(.circle, "circle", "圆形选取")
-            btn("face.smiling", "表情与符号", callbacks.onEmoji)
-            configBtn(.arrow, "arrow.up.right", "箭头")
-            configBtn(.pen, "pencil", "画笔")
-            btn("checkerboard.rectangle", "马赛克", callbacks.onMosaic)
-            btn("t.square", "文字", callbacks.onText)
+            configBtn(.rectangle, "square", L10n.tr("toolbar.tool.rectangle_select"))
+            configBtn(.circle, "circle", L10n.tr("toolbar.tool.circle_select"))
+            btn("face.smiling", L10n.tr("toolbar.tool.emoji"), callbacks.onEmoji)
+            configBtn(.arrow, "arrow.up.right", L10n.tr("toolbar.tool.arrow"))
+            configBtn(.pen, "pencil", L10n.tr("toolbar.tool.pen"))
+            btn("checkerboard.rectangle", L10n.tr("toolbar.tool.mosaic"), callbacks.onMosaic)
+            btn("t.square", L10n.tr("toolbar.tool.text"), callbacks.onText)
 
             sep()
 
             // ── Group 2: Process ────────────────────────────────────────────
-            btn("translate", "OCR 翻译", callbacks.onOCRTranslate)
-            ocrBtn("识别文字", callbacks.onOCR)
-            btn("crop", "裁剪", callbacks.onCrop)
+            btn("translate", L10n.tr("toolbar.tool.ocr_translate"), callbacks.onOCRTranslate)
+            ocrBtn(L10n.tr("toolbar.tool.ocr"), callbacks.onOCR)
+            btn("crop", L10n.tr("toolbar.tool.crop"), callbacks.onCrop)
 
             sep()
 
             // ── Group 3: Actions ────────────────────────────────────────────
-            btn("arrow.uturn.left", "撤销", callbacks.onUndo)
-            btn("square.and.arrow.down", "保存", callbacks.onSave)
-            btn("pin", "钉图", callbacks.onPin)
-            btn("arrowshape.turn.up.right", "分享", callbacks.onShare)
+            btn("arrow.uturn.left", L10n.tr("toolbar.action.undo"), callbacks.onUndo)
+            btn("square.and.arrow.down", L10n.tr("toolbar.action.save"), callbacks.onSave)
+            btn("pin", L10n.tr("toolbar.action.pin"), callbacks.onPin)
+            btn("arrowshape.turn.up.right", L10n.tr("toolbar.action.share"), callbacks.onShare)
 
             // Cancel (red) / Confirm (green)
             Button(action: callbacks.onCancel) {
@@ -402,7 +402,7 @@ private struct ToolbarContent: View {
             }
             .buttonStyle(.plain)
             .background(Color.red.opacity(0.14), in: RoundedRectangle(cornerRadius: 9))
-            .help("取消")
+            .help(L10n.tr("toolbar.action.cancel"))
 
             Button(action: callbacks.onConfirm) {
                 Image(systemName: "checkmark")
@@ -412,7 +412,7 @@ private struct ToolbarContent: View {
             }
             .buttonStyle(.plain)
             .background(Color.green.opacity(0.14), in: RoundedRectangle(cornerRadius: 9))
-            .help("截图并复制")
+            .help(L10n.tr("toolbar.action.confirm_copy"))
         }
         .padding(.horizontal, 11)
         .padding(.vertical, 8)
@@ -623,7 +623,7 @@ private struct CaptureStylePopover: View {
 
             HStack {
                 Spacer()
-                Button("开始截图") { onStart() }
+                Button(L10n.tr("toolbar.action.start_capture")) { onStart() }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
             }

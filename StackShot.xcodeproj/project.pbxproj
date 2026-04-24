@@ -24,6 +24,7 @@
 		AA000000000000000000000006 /* AnnotationEditorPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000000005 /* AnnotationEditorPanel.swift */; };
 		AA000000000000000000000008 /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000000007 /* SettingsStore.swift */; };
 		AA111111111111111111111002 /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA111111111111111111111001 /* Localization.swift */; };
+		AB4700000000000000000002 /* LocalizationOverrides.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB4700000000000000000001 /* LocalizationOverrides.swift */; };
 		CV000000000000000000000003 /* ScrollStitchingFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = CV000000000000000000000014 /* ScrollStitchingFlow.swift */; };
 		K0B00000000000000000000003 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = K0B00000000000000000000002 /* KeyboardShortcuts */; };
 		K0B00000000000000000000004 /* HotkeyShortcutConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = K0B00000000000000000000005 /* HotkeyShortcutConfiguration.swift */; };
@@ -49,6 +50,7 @@
 		AA000000000000000000000005 /* AnnotationEditorPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationEditorPanel.swift; sourceTree = "<group>"; };
 		AA000000000000000000000007 /* SettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStore.swift; sourceTree = "<group>"; };
 		AA111111111111111111111001 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
+		AB4700000000000000000001 /* LocalizationOverrides.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizationOverrides.swift; sourceTree = "<group>"; };
 		CV000000000000000000000011 /* OpenCVWrapper.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = OpenCVWrapper.h; sourceTree = "<group>"; };
 		CV000000000000000000000012 /* OpenCVWrapper.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = OpenCVWrapper.mm; sourceTree = "<group>"; };
 		CV000000000000000000000013 /* ScreenCaptureManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenCaptureManager.swift; sourceTree = "<group>"; };
@@ -92,6 +94,7 @@
 				02E87FFC300641C8A715FFEF525 /* MenuBarController.swift */,
 				02E87FFC300641C8A715FFEF527 /* LaunchAtLoginManager.swift */,
 				AA111111111111111111111001 /* Localization.swift */,
+				AB4700000000000000000001 /* LocalizationOverrides.swift */,
 				AA000000000000000000000007 /* SettingsStore.swift */,
 				AA000000000000000000000001 /* AnnotationModels.swift */,
 				AA000000000000000000000003 /* AnnotationCanvasView.swift */,
@@ -200,6 +203,7 @@
 				02E87FFC300641C8A715FFEF524 /* MenuBarController.swift in Sources */,
 				02E87FFC300641C8A715FFEF526 /* LaunchAtLoginManager.swift in Sources */,
 				AA111111111111111111111002 /* Localization.swift in Sources */,
+				AB4700000000000000000002 /* LocalizationOverrides.swift in Sources */,
 				AA000000000000000000000008 /* SettingsStore.swift in Sources */,
 				AA000000000000000000000002 /* AnnotationModels.swift in Sources */,
 				AA000000000000000000000004 /* AnnotationCanvasView.swift in Sources */,
