@@ -292,6 +292,7 @@ final class AnnotationEditorPanel: NSPanel, NSWindowDelegate, ConsoleTraceLoggin
     private var translationHostView: NSView?
     // OCR 翻译期间显示的进度 HUD。
     private var translateHUD: NSView?
+    private var translateHUDStatus: OCRTranslateHUDStatus?
     private var ocrTranslateTask: Task<Void, Never>?
     private var ocrTranslateSessionToken = UUID()
     private var isOCRTranslating = false
@@ -1431,6 +1432,8 @@ private enum EditorL10nKey {
     case ocrTranslatableEmptyMessage
     case ocrTranslateInProgress
     case ocrTranslateProgressDetail
+    case ocrTranslatePreparingLanguageTitle
+    case ocrTranslatePreparingLanguageDetail
     case ocrTranslateFailedTitle
     case ocrTranslateFailedMessagePrefix
     case ocrTranslateUnavailableMessage
@@ -1490,6 +1493,8 @@ private enum EditorL10n {
         .ocrTranslatableEmptyMessage: "图片中没有可翻译的文字。",
         .ocrTranslateInProgress: "正在翻译…",
         .ocrTranslateProgressDetail: "工具栏已暂时隐藏。正在匹配语言并生成译文，你可以随时点击底部按钮取消。",
+        .ocrTranslatePreparingLanguageTitle: "正在准备翻译语言包…",
+        .ocrTranslatePreparingLanguageDetail: "首次使用此语言对，系统正在下载所需的翻译模型，请稍候；下载完成后会自动继续翻译。",
         .ocrTranslateFailedTitle: "翻译失败",
         .ocrTranslateFailedMessagePrefix: "无法发起翻译：",
         .ocrTranslateUnavailableMessage: "内置翻译需要 macOS 15 或更高版本，并使用 Apple 官方 Translation 框架。当前系统不支持时，可先使用“识别文字”。",
@@ -1534,6 +1539,8 @@ private enum EditorL10n {
         .ocrTranslatableEmptyMessage: "圖片中沒有可翻譯的文字。",
         .ocrTranslateInProgress: "翻譯中…",
         .ocrTranslateProgressDetail: "工具列已暫時隱藏。正在配對語言並產生譯文，你可以隨時點擊底部按鈕取消。",
+        .ocrTranslatePreparingLanguageTitle: "正在準備翻譯語言包…",
+        .ocrTranslatePreparingLanguageDetail: "首次使用此語言配對，系統正在下載所需的翻譯模型，請稍候；下載完成後會自動繼續翻譯。",
         .ocrTranslateFailedTitle: "翻譯失敗",
         .ocrTranslateFailedMessagePrefix: "無法啟動翻譯：",
         .ocrTranslateUnavailableMessage: "內建翻譯需要 macOS 15 或以上版本，並使用 Apple 官方 Translation 框架。若目前系統不支援，可先使用「辨識文字」。",
@@ -1578,6 +1585,8 @@ private enum EditorL10n {
         .ocrTranslatableEmptyMessage: "No translatable text was found in the image.",
         .ocrTranslateInProgress: "Translating…",
         .ocrTranslateProgressDetail: "The toolbar is temporarily hidden while StackShot prepares recognition and translation. Use the button below to cancel at any time.",
+        .ocrTranslatePreparingLanguageTitle: "Preparing translation language pack…",
+        .ocrTranslatePreparingLanguageDetail: "macOS is downloading the translation model needed for this language pair. This only happens the first time — translation will resume automatically once the download finishes.",
         .ocrTranslateFailedTitle: "Translation Failed",
         .ocrTranslateFailedMessagePrefix: "Could not start translation: ",
         .ocrTranslateUnavailableMessage: "Built-in translation requires macOS 15 or later and uses Apple's public Translation framework. If it isn't available on this system, use Recognize Text instead.",
@@ -1622,6 +1631,8 @@ private enum EditorL10n {
         .ocrTranslatableEmptyMessage: "画像に翻訳可能なテキストが見つかりませんでした。",
         .ocrTranslateInProgress: "翻訳中…",
         .ocrTranslateProgressDetail: "翻訳中はツールバーが一時的に非表示になります。認識と言語変換を準備している間、下のボタンからいつでもキャンセルできます。",
+        .ocrTranslatePreparingLanguageTitle: "翻訳用の言語パックを準備中…",
+        .ocrTranslatePreparingLanguageDetail: "この言語ペアの翻訳モデルを初めて利用するため、macOS が必要なモデルをダウンロードしています。完了すると自動的に翻訳を続行します。",
         .ocrTranslateFailedTitle: "翻訳に失敗しました",
         .ocrTranslateFailedMessagePrefix: "翻訳を開始できませんでした：",
         .ocrTranslateUnavailableMessage: "内蔵翻訳は macOS 15 以降で利用でき、Apple の公開 Translation フレームワークを使用します。現在のシステムで利用できない場合は、先に「テキスト認識」を使ってください。",
@@ -4466,6 +4477,17 @@ private enum OCRStructuredTextComposer {
     }
 }
 
+@MainActor
+private final class OCRTranslateHUDStatus: ObservableObject {
+    @Published var title: String
+    @Published var detail: String
+
+    init(title: String, detail: String) {
+        self.title = title
+        self.detail = detail
+    }
+}
+
 private struct OCRTranslateProgressOverlay: View {
     private enum Layout {
         static let verticalInset: CGFloat = 24
@@ -4483,10 +4505,12 @@ private struct OCRTranslateProgressOverlay: View {
     }
 
     let badgeTitle: String
-    let title: String
-    let detail: String
+    @ObservedObject var status: OCRTranslateHUDStatus
     let cancelTitle: String
     let onCancel: () -> Void
+
+    private var title: String { status.title }
+    private var detail: String { status.detail }
 
     @State private var pulse = false
     @State private var orbit = false
@@ -4788,6 +4812,16 @@ extension AnnotationEditorPanel {
         // Inject a hidden hosting view to drive .translationTask.
         let runner = OCRTranslationRunnerView(
             sources: regions.map { $0.original },
+            onPreparingLanguagePack: { [weak self] in
+                guard let self, self.isCurrentOCRTranslateSession(sessionToken) else { return }
+                self.translateHUDStatus?.title = EditorL10n.tr(.ocrTranslatePreparingLanguageTitle)
+                self.translateHUDStatus?.detail = EditorL10n.tr(.ocrTranslatePreparingLanguageDetail)
+            },
+            onTranslating: { [weak self] in
+                guard let self, self.isCurrentOCRTranslateSession(sessionToken) else { return }
+                self.translateHUDStatus?.title = EditorL10n.tr(.ocrTranslateInProgress)
+                self.translateHUDStatus?.detail = EditorL10n.tr(.ocrTranslateProgressDetail)
+            },
             onResult: { [weak self] translated in
                 guard let self, self.isCurrentOCRTranslateSession(sessionToken) else { return }
                 self.finishTranslation(
@@ -4902,11 +4936,15 @@ extension AnnotationEditorPanel {
 
     private func showTranslateHUD() {
         guard translateHUD == nil, let content = contentView else { return }
+        let status = OCRTranslateHUDStatus(
+            title: EditorL10n.tr(.ocrTranslateInProgress),
+            detail: EditorL10n.tr(.ocrTranslateProgressDetail)
+        )
+        translateHUDStatus = status
         let host = NSHostingView(
             rootView: OCRTranslateProgressOverlay(
                 badgeTitle: EditorL10n.tr(.toolOCRTranslate),
-                title: EditorL10n.tr(.ocrTranslateInProgress),
-                detail: EditorL10n.tr(.ocrTranslateProgressDetail),
+                status: status,
                 cancelTitle: EditorL10n.tr(.actionCancelTranslation),
                 onCancel: { [weak self] in
                     self?.cancelOCRTranslationProcess()
@@ -4928,6 +4966,7 @@ extension AnnotationEditorPanel {
     private func hideTranslateHUD(syncToolbar: Bool = true) {
         translateHUD?.removeFromSuperview()
         translateHUD = nil
+        translateHUDStatus = nil
         if syncToolbar {
             syncFloatingToolbarVisibility()
         }
@@ -5061,21 +5100,31 @@ private enum OCRTranslateOverlayRunner {
 @available(macOS 15.0, *)
 private struct OCRTranslationRunnerView: View {
     let sources: [String]
+    let onPreparingLanguagePack: () -> Void
+    let onTranslating: () -> Void
     let onResult: ([String]) -> Void
     let onFailure: (Error) -> Void
 
     @State private var configuration: TranslationSession.Configuration?
+    private let resolvedSource: Locale.Language?
+    private let resolvedTarget: Locale.Language?
 
     init(sources: [String],
+         onPreparingLanguagePack: @escaping () -> Void = {},
+         onTranslating: @escaping () -> Void = {},
          onResult: @escaping ([String]) -> Void,
          onFailure: @escaping (Error) -> Void) {
         self.sources = sources
+        self.onPreparingLanguagePack = onPreparingLanguagePack
+        self.onTranslating = onTranslating
         self.onResult = onResult
         self.onFailure = onFailure
         // Eagerly resolve source/target so `.translationTask` fires
         // immediately with a usable configuration (avoids racey nil
         // pass that often produced empty sessions).
         let resolved = OCRTranslationLanguageResolver.resolve(for: sources)
+        self.resolvedSource = resolved.source
+        self.resolvedTarget = resolved.target
         _configuration = State(initialValue: TranslationSession.Configuration(
             source: resolved.source,
             target: resolved.target
@@ -5091,7 +5140,41 @@ private struct OCRTranslationRunnerView: View {
     }
 
     private func runTranslation(using session: TranslationSession) async {
-        // 1. Pre-warm: ask the framework to download / prepare the
+        // 1. Decide whether the language pack is already on-device. If
+        //    it isn't, surface a "preparing language pack" status to the
+        //    HUD so the user knows the pause is expected and we won't
+        //    just sit on a generic spinner while macOS downloads the
+        //    model (the Translation extension also emits a few noisy
+        //    `os_log` errors during that phase — they're benign but
+        //    confusing without an explanation).
+        var needsDownload = false
+        if let source = resolvedSource, let target = resolvedTarget {
+            let availability = LanguageAvailability()
+            let status = await availability.status(from: source, to: target)
+            switch status {
+            case .installed:
+                needsDownload = false
+            case .supported:
+                needsDownload = true
+            case .unsupported:
+                await MainActor.run {
+                    onFailure(NSError(
+                        domain: "StackShot.OCRTranslate",
+                        code: -1,
+                        userInfo: [NSLocalizedDescriptionKey: "Language pair not supported."]
+                    ))
+                }
+                return
+            @unknown default:
+                needsDownload = true
+            }
+        }
+
+        if needsDownload {
+            await MainActor.run { onPreparingLanguagePack() }
+        }
+
+        // 2. Pre-warm: ask the framework to download / prepare the
         //    language pair before issuing translate calls. Without this,
         //    the first call routinely fails on a fresh machine.
         do {
@@ -5102,7 +5185,11 @@ private struct OCRTranslationRunnerView: View {
             // calls can still succeed for already-installed pairs.
         }
 
-        // 2. Skip strings that aren't worth translating; preserve them
+        if needsDownload {
+            await MainActor.run { onTranslating() }
+        }
+
+        // 3. Skip strings that aren't worth translating; preserve them
         //    as-is so a single bad item never wrecks the batch.
         let work = sources.enumerated().map { (index, text) -> (Int, String) in
             (index, text)
@@ -5115,7 +5202,7 @@ private struct OCRTranslationRunnerView: View {
             return
         }
 
-        // 3. Try the batch API first. It's faster and more tolerant of
+        // 4. Try the batch API first. It's faster and more tolerant of
         //    individual quirky inputs than per-item calls.
         let requests = translatable.map { (idx, text) in
             TranslationSession.Request(sourceText: text, clientIdentifier: String(idx))
@@ -5138,7 +5225,7 @@ private struct OCRTranslationRunnerView: View {
             // Fall through to per-item retry below.
         }
 
-        // 4. Per-item fallback: each failure is contained.
+        // 5. Per-item fallback: each failure is contained.
         for (idx, text) in translatable {
             do {
                 let response = try await session.translate(text)
