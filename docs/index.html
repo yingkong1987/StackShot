@@ -1,0 +1,938 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="StackShot is a local-first macOS screenshot tool for capture, scrolling screenshots, annotation, and OCR.">
+  <title>StackShot | Capture, Annotate, and Extract Text</title>
+  <link rel="stylesheet" href="./assets/site.css">
+  <script defer src="./assets/site.js"></script>
+</head>
+<body data-page="home" data-title-zh-Hans="StackShot | 截图、标注与文字识别" data-title-zh-Hant="StackShot | 截圖、標註與文字辨識" data-title-en="StackShot | Capture, Annotate, and Extract Text" data-title-ja="StackShot | キャプチャ、注釈、OCR">
+  <div class="page-shell">
+    <header class="topbar">
+      <a class="brand" href="./" data-lang-link>
+        <span class="brand-logo"><img src="./assets/stackshot-logo.png" alt="StackShot logo"></span>
+        <span class="brand-wordmark">StackShot</span>
+      </a>
+      <nav class="site-nav" aria-label="Primary">
+        <a class="nav-link" href="./" data-nav-link="home" data-lang-link aria-current="page" data-copy-key="home">Home</a>
+        <a class="nav-link" href="./privacy/" data-nav-link="privacy" data-lang-link data-copy-key="privacy">Privacy</a>
+        <a class="nav-link" href="./support/" data-nav-link="support" data-lang-link data-copy-key="support">Support</a>
+      </nav>
+      <div class="lang-switcher" data-language-switcher role="group" aria-label="Switch language">
+        <span class="sr-only">Language</span>
+        <button class="language-button" type="button" data-set-lang="zh-Hans">简</button>
+        <button class="language-button" type="button" data-set-lang="zh-Hant">繁</button>
+        <button class="language-button" type="button" data-set-lang="en">EN</button>
+        <button class="language-button" type="button" data-set-lang="ja">JA</button>
+        <button class="language-button" type="button" data-set-lang="fr">FR</button>
+        <button class="language-button" type="button" data-set-lang="de">DE</button>
+        <button class="language-button" type="button" data-set-lang="es-ES">ES</button>
+        <button class="language-button" type="button" data-set-lang="ko">KO</button>
+        <button class="language-button" type="button" data-set-lang="pt-BR">PT</button>
+        <button class="language-button" type="button" data-set-lang="ru">RU</button>
+        <button class="language-button" type="button" data-set-lang="ar">AR</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="lang-panel" data-lang-panel="zh-Hans" hidden>
+        <div class="hero">
+          <div class="hero-copy">
+            <div class="eyebrow">macOS 截图工作台</div>
+            <h1>把截图，从瞬间记录变成可直接交付的成果。</h1>
+            <p class="hero-kicker">StackShot 将区域截图、窗口截图、滚动长截图、标注和 OCR 放进一条连贯流程里，让你在捕获、整理和输出信息时不必频繁切换工具。</p>
+            <div class="button-row">
+              <a class="primary-link" href="https://github.com/yingkong1987/StackShot">在 GitHub 查看项目</a>
+              <a class="ghost-link" href="./privacy/" data-lang-link>查看隐私与权限说明</a>
+            </div>
+            <div class="hero-stats">
+              <article class="stat-card">
+                <span class="stat-label">Capture</span>
+                <strong>滚动长截图</strong>
+                <p>把网页、文档和聊天记录整理成一张连续画面。</p>
+              </article>
+              <article class="stat-card">
+                <span class="stat-label">OCR</span>
+                <strong>本机文字识别</strong>
+                <p>识别文字后可直接复制，也可在支持的系统版本上继续进行应用内翻译。</p>
+              </article>
+              <article class="stat-card">
+                <span class="stat-label">Markup</span>
+                <strong>快速标注</strong>
+                <p>箭头、马赛克、文字、画笔和图形工具随手可用。</p>
+              </article>
+            </div>
+          </div>
+          <div class="hero-visual">
+            <div class="product-stage">
+              <div class="stage-window">
+                <div class="stage-topbar">
+                  <div class="window-dots" aria-hidden="true">
+                    <span class="window-dot window-dot-coral"></span>
+                    <span class="window-dot window-dot-amber"></span>
+                    <span class="window-dot window-dot-teal"></span>
+                  </div>
+                  <span class="stage-status">编辑中</span>
+                </div>
+                <div class="stage-body">
+                  <div class="stage-sidebar" aria-hidden="true">
+                    <span class="stage-tool is-active"></span>
+                    <span class="stage-tool"></span>
+                    <span class="stage-tool"></span>
+                    <span class="stage-tool"></span>
+                  </div>
+                  <div class="stage-main">
+                    <div class="stage-chip-row">
+                      <span class="stage-chip">区域</span>
+                      <span class="stage-chip">窗口</span>
+                      <span class="stage-chip">长页</span>
+                    </div>
+                    <div class="stage-canvas">
+                      <div class="canvas-sheet">
+                        <div class="sheet-block sheet-block-wide"></div>
+                        <div class="sheet-block sheet-block-medium"></div>
+                        <div class="sheet-block sheet-block-medium"></div>
+                        <div class="sheet-block sheet-block-tall"></div>
+                        <div class="sheet-block sheet-block-short"></div>
+                        <div class="sheet-block sheet-block-medium"></div>
+                        <div class="annotation annotation-ring"></div>
+                        <div class="annotation annotation-highlight"></div>
+                        <div class="annotation annotation-arrow"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="stage-floating-note">
+                <strong>识别就绪</strong>
+                <p>识别出的文字可以直接复制，或在支持的系统版本上继续进行应用内翻译。</p>
+              </div>
+              <div class="stage-flow">
+                <span>捕获</span>
+                <span>标注</span>
+                <span>导出</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <section class="home-section">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">产品节奏</p>
+              <h2>把后续处理也留在同一条工作流里</h2>
+            </div>
+            <p class="section-intro">优秀的截图工具，不只是截到画面，还要把整理、解释和传递这一步做顺。</p>
+          </div>
+          <div class="feature-showcase">
+            <article class="feature-panel feature-panel-primary feature-panel-wide">
+              <span class="feature-badge">Long-form capture</span>
+              <h3>大幅内容一次收齐</h3>
+              <p>滚动长截图适合网页、文档和聊天记录，不需要手动拼接，也不必担心关键信息断开。</p>
+              <div class="feature-tags">
+                <span>网页</span>
+                <span>文档</span>
+                <span>聊天记录</span>
+              </div>
+            </article>
+            <article class="feature-panel">
+              <span class="feature-badge">Precision</span>
+              <h3>窗口与区域切换足够快</h3>
+              <p>无论是框选局部，还是捕获完整窗口，StackShot 都能让你在需要的粒度上快速落点。</p>
+              <div class="feature-tags">
+                <span>区域截图</span>
+                <span>窗口截图</span>
+                <span>聚焦信息</span>
+              </div>
+            </article>
+            <article class="feature-panel">
+              <span class="feature-badge">Markup</span>
+              <h3>标注直接围绕重点展开</h3>
+              <p>常用形状、箭头、文字、马赛克和表情就在手边，反馈和说明不需要再切到其他软件。</p>
+              <div class="feature-tags">
+                <span>箭头</span>
+                <span>马赛克</span>
+                <span>文字</span>
+              </div>
+            </article>
+            <article class="feature-panel">
+              <span class="feature-badge">OCR</span>
+              <h3>识别后的文字继续流动</h3>
+              <p>OCR 结果可以用来复制、整理或继续翻译，让截图不只是图片，也成为可继续处理的信息入口。</p>
+              <div class="feature-tags">
+                <span>OCR</span>
+                <span>复制</span>
+                <span>内置翻译</span>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="home-section">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">工作流</p>
+              <h2>为高频工作准备的节奏</h2>
+            </div>
+            <p class="section-intro">从捕获到分享，每一步都让下一步触手可及。</p>
+          </div>
+          <div class="workflow-grid">
+            <article class="workflow-step">
+              <span class="workflow-index">01</span>
+              <h3>捕获</h3>
+              <p>区域、窗口和滚动长截图覆盖最常见的内容形态。</p>
+            </article>
+            <article class="workflow-step">
+              <span class="workflow-index">02</span>
+              <h3>整理</h3>
+              <p>用标注工具把重点、说明和敏感信息处理清楚。</p>
+            </article>
+            <article class="workflow-step">
+              <span class="workflow-index">03</span>
+              <h3>提取</h3>
+              <p>在设备本机识别文本，保留后续复制与使用的空间。</p>
+            </article>
+            <article class="workflow-step">
+              <span class="workflow-index">04</span>
+              <h3>交付</h3>
+              <p>保存、复制、分享，或在支持的系统版本上直接在应用内继续翻译。</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="home-section trust-strip-wrap">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">边界与信任</p>
+              <h2>设计选择也服务于信任</h2>
+            </div>
+            <p class="section-intro">StackShot 的能力建立在明确、克制的产品边界上。</p>
+          </div>
+          <div class="trust-strip">
+            <article class="trust-card">
+              <h3>本地优先</h3>
+              <p>截图编辑、OCR 与大部分图像处理都尽量在设备本机完成。</p>
+            </article>
+            <article class="trust-card">
+              <h3>权限克制</h3>
+              <p>屏幕录制仅用于截图与滚动截图。</p>
+            </article>
+            <article class="trust-card">
+              <h3>边界清晰</h3>
+              <p>“识别并翻译”会先在本机识别文字，再通过 Apple 官方 Translation 框架在应用内完成翻译。</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="home-section">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">继续了解</p>
+              <h2>继续了解 StackShot</h2>
+            </div>
+            <p class="section-intro">如果你需要具体的权限说明、支持路径或项目进展，可以从这里继续。</p>
+          </div>
+          <div class="resource-grid">
+            <article class="resource-card">
+              <h3>隐私政策</h3>
+              <p>了解权限、数据处理方式与 OCR 翻译流程。</p>
+              <a class="secondary-link" href="./privacy/" data-lang-link>打开隐私政策</a>
+            </article>
+            <article class="resource-card">
+              <h3>支持</h3>
+              <p>查看常见问题、排查建议与问题反馈入口。</p>
+              <a class="secondary-link" href="./support/" data-lang-link>打开支持页面</a>
+            </article>
+            <article class="resource-card">
+              <h3>GitHub</h3>
+              <p>查看项目仓库、更新记录和公开 issue。</p>
+              <a class="secondary-link" href="https://github.com/yingkong1987/StackShot">前往 GitHub</a>
+            </article>
+            <article class="resource-card">
+              <h3>同作者推荐：StackPaste</h3>
+              <p>如果你也想把复制、历史记录和快速粘贴整理得更顺手，可以看看这款 macOS 剪贴板工具。</p>
+              <a class="secondary-link" href="https://www.stackpaste.cn/">了解 StackPaste</a>
+            </article>
+          </div>
+        </section>
+      </section>
+
+      <section class="lang-panel" data-lang-panel="zh-Hant" hidden>
+        <div class="hero">
+          <div class="hero-copy">
+            <div class="eyebrow">macOS 截圖工作台</div>
+            <h1>把截圖，從瞬間記錄整理成可直接交付的成果。</h1>
+            <p class="hero-kicker">StackShot 將區域截圖、視窗截圖、捲動長截圖、標註與 OCR 放進一條連貫流程中，讓你在擷取、整理與輸出資訊時不用頻繁切換工具。</p>
+            <div class="button-row">
+              <a class="primary-link" href="https://github.com/yingkong1987/StackShot">在 GitHub 查看專案</a>
+              <a class="ghost-link" href="./privacy/" data-lang-link>查看隱私與權限說明</a>
+            </div>
+            <div class="hero-stats">
+              <article class="stat-card">
+                <span class="stat-label">Capture</span>
+                <strong>捲動長截圖</strong>
+                <p>把網頁、文件與聊天記錄整理成一張連續畫面。</p>
+              </article>
+              <article class="stat-card">
+                <span class="stat-label">OCR</span>
+                <strong>本機文字辨識</strong>
+                <p>辨識文字後可直接複製，也可在支援的系統版本上繼續進行 App 內翻譯。</p>
+              </article>
+              <article class="stat-card">
+                <span class="stat-label">Markup</span>
+                <strong>快速標註</strong>
+                <p>箭頭、馬賽克、文字、畫筆與圖形工具隨手可用。</p>
+              </article>
+            </div>
+          </div>
+          <div class="hero-visual">
+            <div class="product-stage">
+              <div class="stage-window">
+                <div class="stage-topbar">
+                  <div class="window-dots" aria-hidden="true">
+                    <span class="window-dot window-dot-coral"></span>
+                    <span class="window-dot window-dot-amber"></span>
+                    <span class="window-dot window-dot-teal"></span>
+                  </div>
+                  <span class="stage-status">編輯中</span>
+                </div>
+                <div class="stage-body">
+                  <div class="stage-sidebar" aria-hidden="true">
+                    <span class="stage-tool is-active"></span>
+                    <span class="stage-tool"></span>
+                    <span class="stage-tool"></span>
+                    <span class="stage-tool"></span>
+                  </div>
+                  <div class="stage-main">
+                    <div class="stage-chip-row">
+                      <span class="stage-chip">區域</span>
+                      <span class="stage-chip">視窗</span>
+                      <span class="stage-chip">長頁</span>
+                    </div>
+                    <div class="stage-canvas">
+                      <div class="canvas-sheet">
+                        <div class="sheet-block sheet-block-wide"></div>
+                        <div class="sheet-block sheet-block-medium"></div>
+                        <div class="sheet-block sheet-block-medium"></div>
+                        <div class="sheet-block sheet-block-tall"></div>
+                        <div class="sheet-block sheet-block-short"></div>
+                        <div class="sheet-block sheet-block-medium"></div>
+                        <div class="annotation annotation-ring"></div>
+                        <div class="annotation annotation-highlight"></div>
+                        <div class="annotation annotation-arrow"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="stage-floating-note">
+                <strong>辨識就緒</strong>
+                <p>辨識出的文字可以直接複製，或在支援的系統版本上繼續進行 App 內翻譯。</p>
+              </div>
+              <div class="stage-flow">
+                <span>擷取</span>
+                <span>標註</span>
+                <span>輸出</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <section class="home-section">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">產品節奏</p>
+              <h2>把後續處理也留在同一條工作流裡</h2>
+            </div>
+            <p class="section-intro">優秀的截圖工具，不只是截到畫面，還要把整理、解釋與傳遞這一步做順。</p>
+          </div>
+          <div class="feature-showcase">
+            <article class="feature-panel feature-panel-primary feature-panel-wide">
+              <span class="feature-badge">Long-form capture</span>
+              <h3>大幅內容一次收齊</h3>
+              <p>捲動長截圖適合網頁、文件與聊天記錄，不需要手動拼接，也不用擔心關鍵資訊斷開。</p>
+              <div class="feature-tags">
+                <span>網頁</span>
+                <span>文件</span>
+                <span>聊天記錄</span>
+              </div>
+            </article>
+            <article class="feature-panel">
+              <span class="feature-badge">Precision</span>
+              <h3>視窗與區域切換足夠快</h3>
+              <p>無論是框選局部，還是擷取完整視窗，StackShot 都能讓你在需要的粒度上快速落點。</p>
+              <div class="feature-tags">
+                <span>區域截圖</span>
+                <span>視窗截圖</span>
+                <span>聚焦資訊</span>
+              </div>
+            </article>
+            <article class="feature-panel">
+              <span class="feature-badge">Markup</span>
+              <h3>標註直接圍繞重點展開</h3>
+              <p>常用形狀、箭頭、文字、馬賽克與表情就在手邊，回饋與說明不需要再切到其他軟體。</p>
+              <div class="feature-tags">
+                <span>箭頭</span>
+                <span>馬賽克</span>
+                <span>文字</span>
+              </div>
+            </article>
+            <article class="feature-panel">
+              <span class="feature-badge">OCR</span>
+              <h3>辨識後的文字繼續流動</h3>
+              <p>OCR 結果可用來複製、整理或繼續翻譯，讓截圖不只是圖片，也成為可繼續處理的資訊入口。</p>
+              <div class="feature-tags">
+                <span>OCR</span>
+                <span>複製</span>
+                <span>內建翻譯</span>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="home-section">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">工作流</p>
+              <h2>為高頻工作準備的節奏</h2>
+            </div>
+            <p class="section-intro">從擷取到分享，每一步都讓下一步觸手可及。</p>
+          </div>
+          <div class="workflow-grid">
+            <article class="workflow-step">
+              <span class="workflow-index">01</span>
+              <h3>擷取</h3>
+              <p>區域、視窗與捲動長截圖覆蓋最常見的內容形態。</p>
+            </article>
+            <article class="workflow-step">
+              <span class="workflow-index">02</span>
+              <h3>整理</h3>
+              <p>用標註工具把重點、說明與敏感資訊處理清楚。</p>
+            </article>
+            <article class="workflow-step">
+              <span class="workflow-index">03</span>
+              <h3>提取</h3>
+              <p>在裝置本機辨識文字，保留後續複製與使用的空間。</p>
+            </article>
+            <article class="workflow-step">
+              <span class="workflow-index">04</span>
+              <h3>交付</h3>
+              <p>儲存、複製、分享，或在支援的系統版本上直接在 App 內繼續翻譯。</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="home-section trust-strip-wrap">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">邊界與信任</p>
+              <h2>設計選擇也服務於信任</h2>
+            </div>
+            <p class="section-intro">StackShot 的能力建立在明確、克制的產品邊界上。</p>
+          </div>
+          <div class="trust-strip">
+            <article class="trust-card">
+              <h3>本機優先</h3>
+              <p>截圖編輯、OCR 與大部分影像處理都盡量在裝置本機完成。</p>
+            </article>
+            <article class="trust-card">
+              <h3>權限克制</h3>
+              <p>螢幕錄製僅用於截圖與捲動截圖。</p>
+            </article>
+            <article class="trust-card">
+              <h3>邊界清晰</h3>
+              <p>「辨識並翻譯」會先在本機辨識文字，再透過 Apple 官方 Translation 框架在 App 內完成翻譯。</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="home-section">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">繼續了解</p>
+              <h2>繼續了解 StackShot</h2>
+            </div>
+            <p class="section-intro">如果你需要具體的權限說明、支援路徑或專案進展，可以從這裡繼續。</p>
+          </div>
+          <div class="resource-grid">
+            <article class="resource-card">
+              <h3>隱私政策</h3>
+              <p>了解權限、資料處理方式與 OCR 翻譯流程。</p>
+              <a class="secondary-link" href="./privacy/" data-lang-link>打開隱私政策</a>
+            </article>
+            <article class="resource-card">
+              <h3>支援</h3>
+              <p>查看常見問題、排查建議與問題回報入口。</p>
+              <a class="secondary-link" href="./support/" data-lang-link>打開支援頁面</a>
+            </article>
+            <article class="resource-card">
+              <h3>GitHub</h3>
+              <p>查看專案倉庫、更新記錄與公開 issue。</p>
+              <a class="secondary-link" href="https://github.com/yingkong1987/StackShot">前往 GitHub</a>
+            </article>
+            <article class="resource-card">
+              <h3>同作者推薦：StackPaste</h3>
+              <p>如果你也想把複製、歷史記錄與快速貼上整理得更順手，可以看看這款 macOS 剪貼簿工具。</p>
+              <a class="secondary-link" href="https://www.stackpaste.cn/">了解 StackPaste</a>
+            </article>
+          </div>
+        </section>
+      </section>
+
+      <section class="lang-panel" data-lang-panel="en" hidden>
+        <div class="hero">
+          <div class="hero-copy">
+            <div class="eyebrow">macOS capture studio</div>
+            <h1>Turn a screenshot into something ready to send.</h1>
+            <p class="hero-kicker">StackShot brings region capture, window capture, scrolling screenshots, annotation, and OCR into one focused workflow, so you can capture, explain, and hand off information without switching tools.</p>
+            <div class="button-row">
+              <a class="primary-link" href="https://github.com/yingkong1987/StackShot">View the project on GitHub</a>
+              <a class="ghost-link" href="./privacy/" data-lang-link>Privacy and permissions</a>
+            </div>
+            <div class="hero-stats">
+              <article class="stat-card">
+                <span class="stat-label">Capture</span>
+                <strong>Continuous capture</strong>
+                <p>Turn long web pages, documents, and chats into one readable frame.</p>
+              </article>
+              <article class="stat-card">
+                <span class="stat-label">OCR</span>
+                <strong>On-device text extraction</strong>
+                <p>Recognize text locally, then copy it or continue into Translate.</p>
+              </article>
+              <article class="stat-card">
+                <span class="stat-label">Markup</span>
+                <strong>Fast annotation</strong>
+                <p>Shapes, arrows, mosaic, text, pen, and emoji stay close at hand.</p>
+              </article>
+            </div>
+          </div>
+          <div class="hero-visual">
+            <div class="product-stage">
+              <div class="stage-window">
+                <div class="stage-topbar">
+                  <div class="window-dots" aria-hidden="true">
+                    <span class="window-dot window-dot-coral"></span>
+                    <span class="window-dot window-dot-amber"></span>
+                    <span class="window-dot window-dot-teal"></span>
+                  </div>
+                  <span class="stage-status">Live canvas</span>
+                </div>
+                <div class="stage-body">
+                  <div class="stage-sidebar" aria-hidden="true">
+                    <span class="stage-tool is-active"></span>
+                    <span class="stage-tool"></span>
+                    <span class="stage-tool"></span>
+                    <span class="stage-tool"></span>
+                  </div>
+                  <div class="stage-main">
+                    <div class="stage-chip-row">
+                      <span class="stage-chip">Region</span>
+                      <span class="stage-chip">Window</span>
+                      <span class="stage-chip">Scroll</span>
+                    </div>
+                    <div class="stage-canvas">
+                      <div class="canvas-sheet">
+                        <div class="sheet-block sheet-block-wide"></div>
+                        <div class="sheet-block sheet-block-medium"></div>
+                        <div class="sheet-block sheet-block-medium"></div>
+                        <div class="sheet-block sheet-block-tall"></div>
+                        <div class="sheet-block sheet-block-short"></div>
+                        <div class="sheet-block sheet-block-medium"></div>
+                        <div class="annotation annotation-ring"></div>
+                        <div class="annotation annotation-highlight"></div>
+                        <div class="annotation annotation-arrow"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="stage-floating-note">
+                <strong>OCR ready</strong>
+                <p>Copy the extracted text, or translate it in-app on supported macOS versions.</p>
+              </div>
+              <div class="stage-flow">
+                <span>Capture</span>
+                <span>Mark up</span>
+                <span>Deliver</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <section class="home-section">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">Why it feels complete</p>
+              <h2>Keep the work after capture in the same flow</h2>
+            </div>
+            <p class="section-intro">A strong screenshot tool does more than freeze pixels. It should help you shape the message before it leaves your desktop.</p>
+          </div>
+          <div class="feature-showcase">
+            <article class="feature-panel feature-panel-primary feature-panel-wide">
+              <span class="feature-badge">Long-form capture</span>
+              <h3>Collect tall content in one pass</h3>
+              <p>Scrolling capture is built for web pages, documents, and conversation history, without manual stitching or broken context.</p>
+              <div class="feature-tags">
+                <span>Web</span>
+                <span>Docs</span>
+                <span>Chat</span>
+              </div>
+            </article>
+            <article class="feature-panel">
+              <span class="feature-badge">Precision</span>
+              <h3>Switch between region and window fast</h3>
+              <p>Whether you need a tight crop or a clean full-window shot, StackShot keeps the selection step quick and deliberate.</p>
+              <div class="feature-tags">
+                <span>Region</span>
+                <span>Window</span>
+                <span>Focus</span>
+              </div>
+            </article>
+            <article class="feature-panel">
+              <span class="feature-badge">Markup</span>
+              <h3>Annotate right where the review happens</h3>
+              <p>Use arrows, shapes, text, mosaic, and highlights without bouncing to a second app just to explain what matters.</p>
+              <div class="feature-tags">
+                <span>Arrow</span>
+                <span>Mosaic</span>
+                <span>Text</span>
+              </div>
+            </article>
+            <article class="feature-panel">
+              <span class="feature-badge">OCR</span>
+              <h3>Keep recognized text in motion</h3>
+              <p>Extracted text becomes something you can copy, reuse, or continue into translation instead of trapping it inside an image.</p>
+              <div class="feature-tags">
+                <span>OCR</span>
+                <span>Copy</span>
+                <span>Translate</span>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="home-section">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">Built for momentum</p>
+              <h2>From capture to delivery, each step keeps the next one close</h2>
+            </div>
+            <p class="section-intro">The workflow is simple on purpose, but it covers the moments that usually force extra tools.</p>
+          </div>
+          <div class="workflow-grid">
+            <article class="workflow-step">
+              <span class="workflow-index">01</span>
+              <h3>Capture</h3>
+              <p>Region, window, and scrolling capture cover the common layouts you work with.</p>
+            </article>
+            <article class="workflow-step">
+              <span class="workflow-index">02</span>
+              <h3>Refine</h3>
+              <p>Add notes, emphasis, and redaction before the image leaves your hands.</p>
+            </article>
+            <article class="workflow-step">
+              <span class="workflow-index">03</span>
+              <h3>Extract</h3>
+              <p>OCR reads text locally so the screenshot can become usable information.</p>
+            </article>
+            <article class="workflow-step">
+              <span class="workflow-index">04</span>
+              <h3>Deliver</h3>
+              <p>Save, copy, share, or continue into in-app translation on supported macOS versions.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="home-section trust-strip-wrap">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">Trust by design</p>
+              <h2>The product decisions are visible in the workflow</h2>
+            </div>
+            <p class="section-intro">Capabilities matter, but boundaries matter too. StackShot keeps them explicit.</p>
+          </div>
+          <div class="trust-strip">
+            <article class="trust-card">
+              <h3>Local first</h3>
+              <p>Editing, OCR, and most image processing stay on-device whenever possible.</p>
+            </article>
+            <article class="trust-card">
+              <h3>Minimal permissions</h3>
+              <p>Screen Recording is used only for screenshots and scrolling capture.</p>
+            </article>
+            <article class="trust-card">
+              <h3>Clear boundaries</h3>
+              <p>Recognize &amp; Translate first recognizes text locally, then translates it in-app with Apple's public Translation framework.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="home-section">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">Need the details?</p>
+              <h2>Privacy, support, and project progress stay close</h2>
+            </div>
+            <p class="section-intro">If you want the full permission breakdown, support routes, or repository updates, keep going from here.</p>
+          </div>
+          <div class="resource-grid">
+            <article class="resource-card">
+              <h3>Privacy policy</h3>
+              <p>Review permissions, data handling, and the built-in OCR translation flow.</p>
+              <a class="secondary-link" href="./privacy/" data-lang-link>Open privacy policy</a>
+            </article>
+            <article class="resource-card">
+              <h3>Support</h3>
+              <p>Find troubleshooting notes, common questions, and the support entry point.</p>
+              <a class="secondary-link" href="./support/" data-lang-link>Open support page</a>
+            </article>
+            <article class="resource-card">
+              <h3>GitHub</h3>
+              <p>Follow commits, issues, and public project updates in the repository.</p>
+              <a class="secondary-link" href="https://github.com/yingkong1987/StackShot">Open GitHub repository</a>
+            </article>
+            <article class="resource-card">
+              <h3>Also worth a look: StackPaste</h3>
+              <p>If you want a smoother clipboard workflow too, StackPaste is a companion macOS clipboard tool for history, quick paste, and keeping copied snippets organized.</p>
+              <a class="secondary-link" href="https://www.stackpaste.cn/">Explore StackPaste</a>
+            </article>
+          </div>
+        </section>
+      </section>
+
+      <section class="lang-panel" data-lang-panel="ja" hidden>
+        <div class="hero">
+          <div class="hero-copy">
+            <div class="eyebrow">macOS キャプチャスタジオ</div>
+            <h1>スクリーンショットを、そのまま渡せる成果物まで整える。</h1>
+            <p class="hero-kicker">StackShot は範囲キャプチャ、ウインドウキャプチャ、スクロール長尺キャプチャ、注釈、OCR をひとつの流れにまとめ、情報を整理して共有するまでの手数を減らします。</p>
+            <div class="button-row">
+              <a class="primary-link" href="https://github.com/yingkong1987/StackShot">GitHub でプロジェクトを見る</a>
+              <a class="ghost-link" href="./privacy/" data-lang-link>プライバシーと権限を見る</a>
+            </div>
+            <div class="hero-stats">
+              <article class="stat-card">
+                <span class="stat-label">Capture</span>
+                <strong>長い画面を一枚に</strong>
+                <p>Web ページ、書類、チャット履歴を連続した一枚としてまとめられます。</p>
+              </article>
+              <article class="stat-card">
+                <span class="stat-label">OCR</span>
+                <strong>デバイス上で文字認識</strong>
+                <p>認識した文字はそのままコピーでき、必要なら翻訳にも引き継げます。</p>
+              </article>
+              <article class="stat-card">
+                <span class="stat-label">Markup</span>
+                <strong>注釈を素早く追加</strong>
+                <p>図形、矢印、モザイク、テキスト、ペン、絵文字をすぐ使えます。</p>
+              </article>
+            </div>
+          </div>
+          <div class="hero-visual">
+            <div class="product-stage">
+              <div class="stage-window">
+                <div class="stage-topbar">
+                  <div class="window-dots" aria-hidden="true">
+                    <span class="window-dot window-dot-coral"></span>
+                    <span class="window-dot window-dot-amber"></span>
+                    <span class="window-dot window-dot-teal"></span>
+                  </div>
+                  <span class="stage-status">編集中</span>
+                </div>
+                <div class="stage-body">
+                  <div class="stage-sidebar" aria-hidden="true">
+                    <span class="stage-tool is-active"></span>
+                    <span class="stage-tool"></span>
+                    <span class="stage-tool"></span>
+                    <span class="stage-tool"></span>
+                  </div>
+                  <div class="stage-main">
+                    <div class="stage-chip-row">
+                      <span class="stage-chip">範囲</span>
+                      <span class="stage-chip">ウインドウ</span>
+                      <span class="stage-chip">長尺</span>
+                    </div>
+                    <div class="stage-canvas">
+                      <div class="canvas-sheet">
+                        <div class="sheet-block sheet-block-wide"></div>
+                        <div class="sheet-block sheet-block-medium"></div>
+                        <div class="sheet-block sheet-block-medium"></div>
+                        <div class="sheet-block sheet-block-tall"></div>
+                        <div class="sheet-block sheet-block-short"></div>
+                        <div class="sheet-block sheet-block-medium"></div>
+                        <div class="annotation annotation-ring"></div>
+                        <div class="annotation annotation-highlight"></div>
+                        <div class="annotation annotation-arrow"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="stage-floating-note">
+                <strong>OCR 準備完了</strong>
+                <p>認識した文字はコピーするか、対応する macOS バージョンではアプリ内で翻訳できます。</p>
+              </div>
+              <div class="stage-flow">
+                <span>キャプチャ</span>
+                <span>注釈</span>
+                <span>共有</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <section class="home-section">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">使い心地の理由</p>
+              <h2>キャプチャ後の作業も同じ流れの中に置く</h2>
+            </div>
+            <p class="section-intro">優れたスクリーンショットツールは、画面を止めるだけでは足りません。伝わる形に整えるところまで支える必要があります。</p>
+          </div>
+          <div class="feature-showcase">
+            <article class="feature-panel feature-panel-primary feature-panel-wide">
+              <span class="feature-badge">Long-form capture</span>
+              <h3>長い内容を一回でまとめる</h3>
+              <p>スクロール長尺キャプチャは Web ページ、書類、会話履歴に向いており、手作業での結合や文脈の分断を避けられます。</p>
+              <div class="feature-tags">
+                <span>Web</span>
+                <span>書類</span>
+                <span>チャット</span>
+              </div>
+            </article>
+            <article class="feature-panel">
+              <span class="feature-badge">Precision</span>
+              <h3>範囲とウインドウを素早く切り替える</h3>
+              <p>細かい切り抜きでも、整ったウインドウ全体のキャプチャでも、必要な粒度へすばやく合わせられます。</p>
+              <div class="feature-tags">
+                <span>範囲</span>
+                <span>ウインドウ</span>
+                <span>焦点</span>
+              </div>
+            </article>
+            <article class="feature-panel">
+              <span class="feature-badge">Markup</span>
+              <h3>レビューの文脈でそのまま注釈する</h3>
+              <p>矢印、図形、テキスト、モザイク、ハイライトを、その場で加えられるので説明のためだけに別アプリへ移る必要がありません。</p>
+              <div class="feature-tags">
+                <span>矢印</span>
+                <span>モザイク</span>
+                <span>テキスト</span>
+              </div>
+            </article>
+            <article class="feature-panel">
+              <span class="feature-badge">OCR</span>
+              <h3>認識した文字を次の作業へ渡す</h3>
+              <p>OCR で取り出した文字はコピー、再利用、翻訳へと続けられ、画像の中に閉じ込められません。</p>
+              <div class="feature-tags">
+                <span>OCR</span>
+                <span>コピー</span>
+                <span>翻訳</span>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="home-section">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">作業の勢いを止めない</p>
+              <h2>キャプチャから受け渡しまで、次の一手が近い</h2>
+            </div>
+            <p class="section-intro">流れはシンプルですが、通常は別ツールが必要になる場面までカバーします。</p>
+          </div>
+          <div class="workflow-grid">
+            <article class="workflow-step">
+              <span class="workflow-index">01</span>
+              <h3>キャプチャ</h3>
+              <p>範囲、ウインドウ、スクロール長尺キャプチャで、よくあるレイアウトを押さえます。</p>
+            </article>
+            <article class="workflow-step">
+              <span class="workflow-index">02</span>
+              <h3>整える</h3>
+              <p>注釈で強調、説明、マスキングを画像の上で完結できます。</p>
+            </article>
+            <article class="workflow-step">
+              <span class="workflow-index">03</span>
+              <h3>抽出</h3>
+              <p>OCR がデバイス上で文字を読み取り、使える情報へ変えます。</p>
+            </article>
+            <article class="workflow-step">
+              <span class="workflow-index">04</span>
+              <h3>受け渡す</h3>
+              <p>保存、コピー、共有、または対応する macOS バージョンではアプリ内翻訳へ進めます。</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="home-section trust-strip-wrap">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">信頼を前提に設計</p>
+              <h2>プロダクトの境界もワークフローに表れる</h2>
+            </div>
+            <p class="section-intro">機能だけでなく、どこまでをアプリが担うかも明確にしています。</p>
+          </div>
+          <div class="trust-strip">
+            <article class="trust-card">
+              <h3>ローカル優先</h3>
+              <p>編集、OCR、ほとんどの画像処理は、できる限りデバイス上で完結します。</p>
+            </article>
+            <article class="trust-card">
+              <h3>権限を最小化</h3>
+              <p>画面収録はスクリーンショットとスクロールキャプチャにのみ使用します。</p>
+            </article>
+            <article class="trust-card">
+              <h3>境界が明確</h3>
+              <p>「認識して翻訳」は文字をローカルで認識し、その後 Apple の公開 Translation フレームワークでアプリ内翻訳を行います。</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="home-section">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">詳しく見る</p>
+              <h2>プライバシー、サポート、プロジェクトの進行も近くに置く</h2>
+            </div>
+            <p class="section-intro">権限の詳細、サポート導線、リポジトリの更新を確認したい場合はここから進めます。</p>
+          </div>
+          <div class="resource-grid">
+            <article class="resource-card">
+              <h3>プライバシーポリシー</h3>
+              <p>権限、データの扱い、内蔵 OCR 翻訳の流れを確認できます。</p>
+              <a class="secondary-link" href="./privacy/" data-lang-link>プライバシーポリシーを開く</a>
+            </article>
+            <article class="resource-card">
+              <h3>サポート</h3>
+              <p>よくある確認項目、トラブルシューティング、問い合わせ先をまとめています。</p>
+              <a class="secondary-link" href="./support/" data-lang-link>サポートページを開く</a>
+            </article>
+            <article class="resource-card">
+              <h3>GitHub</h3>
+              <p>コミット、Issue、公開中の更新内容をリポジトリで追えます。</p>
+              <a class="secondary-link" href="https://github.com/yingkong1987/StackShot">GitHub リポジトリを開く</a>
+            </article>
+            <article class="resource-card">
+              <h3>あわせて使える StackPaste</h3>
+              <p>コピー履歴や素早い貼り付けも整えたいなら、StackPaste は相性の良い macOS クリップボードツールです。</p>
+              <a class="secondary-link" href="https://www.stackpaste.cn/">StackPaste を見る</a>
+            </article>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p class="footer-note" data-copy-key="footer">StackShot is a local-first macOS screenshot tool. This site is hosted on GitHub Pages.</p>
+      <div class="footer-links">
+        <a href="./privacy/" data-lang-link data-copy-key="privacy">Privacy</a>
+        <a href="./support/" data-lang-link data-copy-key="support">Support</a>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>
