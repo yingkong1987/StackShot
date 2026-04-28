@@ -316,13 +316,27 @@ img {
 }
 
 .primary-link,
-.ghost-link {
+.ghost-link,
+.app-store-badge-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.primary-link,
+.ghost-link {
   min-height: 48px;
   padding: 0 18px;
   font-weight: 600;
+}
+
+.app-store-badge-link {
+  line-height: 0;
+}
+
+.app-store-badge {
+  height: 56px;
+  width: auto;
 }
 
 .primary-link {
