@@ -187,17 +187,18 @@ img { display: block; max-width: 100%; }
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 7px 12px;
+  padding: 7px 14px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   background: rgba(0,212,255,0.05);
   color: var(--ink-dim);
-  font-size: 0.82rem;
+  font-size: 0.85rem;
   font-weight: 500;
   cursor: pointer;
   transition: all .2s;
   white-space: nowrap;
   user-select: none;
+  min-width: 140px;
 }
 
 .lang-trigger:hover {
@@ -219,7 +220,7 @@ img { display: block; max-width: 100%; }
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  min-width: 200px;
+  min-width: 240px;
   padding: 6px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
