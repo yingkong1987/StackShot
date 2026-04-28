@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="../assets/site.css">
   <script defer src="../assets/site.js"></script>
 </head>
-<body data-page="privacy" data-title-zh-Hans="StackShot | 隐私政策" data-title-zh-Hant="StackShot | 隱私政策" data-title-en="StackShot | Privacy Policy" data-title-ja="StackShot | プライバシーポリシー">
+<body data-page="privacy" data-title-zh-Hans="StackShot | 隐私政策" data-title-zh-Hant="StackShot | 隱私政策" data-title-en="StackShot | Privacy Policy" data-title-es-ES="StackShot | Política de privacidad" data-title-ja="StackShot | プライバシーポリシー" data-title-de="StackShot | Datenschutzrichtlinie" data-title-fr="StackShot | Politique de confidentialité" data-title-ko="StackShot | 개인정보 처리방침" data-title-pt-BR="StackShot | Política de privacidade" data-title-ru="StackShot | Политика конфиденциальности">
   <div class="page-shell">
     <header class="topbar">
       <a class="brand" href="../" data-lang-link>
@@ -21,17 +21,17 @@
         <a class="nav-link" href="../support/" data-lang-link data-copy-key="support">Support</a>
       </nav>
       <div class="lang-switcher" data-language-switcher role="group" aria-label="Switch language">
+        <span class="sr-only">Language</span>
+        <button class="language-button" type="button" data-set-lang="en">EN</button>
         <button class="language-button" type="button" data-set-lang="zh-Hans">简</button>
         <button class="language-button" type="button" data-set-lang="zh-Hant">繁</button>
-        <button class="language-button" type="button" data-set-lang="en">EN</button>
-        <button class="language-button" type="button" data-set-lang="ja">JA</button>
-        <button class="language-button" type="button" data-set-lang="fr">FR</button>
-        <button class="language-button" type="button" data-set-lang="de">DE</button>
         <button class="language-button" type="button" data-set-lang="es-ES">ES</button>
+        <button class="language-button" type="button" data-set-lang="ja">JA</button>
+        <button class="language-button" type="button" data-set-lang="de">DE</button>
+        <button class="language-button" type="button" data-set-lang="fr">FR</button>
         <button class="language-button" type="button" data-set-lang="ko">KO</button>
         <button class="language-button" type="button" data-set-lang="pt-BR">PT</button>
         <button class="language-button" type="button" data-set-lang="ru">RU</button>
-        <button class="language-button" type="button" data-set-lang="ar">AR</button>
       </div>
     </header>
 
@@ -270,6 +270,371 @@
             <p>このポリシーについて質問がある場合や、製品上の問題を報告したい場合は、サポートページまたは GitHub Issues を利用してください。</p>
             <div class="quick-links">
               <div class="link-card"><strong>サポートページ</strong><a href="https://yingkong1987.github.io/StackShot/support/">https://yingkong1987.github.io/StackShot/support/</a></div>
+              <div class="link-card"><strong>GitHub Issues</strong><a href="https://github.com/yingkong1987/StackShot/issues">https://github.com/yingkong1987/StackShot/issues</a></div>
+            </div>
+          </article>
+        </section>
+      </section>
+
+      <section class="lang-panel" data-lang-panel="es-ES" hidden>
+        <div class="page-heading">
+          <div class="eyebrow">Política de privacidad · Actualizada 2026-04-23</div>
+          <h1>Política de privacidad de StackShot</h1>
+          <p>StackShot es una herramienta de capturas local-first para macOS. Accedemos a permisos del sistema solo cuando usas funciones relacionadas de forma intencionada y procesamos el contenido capturado en el dispositivo siempre que es posible.</p>
+        </div>
+        <section class="page-layout">
+          <article class="callout">
+            <strong>Resumen</strong>
+            <p>StackShot no requiere una cuenta, no integra SDK publicitarios, no sube automáticamente tus capturas a un servidor remoto y no ofrece sincronización en la nube para el contenido capturado.</p>
+          </article>
+          <div class="policy-grid">
+            <article class="policy-block">
+              <h2>Permisos que usamos</h2>
+              <ul class="policy-list">
+                <li>Grabación de pantalla: se usa para capturas, capturas con desplazamiento y edición u OCR sobre el contenido capturado.</li>
+              </ul>
+            </article>
+            <article class="policy-block">
+              <h2>Cómo se maneja el contenido capturado</h2>
+              <ul class="policy-list">
+                <li>La edición, la detección de ventanas, el OCR y la mayor parte del procesamiento de imagen se realizan localmente en tu Mac.</li>
+                <li>Las imágenes o el texto solo se escriben en el portapapeles o se exportan al disco cuando eliges Copiar, Compartir, Guardar o Traducir con OCR.</li>
+                <li>Preferencias como idioma, visibilidad del Dock y atajos se guardan localmente en el Mac actual.</li>
+              </ul>
+            </article>
+            <article class="policy-block">
+              <h2>Cómo funciona Reconocer y traducir</h2>
+              <ul class="policy-list">
+                <li>StackShot reconoce en el dispositivo el texto del contenido capturado.</li>
+                <li>En las versiones compatibles de macOS, la app traduce el texto reconocido dentro de la aplicación con el framework público Translation de Apple. El sistema puede pedir descargar recursos de idioma la primera vez que uses algunos pares.</li>
+                <li>Según la documentación del framework de Apple, Apple puede recopilar métricas de uso y rendimiento que no incluyen el contenido original, como el identificador del bundle y el idioma de origen o destino.</li>
+              </ul>
+            </article>
+            <article class="policy-block">
+              <h2>Lo que no hacemos</h2>
+              <ul class="policy-list">
+                <li>No exigimos una cuenta para los flujos básicos de capturas.</li>
+                <li>No empezamos a grabar automáticamente en segundo plano.</li>
+                <li>No incorporamos lógica de sincronización automática que suba las capturas a un servidor operado por el desarrollador.</li>
+                <li>No vendemos tus capturas, el texto OCR ni tus hábitos de uso.</li>
+              </ul>
+            </article>
+          </div>
+          <article class="page-panel">
+            <h2>Servicios externos y de terceros</h2>
+            <p>Cuando usas la traducción OCR integrada, el flujo se ejecuta dentro de StackShot mediante el framework público Translation de Apple. Según la documentación de Apple, Apple puede procesar métricas limitadas de uso y rendimiento que no incluyen el contenido original, como el identificador del bundle y el idioma de origen o destino.</p>
+            <p>Este sitio público está alojado en GitHub Pages. GitHub puede procesar registros básicos de solicitudes web bajo sus propias políticas.</p>
+          </article>
+          <article class="page-panel">
+            <h2>Contacto</h2>
+            <p>Si tienes una pregunta sobre esta política o quieres informar de un problema del producto, usa la página de soporte o contacta con el proyecto a través de GitHub Issues.</p>
+            <div class="quick-links">
+              <div class="link-card"><strong>Página de soporte</strong><a href="https://yingkong1987.github.io/StackShot/support/">https://yingkong1987.github.io/StackShot/support/</a></div>
+              <div class="link-card"><strong>GitHub Issues</strong><a href="https://github.com/yingkong1987/StackShot/issues">https://github.com/yingkong1987/StackShot/issues</a></div>
+            </div>
+          </article>
+        </section>
+      </section>
+
+
+      <section class="lang-panel" data-lang-panel="de" hidden>
+        <div class="page-heading">
+          <div class="eyebrow">Datenschutzrichtlinie · Aktualisiert am 2026-04-23</div>
+          <h1>StackShot Datenschutzrichtlinie</h1>
+          <p>StackShot ist ein lokal orientiertes Screenshot-Tool für macOS. Wir greifen nur dann auf Systemberechtigungen zu, wenn du die entsprechenden Funktionen bewusst nutzt, und verarbeiten erfasste Inhalte nach Möglichkeit auf dem Gerät.</p>
+        </div>
+        <section class="page-layout">
+          <article class="callout">
+            <strong>Kurzfassung</strong>
+            <p>StackShot verlangt kein Konto, bindet keine Werbe-SDKs ein, lädt deine Screenshots nicht automatisch auf einen entfernten Server hoch und bietet keinen Cloud-Sync-Pfad für erfasste Inhalte.</p>
+          </article>
+          <div class="policy-grid">
+            <article class="policy-block">
+              <h2>Welche Berechtigungen wir verwenden</h2>
+              <ul class="policy-list">
+                <li>Bildschirmaufnahme: für Screenshots, Scroll-Screenshots sowie Bearbeitung oder OCR auf erfassten Inhalten.</li>
+              </ul>
+            </article>
+            <article class="policy-block">
+              <h2>Wie erfasste Inhalte behandelt werden</h2>
+              <ul class="policy-list">
+                <li>Bearbeitung, Fenstererkennung, OCR und der Großteil der Bildverarbeitung erfolgen lokal auf deinem Mac.</li>
+                <li>Bilder oder Text werden nur dann in die Zwischenablage geschrieben oder auf den Datenträger exportiert, wenn du Kopieren, Teilen, Sichern oder OCR-Übersetzen auswählst.</li>
+                <li>Einstellungen wie Sprache, Dock-Sichtbarkeit und Kurzbefehle werden lokal auf dem aktuellen Mac gespeichert.</li>
+              </ul>
+            </article>
+            <article class="policy-block">
+              <h2>Wie Erkennen und Übersetzen funktioniert</h2>
+              <ul class="policy-list">
+                <li>StackShot erkennt Text aus erfassten Inhalten direkt auf dem Gerät.</li>
+                <li>Auf unterstützten macOS-Versionen übersetzt die App den erkannten Text in der App mit Apples öffentlichem Translation-Framework. Beim ersten Verwenden mancher Sprachpaare kann das System Sprachressourcen herunterladen wollen.</li>
+                <li>Laut Apples Dokumentation kann Apple Nutzungs- und Leistungsmetriken erfassen, die den ursprünglichen Inhalt nicht enthalten, etwa die Bundle-ID der App sowie Quell- oder Zielsprache.</li>
+              </ul>
+            </article>
+            <article class="policy-block">
+              <h2>Was wir nicht tun</h2>
+              <ul class="policy-list">
+                <li>Wir verlangen kein Konto für zentrale Screenshot-Abläufe.</li>
+                <li>Wir starten keine Aufzeichnung automatisch im Hintergrund.</li>
+                <li>Wir liefern keine automatische Synchronisationslogik aus, die Aufnahmen auf einen von Entwicklern betriebenen Server hochlädt.</li>
+                <li>Wir verkaufen weder deine Screenshots noch OCR-Text oder Nutzungsgewohnheiten.</li>
+              </ul>
+            </article>
+          </div>
+          <article class="page-panel">
+            <h2>Drittanbieter und externe Dienste</h2>
+            <p>Wenn du die integrierte OCR-Übersetzung nutzt, läuft der Übersetzungsvorgang innerhalb von StackShot über Apples öffentliches Translation-Framework. Laut Apples Dokumentation kann Apple begrenzte Nutzungs- und Leistungsmetriken verarbeiten, die den ursprünglichen Inhalt nicht enthalten, etwa die Bundle-ID der App sowie Quell- oder Zielsprache.</p>
+            <p>Diese öffentliche Website wird auf GitHub Pages gehostet. GitHub kann unter seinen eigenen Richtlinien grundlegende Web-Anfrageprotokolle verarbeiten.</p>
+          </article>
+          <article class="page-panel">
+            <h2>Kontakt</h2>
+            <p>Wenn du eine Frage zu dieser Richtlinie hast oder ein Produktproblem melden möchtest, nutze die Support-Seite oder kontaktiere das Projekt über GitHub Issues.</p>
+            <div class="quick-links">
+              <div class="link-card"><strong>Support-Seite</strong><a href="https://yingkong1987.github.io/StackShot/support/">https://yingkong1987.github.io/StackShot/support/</a></div>
+              <div class="link-card"><strong>GitHub Issues</strong><a href="https://github.com/yingkong1987/StackShot/issues">https://github.com/yingkong1987/StackShot/issues</a></div>
+            </div>
+          </article>
+        </section>
+      </section>
+
+
+      <section class="lang-panel" data-lang-panel="fr" hidden>
+        <div class="page-heading">
+          <div class="eyebrow">Politique de confidentialité · Mise à jour le 2026-04-23</div>
+          <h1>Politique de confidentialité StackShot</h1>
+          <p>StackShot est un outil de capture local-first pour macOS. Nous accédons aux autorisations système uniquement lorsque vous utilisez volontairement les fonctions concernées et nous traitons le contenu capturé sur l’appareil dès que possible.</p>
+        </div>
+        <section class="page-layout">
+          <article class="callout">
+            <strong>En bref</strong>
+            <p>StackShot ne demande pas de compte, n’intègre pas de SDK publicitaires, ne téléverse pas automatiquement vos captures vers un serveur distant et ne propose pas de synchronisation cloud pour le contenu capturé.</p>
+          </article>
+          <div class="policy-grid">
+            <article class="policy-block">
+              <h2>Autorisations utilisées</h2>
+              <ul class="policy-list">
+                <li>Enregistrement de l’écran : utilisé pour les captures, les captures défilantes ainsi que l’édition ou l’OCR sur le contenu capturé.</li>
+              </ul>
+            </article>
+            <article class="policy-block">
+              <h2>Traitement du contenu capturé</h2>
+              <ul class="policy-list">
+                <li>L’édition, la détection de fenêtre, l’OCR et la majeure partie du traitement d’image sont réalisés localement sur votre Mac.</li>
+                <li>Les images ou le texte ne sont écrits dans le presse-papiers ou exportés sur disque que lorsque vous choisissez Copier, Partager, Enregistrer ou Traduire par OCR.</li>
+                <li>Les préférences comme la langue, la visibilité du Dock et les raccourcis sont stockées localement sur le Mac actuel.</li>
+              </ul>
+            </article>
+            <article class="policy-block">
+              <h2>Comment fonctionne Reconnaître et traduire</h2>
+              <ul class="policy-list">
+                <li>StackShot reconnaît le texte du contenu capturé directement sur l’appareil.</li>
+                <li>Sur les versions compatibles de macOS, l’app traduit le texte reconnu dans l’application via le framework public Translation d’Apple. Le système peut demander le téléchargement de ressources linguistiques lors de la première utilisation de certaines paires.</li>
+                <li>Selon la documentation du framework d’Apple, Apple peut collecter des métriques d’usage et de performance qui n’incluent pas le contenu d’origine, comme l’identifiant du bundle de l’app et la langue source ou cible.</li>
+              </ul>
+            </article>
+            <article class="policy-block">
+              <h2>Ce que nous ne faisons pas</h2>
+              <ul class="policy-list">
+                <li>Nous n’exigeons pas de compte pour les flux de capture principaux.</li>
+                <li>Nous ne démarrons pas l’enregistrement automatiquement en arrière-plan.</li>
+                <li>Nous n’intégrons pas de logique de synchronisation automatique qui envoie les captures vers un serveur exploité par le développeur.</li>
+                <li>Nous ne vendons ni vos captures, ni le texte OCR, ni vos habitudes d’utilisation.</li>
+              </ul>
+            </article>
+          </div>
+          <article class="page-panel">
+            <h2>Services tiers et externes</h2>
+            <p>Lorsque vous utilisez la traduction OCR intégrée, le flux s’exécute dans StackShot via le framework public Translation d’Apple. Selon la documentation d’Apple, Apple peut traiter des métriques limitées d’usage et de performance qui n’incluent pas le contenu d’origine, comme l’identifiant du bundle de l’app et la langue source ou cible.</p>
+            <p>Ce site public est hébergé sur GitHub Pages. GitHub peut traiter des journaux web de base selon ses propres politiques.</p>
+          </article>
+          <article class="page-panel">
+            <h2>Contact</h2>
+            <p>Si vous avez une question sur cette politique ou souhaitez signaler un problème produit, utilisez la page d’assistance ou contactez le projet via GitHub Issues.</p>
+            <div class="quick-links">
+              <div class="link-card"><strong>Page d’assistance</strong><a href="https://yingkong1987.github.io/StackShot/support/">https://yingkong1987.github.io/StackShot/support/</a></div>
+              <div class="link-card"><strong>GitHub Issues</strong><a href="https://github.com/yingkong1987/StackShot/issues">https://github.com/yingkong1987/StackShot/issues</a></div>
+            </div>
+          </article>
+        </section>
+      </section>
+
+
+      <section class="lang-panel" data-lang-panel="ko" hidden>
+        <div class="page-heading">
+          <div class="eyebrow">개인정보 처리방침 · 2026-04-23 업데이트</div>
+          <h1>StackShot 개인정보 처리방침</h1>
+          <p>StackShot은 macOS용 로컬 우선 스크린샷 도구입니다. 관련 기능을 사용자가 직접 사용할 때만 시스템 권한에 접근하며, 가능하면 캡처한 내용을 기기에서 처리합니다.</p>
+        </div>
+        <section class="page-layout">
+          <article class="callout">
+            <strong>요약</strong>
+            <p>StackShot은 계정을 요구하지 않고, 광고 SDK를 포함하지 않으며, 스크린샷을 원격 서버에 자동 업로드하지 않고, 캡처 내용을 위한 클라우드 동기화 경로도 제공하지 않습니다.</p>
+          </article>
+          <div class="policy-grid">
+            <article class="policy-block">
+              <h2>사용하는 권한</h2>
+              <ul class="policy-list">
+                <li>화면 기록: 스크린샷, 스크롤 캡처, 캡처한 내용에 대한 편집 및 OCR에 사용됩니다.</li>
+              </ul>
+            </article>
+            <article class="policy-block">
+              <h2>캡처한 내용을 처리하는 방식</h2>
+              <ul class="policy-list">
+                <li>편집, 창 감지, OCR, 대부분의 이미지 처리는 현재 Mac에서 로컬로 수행됩니다.</li>
+                <li>이미지나 텍스트는 사용자가 복사, 공유, 저장 또는 OCR 번역을 선택할 때만 클립보드에 쓰이거나 디스크로 내보내집니다.</li>
+                <li>언어, Dock 표시, 단축키 같은 설정은 현재 Mac에 로컬로 저장됩니다.</li>
+              </ul>
+            </article>
+            <article class="policy-block">
+              <h2>인식 및 번역의 동작 방식</h2>
+              <ul class="policy-list">
+                <li>StackShot은 캡처한 내용의 텍스트를 기기에서 직접 인식합니다.</li>
+                <li>지원되는 macOS 버전에서는 Apple의 공개 Translation 프레임워크를 사용해 앱 안에서 인식한 텍스트를 번역합니다. 일부 언어 쌍은 처음 사용할 때 언어 리소스 다운로드가 필요할 수 있습니다.</li>
+                <li>Apple의 문서에 따르면 Apple은 원본 내용을 포함하지 않는 사용 및 성능 지표(앱 번들 ID, 원본/대상 언어 등)를 수집할 수 있습니다.</li>
+              </ul>
+            </article>
+            <article class="policy-block">
+              <h2>우리가 하지 않는 것</h2>
+              <ul class="policy-list">
+                <li>핵심 스크린샷 기능을 위해 계정을 요구하지 않습니다.</li>
+                <li>백그라운드에서 자동으로 녹화를 시작하지 않습니다.</li>
+                <li>캡처를 개발자 운영 서버로 업로드하는 자동 동기화 로직을 포함하지 않습니다.</li>
+                <li>스크린샷, OCR 텍스트, 사용 습관 데이터를 판매하지 않습니다.</li>
+              </ul>
+            </article>
+          </div>
+          <article class="page-panel">
+            <h2>외부 서비스 및 제3자</h2>
+            <p>내장 OCR 번역을 사용할 때 번역 흐름은 Apple의 공개 Translation 프레임워크를 통해 StackShot 내부에서 실행됩니다. Apple 문서에 따르면 Apple은 원본 내용을 포함하지 않는 제한된 사용 및 성능 지표를 처리할 수 있습니다.</p>
+            <p>이 공개 사이트는 GitHub Pages에 호스팅됩니다. GitHub는 자체 정책에 따라 기본 웹 요청 로그를 처리할 수 있습니다.</p>
+          </article>
+          <article class="page-panel">
+            <h2>문의</h2>
+            <p>이 정책에 관한 질문이 있거나 제품 문제를 제보하려면 지원 페이지를 사용하거나 GitHub Issues를 통해 프로젝트에 연락해 주세요.</p>
+            <div class="quick-links">
+              <div class="link-card"><strong>지원 페이지</strong><a href="https://yingkong1987.github.io/StackShot/support/">https://yingkong1987.github.io/StackShot/support/</a></div>
+              <div class="link-card"><strong>GitHub Issues</strong><a href="https://github.com/yingkong1987/StackShot/issues">https://github.com/yingkong1987/StackShot/issues</a></div>
+            </div>
+          </article>
+        </section>
+      </section>
+
+
+      <section class="lang-panel" data-lang-panel="pt-BR" hidden>
+        <div class="page-heading">
+          <div class="eyebrow">Política de privacidade · Atualizada em 2026-04-23</div>
+          <h1>Política de privacidade do StackShot</h1>
+          <p>O StackShot é uma ferramenta de captura local-first para macOS. Acessamos permissões do sistema apenas quando você usa intencionalmente os recursos relacionados e processamos o conteúdo capturado no dispositivo sempre que possível.</p>
+        </div>
+        <section class="page-layout">
+          <article class="callout">
+            <strong>Resumo</strong>
+            <p>O StackShot não exige conta, não incorpora SDKs de anúncios, não envia automaticamente suas capturas para um servidor remoto e não oferece sincronização em nuvem para o conteúdo capturado.</p>
+          </article>
+          <div class="policy-grid">
+            <article class="policy-block">
+              <h2>Permissões que usamos</h2>
+              <ul class="policy-list">
+                <li>Gravação de Tela: usada para capturas, capturas com rolagem e edição ou OCR sobre o conteúdo capturado.</li>
+              </ul>
+            </article>
+            <article class="policy-block">
+              <h2>Como o conteúdo capturado é tratado</h2>
+              <ul class="policy-list">
+                <li>Edição, detecção de janelas, OCR e a maior parte do processamento de imagem acontecem localmente no seu Mac.</li>
+                <li>Imagens ou texto só são gravados na área de transferência ou exportados para disco quando você escolhe Copiar, Compartilhar, Salvar ou Traduzir com OCR.</li>
+                <li>Preferências como idioma, visibilidade do Dock e atalhos são armazenadas localmente no Mac atual.</li>
+              </ul>
+            </article>
+            <article class="policy-block">
+              <h2>Como funciona Reconhecer e traduzir</h2>
+              <ul class="policy-list">
+                <li>O StackShot reconhece o texto do conteúdo capturado no próprio dispositivo.</li>
+                <li>Nas versões compatíveis do macOS, o app traduz o texto reconhecido dentro do aplicativo usando o framework público Translation da Apple. O sistema pode solicitar o download de recursos de idioma na primeira vez que você usar alguns pares.</li>
+                <li>Segundo a documentação do framework da Apple, a Apple pode coletar métricas de uso e desempenho que não incluem o conteúdo original, como o identificador do app e o idioma de origem ou destino.</li>
+              </ul>
+            </article>
+            <article class="policy-block">
+              <h2>O que não fazemos</h2>
+              <ul class="policy-list">
+                <li>Não exigimos conta para os fluxos principais de captura.</li>
+                <li>Não iniciamos gravações automaticamente em segundo plano.</li>
+                <li>Não enviamos lógica de sincronização automática que faça upload das capturas para um servidor operado pelo desenvolvedor.</li>
+                <li>Não vendemos suas capturas, texto OCR nem hábitos de uso.</li>
+              </ul>
+            </article>
+          </div>
+          <article class="page-panel">
+            <h2>Serviços externos e de terceiros</h2>
+            <p>Quando você usa a tradução OCR integrada, o fluxo roda dentro do StackShot por meio do framework público Translation da Apple. Segundo a documentação da Apple, a Apple pode processar métricas limitadas de uso e desempenho que não incluem o conteúdo original, como o identificador do app e o idioma de origem ou destino.</p>
+            <p>Este site público é hospedado no GitHub Pages. O GitHub pode processar registros básicos de solicitações web sob suas próprias políticas.</p>
+          </article>
+          <article class="page-panel">
+            <h2>Contato</h2>
+            <p>Se você tiver dúvidas sobre esta política ou quiser relatar um problema do produto, use a página de suporte ou entre em contato com o projeto pelo GitHub Issues.</p>
+            <div class="quick-links">
+              <div class="link-card"><strong>Página de suporte</strong><a href="https://yingkong1987.github.io/StackShot/support/">https://yingkong1987.github.io/StackShot/support/</a></div>
+              <div class="link-card"><strong>GitHub Issues</strong><a href="https://github.com/yingkong1987/StackShot/issues">https://github.com/yingkong1987/StackShot/issues</a></div>
+            </div>
+          </article>
+        </section>
+      </section>
+
+
+      <section class="lang-panel" data-lang-panel="ru" hidden>
+        <div class="page-heading">
+          <div class="eyebrow">Политика конфиденциальности · Обновлено 2026-04-23</div>
+          <h1>Политика конфиденциальности StackShot</h1>
+          <p>StackShot — это локальный инструмент для скриншотов на macOS. Мы обращаемся к системным разрешениям только тогда, когда вы сами используете соответствующие функции, и по возможности обрабатываем захваченный контент прямо на устройстве.</p>
+        </div>
+        <section class="page-layout">
+          <article class="callout">
+            <strong>Коротко</strong>
+            <p>StackShot не требует учётной записи, не содержит рекламных SDK, не загружает ваши снимки автоматически на удалённый сервер и не предлагает облачную синхронизацию для захваченного контента.</p>
+          </article>
+          <div class="policy-grid">
+            <article class="policy-block">
+              <h2>Какие разрешения мы используем</h2>
+              <ul class="policy-list">
+                <li>Запись экрана: используется для снимков, захвата с прокруткой, а также для редактирования и OCR на захваченном содержимом.</li>
+              </ul>
+            </article>
+            <article class="policy-block">
+              <h2>Как обрабатывается захваченный контент</h2>
+              <ul class="policy-list">
+                <li>Редактирование, определение окон, OCR и большая часть обработки изображений выполняются локально на вашем Mac.</li>
+                <li>Изображения или текст записываются в буфер обмена или экспортируются на диск только когда вы выбираете Копировать, Поделиться, Сохранить или OCR-перевод.</li>
+                <li>Настройки вроде языка, отображения Dock и горячих клавиш хранятся локально на текущем Mac.</li>
+              </ul>
+            </article>
+            <article class="policy-block">
+              <h2>Как работает «Распознать и перевести»</h2>
+              <ul class="policy-list">
+                <li>StackShot распознаёт текст в захваченном содержимом прямо на устройстве.</li>
+                <li>На поддерживаемых версиях macOS приложение переводит распознанный текст внутри себя через публичный фреймворк Translation от Apple. При первом использовании некоторых языковых пар система может предложить загрузить языковые ресурсы.</li>
+                <li>Согласно документации Apple, компания может собирать метрики использования и производительности, не содержащие исходного контента, например идентификатор пакета приложения и исходный или целевой язык.</li>
+              </ul>
+            </article>
+            <article class="policy-block">
+              <h2>Чего мы не делаем</h2>
+              <ul class="policy-list">
+                <li>Мы не требуем учётную запись для основных сценариев работы со скриншотами.</li>
+                <li>Мы не начинаем запись автоматически в фоне.</li>
+                <li>Мы не поставляем автоматическую синхронизацию, которая загружает снимки на сервер, управляемый разработчиком.</li>
+                <li>Мы не продаём ваши снимки, OCR-текст или данные о привычках использования.</li>
+              </ul>
+            </article>
+          </div>
+          <article class="page-panel">
+            <h2>Сторонние и внешние сервисы</h2>
+            <p>Когда вы используете встроенный OCR-перевод, процесс выполняется внутри StackShot через публичный фреймворк Translation от Apple. Согласно документации Apple, компания может обрабатывать ограниченные метрики использования и производительности, не содержащие исходный контент, например идентификатор пакета приложения и исходный или целевой язык.</p>
+            <p>Этот публичный сайт размещён на GitHub Pages. GitHub может обрабатывать базовые журналы веб-запросов в соответствии со своими правилами.</p>
+          </article>
+          <article class="page-panel">
+            <h2>Контакты</h2>
+            <p>Если у вас есть вопрос по этой политике или вы хотите сообщить о проблеме продукта, воспользуйтесь страницей поддержки или обратитесь к проекту через GitHub Issues.</p>
+            <div class="quick-links">
+              <div class="link-card"><strong>Страница поддержки</strong><a href="https://yingkong1987.github.io/StackShot/support/">https://yingkong1987.github.io/StackShot/support/</a></div>
               <div class="link-card"><strong>GitHub Issues</strong><a href="https://github.com/yingkong1987/StackShot/issues">https://github.com/yingkong1987/StackShot/issues</a></div>
             </div>
           </article>

@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="../assets/site.css">
   <script defer src="../assets/site.js"></script>
 </head>
-<body data-page="support" data-title-zh-Hans="StackShot | 支持" data-title-zh-Hant="StackShot | 支援" data-title-en="StackShot | Support" data-title-ja="StackShot | サポート">
+<body data-page="support" data-title-zh-Hans="StackShot | 支持" data-title-zh-Hant="StackShot | 支援" data-title-en="StackShot | Support" data-title-es-ES="StackShot | Soporte" data-title-ja="StackShot | サポート" data-title-de="StackShot | Support" data-title-fr="StackShot | Assistance" data-title-ko="StackShot | 지원" data-title-pt-BR="StackShot | Suporte" data-title-ru="StackShot | Поддержка">
   <div class="page-shell">
     <header class="topbar">
       <a class="brand" href="../" data-lang-link>
@@ -21,17 +21,17 @@
         <a class="nav-link" href="./" data-lang-link data-copy-key="support" aria-current="page">Support</a>
       </nav>
       <div class="lang-switcher" data-language-switcher role="group" aria-label="Switch language">
+        <span class="sr-only">Language</span>
+        <button class="language-button" type="button" data-set-lang="en">EN</button>
         <button class="language-button" type="button" data-set-lang="zh-Hans">简</button>
         <button class="language-button" type="button" data-set-lang="zh-Hant">繁</button>
-        <button class="language-button" type="button" data-set-lang="en">EN</button>
-        <button class="language-button" type="button" data-set-lang="ja">JA</button>
-        <button class="language-button" type="button" data-set-lang="fr">FR</button>
-        <button class="language-button" type="button" data-set-lang="de">DE</button>
         <button class="language-button" type="button" data-set-lang="es-ES">ES</button>
+        <button class="language-button" type="button" data-set-lang="ja">JA</button>
+        <button class="language-button" type="button" data-set-lang="de">DE</button>
+        <button class="language-button" type="button" data-set-lang="fr">FR</button>
         <button class="language-button" type="button" data-set-lang="ko">KO</button>
         <button class="language-button" type="button" data-set-lang="pt-BR">PT</button>
         <button class="language-button" type="button" data-set-lang="ru">RU</button>
-        <button class="language-button" type="button" data-set-lang="ar">AR</button>
       </div>
     </header>
 
@@ -211,6 +211,281 @@
               <li>StackShot のバージョンとビルド番号。</li>
               <li>範囲キャプチャ、ウインドウキャプチャ、スクロールキャプチャ、OCR など、使用していた機能経路。</li>
               <li>再現手順。できればスクリーンショットや画面収録も添付してください。</li>
+            </ul>
+          </article>
+        </section>
+      </section>
+
+      <section class="lang-panel" data-lang-panel="es-ES" hidden>
+        <div class="page-heading">
+          <div class="eyebrow">Centro de soporte · GitHub Pages</div>
+          <h1>Soporte de StackShot</h1>
+          <p>Si tienes problemas con capturas, capturas largas con desplazamiento, anotación, OCR o el flujo de Reconocer y traducir, esta página reúne rutas de ayuda y notas habituales de solución.</p>
+        </div>
+        <section class="page-layout">
+          <div class="support-grid">
+            <article class="support-card">
+              <h3>Errores y comentarios</h3>
+              <p>El canal principal de soporte es GitHub Issues. Úsalo para cierres inesperados, permisos, fallos en la captura con desplazamiento, problemas de OCR o comentarios sobre funciones.</p>
+              <div class="button-row"><a class="primary-link" href="https://github.com/yingkong1987/StackShot/issues">Abrir GitHub Issues</a></div>
+            </article>
+            <article class="support-card">
+              <h3>Privacidad y permisos</h3>
+              <p>Si necesitas confirmar qué permisos se usan, cómo funciona la traducción OCR integrada o si alguna captura se sube a algún sitio, empieza por la política de privacidad.</p>
+              <div class="button-row"><a class="ghost-link" href="https://yingkong1987.github.io/StackShot/privacy/">Leer la política de privacidad</a></div>
+            </article>
+          </div>
+          <div class="faq-grid">
+            <article class="faq-card">
+              <h3>¿Por qué StackShot no puede capturar la pantalla?</h3>
+              <p>Asegúrate de haber concedido el permiso de Grabación de Pantalla en macOS. Sin él, la app no puede leer el contenido de la pantalla para capturas, desplazamiento u OCR.</p>
+            </article>
+            <article class="faq-card">
+              <h3>¿Cómo funciona Reconocer y traducir?</h3>
+              <p>El flujo actual reconoce el texto de forma local y luego lo traduce dentro de la app con el framework público Translation de Apple en las versiones compatibles de macOS. El sistema puede pedir descargar recursos de idioma la primera vez que uses ciertos pares.</p>
+            </article>
+            <article class="faq-card">
+              <h3>¿Qué debo probar si falla la captura con desplazamiento?</h3>
+              <p>Confirma que la ventana objetivo puede desplazarse de forma continua, reduce el área de captura y cierra ventanas superpuestas. Si el problema se reproduce, incluye pasos y tu versión de macOS en el informe.</p>
+            </article>
+          </div>
+          <article class="page-panel">
+            <h2>Datos útiles para incluir en un informe</h2>
+            <ul class="support-list">
+              <li>Tu versión de macOS y la arquitectura del equipo, como Apple Silicon o Intel.</li>
+              <li>La versión y el número de compilación de StackShot.</li>
+              <li>El flujo que estabas usando, como captura de región, captura de ventana, captura con desplazamiento u OCR.</li>
+              <li>Pasos para reproducirlo, idealmente con una captura o grabación de pantalla.</li>
+            </ul>
+          </article>
+        </section>
+      </section>
+
+
+      <section class="lang-panel" data-lang-panel="de" hidden>
+        <div class="page-heading">
+          <div class="eyebrow">Support-Center · GitHub Pages</div>
+          <h1>StackShot Support</h1>
+          <p>Wenn du bei Screenshots, Scroll-Aufnahmen, Annotationen, OCR oder dem Ablauf „Erkennen und Übersetzen“ auf Probleme stößt, findest du hier Support-Wege und typische Hinweise zur Fehlerbehebung.</p>
+        </div>
+        <section class="page-layout">
+          <div class="support-grid">
+            <article class="support-card">
+              <h3>Fehlerberichte und Feedback</h3>
+              <p>Der Standard-Supportkanal ist GitHub Issues. Nutze ihn für Abstürze, Berechtigungsprobleme, Fehler bei Scroll-Aufnahmen, OCR-Probleme oder Funktionsfeedback.</p>
+              <div class="button-row"><a class="primary-link" href="https://github.com/yingkong1987/StackShot/issues">GitHub Issues öffnen</a></div>
+            </article>
+            <article class="support-card">
+              <h3>Datenschutz und Berechtigungen</h3>
+              <p>Wenn du prüfen möchtest, welche Berechtigungen verwendet werden, wie die integrierte OCR-Übersetzung funktioniert oder ob Inhalte irgendwo hochgeladen werden, beginne mit der Datenschutzseite.</p>
+              <div class="button-row"><a class="ghost-link" href="https://yingkong1987.github.io/StackShot/privacy/">Datenschutzrichtlinie lesen</a></div>
+            </article>
+          </div>
+          <div class="faq-grid">
+            <article class="faq-card">
+              <h3>Warum kann StackShot den Bildschirm nicht erfassen?</h3>
+              <p>Stelle sicher, dass die Bildschirmaufnahme-Berechtigung in den macOS-Einstellungen erteilt ist. Ohne sie kann die App keine Bildschirmdaten für Screenshots, Scroll-Aufnahmen oder OCR lesen.</p>
+            </article>
+            <article class="faq-card">
+              <h3>Wie funktioniert Erkennen und Übersetzen?</h3>
+              <p>Der aktuelle Übersetzungsablauf erkennt Text lokal und übersetzt ihn dann in der App mit Apples öffentlichem Translation-Framework auf unterstützten macOS-Versionen. Beim ersten Einsatz mancher Sprachpaare kann das System Sprachressourcen herunterladen wollen.</p>
+            </article>
+            <article class="faq-card">
+              <h3>Was sollte ich versuchen, wenn Scroll-Aufnahmen fehlschlagen?</h3>
+              <p>Prüfe, ob das Zielfenster kontinuierlich scrollen kann, verkleinere den Aufnahmebereich und schließe überlappende Fenster. Wenn sich das Problem reproduzieren lässt, füge Schritte und deine macOS-Version dem Bericht hinzu.</p>
+            </article>
+          </div>
+          <article class="page-panel">
+            <h2>Hilfreiche Angaben für einen Bericht</h2>
+            <ul class="support-list">
+              <li>Deine macOS-Version und die Gerätearchitektur, zum Beispiel Apple Silicon oder Intel.</li>
+              <li>Die StackShot-Version und Build-Nummer.</li>
+              <li>Der verwendete Ablauf, etwa Bereichsaufnahme, Fensteraufnahme, Scroll-Aufnahme oder OCR.</li>
+              <li>Schritte zur Reproduktion, idealerweise mit Screenshot oder Bildschirmaufnahme.</li>
+            </ul>
+          </article>
+        </section>
+      </section>
+
+
+      <section class="lang-panel" data-lang-panel="fr" hidden>
+        <div class="page-heading">
+          <div class="eyebrow">Centre d’assistance · GitHub Pages</div>
+          <h1>Assistance StackShot</h1>
+          <p>Si vous rencontrez un problème avec la capture, la capture défilante, l’annotation, l’OCR ou le flux Reconnaître et traduire, cette page regroupe les voies de support et les vérifications fréquentes.</p>
+        </div>
+        <section class="page-layout">
+          <div class="support-grid">
+            <article class="support-card">
+              <h3>Signalements et retours</h3>
+              <p>Le canal de support par défaut est GitHub Issues. Utilisez-le pour les plantages, les problèmes d’autorisations, les régressions sur la capture défilante, les soucis d’OCR ou les retours sur les fonctions.</p>
+              <div class="button-row"><a class="primary-link" href="https://github.com/yingkong1987/StackShot/issues">Ouvrir GitHub Issues</a></div>
+            </article>
+            <article class="support-card">
+              <h3>Confidentialité et autorisations</h3>
+              <p>Si vous devez vérifier les autorisations utilisées, le fonctionnement de la traduction OCR intégrée ou savoir si des captures sont envoyées quelque part, commencez par la page de politique de confidentialité.</p>
+              <div class="button-row"><a class="ghost-link" href="https://yingkong1987.github.io/StackShot/privacy/">Lire la politique de confidentialité</a></div>
+            </article>
+          </div>
+          <div class="faq-grid">
+            <article class="faq-card">
+              <h3>Pourquoi StackShot ne peut-il pas capturer l’écran ?</h3>
+              <p>Assurez-vous que l’autorisation Enregistrement de l’écran est accordée dans les réglages macOS. Sans elle, l’app ne peut pas lire le contenu à l’écran pour les captures, le défilement ou l’OCR.</p>
+            </article>
+            <article class="faq-card">
+              <h3>Comment fonctionne Reconnaître et traduire ?</h3>
+              <p>Le flux actuel reconnaît le texte localement puis le traduit dans l’app avec le framework public Translation d’Apple sur les versions compatibles de macOS. Le système peut demander de télécharger des ressources de langue lors de la première utilisation de certaines paires.</p>
+            </article>
+            <article class="faq-card">
+              <h3>Que faire si la capture défilante échoue ?</h3>
+              <p>Vérifiez que la fenêtre ciblée peut défiler en continu, réduisez la zone de capture et fermez les fenêtres superposées. Si le problème est reproductible, ajoutez les étapes et votre version de macOS au signalement.</p>
+            </article>
+          </div>
+          <article class="page-panel">
+            <h2>Informations utiles à joindre à un signalement</h2>
+            <ul class="support-list">
+              <li>Votre version de macOS et l’architecture de la machine, par exemple Apple Silicon ou Intel.</li>
+              <li>La version et le numéro de build de StackShot.</li>
+              <li>Le flux utilisé, par exemple capture de zone, capture de fenêtre, capture défilante ou OCR.</li>
+              <li>Les étapes de reproduction, idéalement avec une capture d’écran ou un enregistrement.</li>
+            </ul>
+          </article>
+        </section>
+      </section>
+
+
+      <section class="lang-panel" data-lang-panel="ko" hidden>
+        <div class="page-heading">
+          <div class="eyebrow">지원 센터 · GitHub Pages</div>
+          <h1>StackShot 지원</h1>
+          <p>캡처, 스크롤 캡처, 주석, OCR 또는 “인식 및 번역” 흐름에서 문제가 생기면 이 페이지에서 지원 경로와 기본 점검 항목을 확인할 수 있습니다.</p>
+        </div>
+        <section class="page-layout">
+          <div class="support-grid">
+            <article class="support-card">
+              <h3>버그 제보 및 피드백</h3>
+              <p>기본 지원 채널은 GitHub Issues입니다. 충돌, 권한 문제, 스크롤 캡처 오류, OCR 문제, 기능 피드백에 사용하세요.</p>
+              <div class="button-row"><a class="primary-link" href="https://github.com/yingkong1987/StackShot/issues">GitHub Issues 열기</a></div>
+            </article>
+            <article class="support-card">
+              <h3>개인정보 및 권한</h3>
+              <p>어떤 권한을 사용하는지, 내장 OCR 번역이 어떻게 동작하는지, 캡처가 어디로 업로드되는지 확인하려면 먼저 개인정보 처리방침 페이지를 확인하세요.</p>
+              <div class="button-row"><a class="ghost-link" href="https://yingkong1987.github.io/StackShot/privacy/">개인정보 처리방침 읽기</a></div>
+            </article>
+          </div>
+          <div class="faq-grid">
+            <article class="faq-card">
+              <h3>왜 StackShot이 화면을 캡처하지 못하나요?</h3>
+              <p>macOS 설정에서 화면 기록 권한이 허용되어 있는지 확인하세요. 권한이 없으면 앱이 스크린샷, 스크롤 캡처, OCR에 필요한 화면 내용을 읽을 수 없습니다.</p>
+            </article>
+            <article class="faq-card">
+              <h3>인식 및 번역은 어떻게 동작하나요?</h3>
+              <p>현재 번역 흐름은 텍스트를 로컬에서 인식한 뒤 지원되는 macOS 버전에서 Apple의 공개 Translation 프레임워크로 앱 안에서 번역합니다. 일부 언어 쌍은 처음 사용할 때 언어 리소스 다운로드를 요구할 수 있습니다.</p>
+            </article>
+            <article class="faq-card">
+              <h3>스크롤 캡처가 실패하면 무엇을 시도해야 하나요?</h3>
+              <p>대상 창이 연속 스크롤을 지원하는지 확인하고 캡처 영역을 줄이며 겹쳐 있는 창을 닫아 보세요. 문제가 재현되면 단계와 macOS 버전을 함께 알려 주세요.</p>
+            </article>
+          </div>
+          <article class="page-panel">
+            <h2>문제 제보에 포함하면 좋은 정보</h2>
+            <ul class="support-list">
+              <li>macOS 버전과 Apple Silicon 또는 Intel 같은 기기 아키텍처.</li>
+              <li>StackShot 버전과 빌드 번호.</li>
+              <li>영역 캡처, 윈도우 캡처, 스크롤 캡처, OCR 등 사용 중이던 흐름.</li>
+              <li>가능하면 스크린샷이나 화면 녹화와 함께 재현 단계.</li>
+            </ul>
+          </article>
+        </section>
+      </section>
+
+
+      <section class="lang-panel" data-lang-panel="pt-BR" hidden>
+        <div class="page-heading">
+          <div class="eyebrow">Central de suporte · GitHub Pages</div>
+          <h1>Suporte do StackShot</h1>
+          <p>Se você encontrar problemas com captura, captura com rolagem, anotação, OCR ou o fluxo Reconhecer e traduzir, esta página reúne caminhos de suporte e verificações comuns.</p>
+        </div>
+        <section class="page-layout">
+          <div class="support-grid">
+            <article class="support-card">
+              <h3>Relatos de bugs e feedback</h3>
+              <p>O canal padrão de suporte é o GitHub Issues. Use-o para travamentos, problemas de permissão, regressões na captura com rolagem, problemas de OCR ou feedback de recursos.</p>
+              <div class="button-row"><a class="primary-link" href="https://github.com/yingkong1987/StackShot/issues">Abrir GitHub Issues</a></div>
+            </article>
+            <article class="support-card">
+              <h3>Privacidade e permissões</h3>
+              <p>Se você precisa confirmar quais permissões são usadas, como funciona a tradução OCR integrada ou se as capturas são enviadas para algum lugar, comece pela página de privacidade.</p>
+              <div class="button-row"><a class="ghost-link" href="https://yingkong1987.github.io/StackShot/privacy/">Ler a política de privacidade</a></div>
+            </article>
+          </div>
+          <div class="faq-grid">
+            <article class="faq-card">
+              <h3>Por que o StackShot não consegue capturar a tela?</h3>
+              <p>Verifique se a permissão de Gravação de Tela está concedida nos ajustes do macOS. Sem ela, o app não consegue ler o conteúdo da tela para capturas, rolagem ou OCR.</p>
+            </article>
+            <article class="faq-card">
+              <h3>Como funciona o Reconhecer e traduzir?</h3>
+              <p>O fluxo atual reconhece o texto localmente e depois o traduz dentro do app com o framework público Translation da Apple nas versões compatíveis do macOS. O sistema pode solicitar o download de recursos de idioma na primeira vez que você usar alguns pares.</p>
+            </article>
+            <article class="faq-card">
+              <h3>O que devo tentar se a captura com rolagem falhar?</h3>
+              <p>Confirme que a janela de destino pode rolar continuamente, reduza a área de captura e feche janelas sobrepostas. Se o problema for reproduzível, inclua os passos e sua versão do macOS no relato.</p>
+            </article>
+          </div>
+          <article class="page-panel">
+            <h2>Detalhes úteis para incluir em um relato</h2>
+            <ul class="support-list">
+              <li>Sua versão do macOS e a arquitetura da máquina, como Apple Silicon ou Intel.</li>
+              <li>A versão do StackShot e o número da compilação.</li>
+              <li>O fluxo que você estava usando, como captura de região, captura de janela, captura com rolagem ou OCR.</li>
+              <li>Passos para reproduzir, de preferência com captura ou gravação de tela.</li>
+            </ul>
+          </article>
+        </section>
+      </section>
+
+
+      <section class="lang-panel" data-lang-panel="ru" hidden>
+        <div class="page-heading">
+          <div class="eyebrow">Центр поддержки · GitHub Pages</div>
+          <h1>Поддержка StackShot</h1>
+          <p>Если у вас возникли проблемы с захватом, длинными скриншотами с прокруткой, аннотациями, OCR или режимом «Распознать и перевести», эта страница подскажет, куда обратиться и что проверить в первую очередь.</p>
+        </div>
+        <section class="page-layout">
+          <div class="support-grid">
+            <article class="support-card">
+              <h3>Сообщения об ошибках и обратная связь</h3>
+              <p>Основной канал поддержки — GitHub Issues. Используйте его для сообщений о сбоях, проблемах с разрешениями, ошибках захвата с прокруткой, OCR или пожеланиях по функциям.</p>
+              <div class="button-row"><a class="primary-link" href="https://github.com/yingkong1987/StackShot/issues">Открыть GitHub Issues</a></div>
+            </article>
+            <article class="support-card">
+              <h3>Конфиденциальность и разрешения</h3>
+              <p>Если нужно проверить, какие разрешения используются, как работает встроенный OCR-перевод и отправляются ли куда-либо снимки, начните со страницы политики конфиденциальности.</p>
+              <div class="button-row"><a class="ghost-link" href="https://yingkong1987.github.io/StackShot/privacy/">Прочитать политику конфиденциальности</a></div>
+            </article>
+          </div>
+          <div class="faq-grid">
+            <article class="faq-card">
+              <h3>Почему StackShot не может захватить экран?</h3>
+              <p>Убедитесь, что в настройках macOS выдали разрешение на запись экрана. Без него приложение не сможет читать содержимое экрана для снимков, захвата с прокруткой и OCR.</p>
+            </article>
+            <article class="faq-card">
+              <h3>Как работает «Распознать и перевести»?</h3>
+              <p>Текущий процесс сначала распознаёт текст локально, а затем переводит его прямо в приложении через публичный фреймворк Translation от Apple на поддерживаемых версиях macOS. При первом использовании некоторых языковых пар система может предложить скачать языковые ресурсы.</p>
+            </article>
+            <article class="faq-card">
+              <h3>Что попробовать, если захват с прокруткой не работает?</h3>
+              <p>Проверьте, что целевое окно может прокручиваться непрерывно, уменьшите область захвата и закройте перекрывающие окна. Если проблема воспроизводится, добавьте шаги и версию macOS в сообщение.</p>
+            </article>
+          </div>
+          <article class="page-panel">
+            <h2>Полезные данные для отчёта</h2>
+            <ul class="support-list">
+              <li>Версия macOS и архитектура устройства, например Apple Silicon или Intel.</li>
+              <li>Версия StackShot и номер сборки.</li>
+              <li>Сценарий, который вы использовали: захват области, окна, захват с прокруткой или OCR.</li>
+              <li>Шаги воспроизведения, желательно со скриншотом или записью экрана.</li>
             </ul>
           </article>
         </section>
