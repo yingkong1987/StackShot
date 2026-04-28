@@ -1,60 +1,33 @@
 const supportedLanguages = [
-  "zh-Hans", "zh-Hant", "en", "en-US", "en-GB", "en-AU", "en-CA", "ja",
-  "ar", "bn", "ca", "hr", "cs", "da", "nl", "fi", "fr", "fr-CA", "de", "el",
-  "gu", "he", "hi", "hu", "id", "it", "kn", "ko", "ms", "mr", "no", "or", "pl",
-  "pt-BR", "pt-PT", "pa", "ro", "ru", "sk", "sl", "es-MX", "es-ES", "sv", "th",
-  "tr", "uk", "ur", "vi"
+  "en", "en-US", "en-GB", "en-AU", "en-CA",
+  "zh-Hans", "zh-Hant",
+  "es-ES", "es-MX",
+  "ja",
+  "de",
+  "fr", "fr-CA",
+  "ko",
+  "pt-BR", "pt-PT",
+  "ru"
 ];
 
 const languagePanelMap = {
-  "zh-Hans": "zh-Hans",
-  "zh-Hant": "zh-Hant",
   en: "en",
   "en-US": "en",
   "en-GB": "en",
   "en-AU": "en",
   "en-CA": "en",
+  "zh-Hans": "zh-Hans",
+  "zh-Hant": "zh-Hant",
+  "es-ES": "es-ES",
+  "es-MX": "es-ES",
   ja: "ja",
-  ar: "en",
-  bn: "en",
-  ca: "en",
-  hr: "en",
-  cs: "en",
-  da: "en",
-  nl: "en",
-  fi: "en",
-  fr: "en",
-  "fr-CA": "en",
-  de: "en",
-  el: "en",
-  gu: "en",
-  he: "en",
-  hi: "en",
-  hu: "en",
-  id: "en",
-  it: "en",
-  kn: "en",
-  ko: "en",
-  ms: "en",
-  mr: "en",
-  no: "en",
-  or: "en",
-  pl: "en",
-  "pt-BR": "en",
-  "pt-PT": "en",
-  pa: "en",
-  ro: "en",
-  ru: "en",
-  sk: "en",
-  sl: "en",
-  "es-MX": "en",
-  "es-ES": "en",
-  sv: "en",
-  th: "en",
-  tr: "en",
-  uk: "en",
-  ur: "en",
-  vi: "en"
+  de: "de",
+  fr: "fr",
+  "fr-CA": "fr",
+  ko: "ko",
+  "pt-BR": "pt-BR",
+  "pt-PT": "pt-BR",
+  ru: "ru"
 };
 
 const uiCopy = {
@@ -79,6 +52,13 @@ const uiCopy = {
     footer: "StackShot is a local-first macOS screenshot tool for capture, annotation, and OCR workflows.",
     languageLabel: "Switch language"
   },
+  "es-ES": {
+    home: "Inicio",
+    privacy: "Privacidad",
+    support: "Soporte",
+    footer: "StackShot es una herramienta de capturas para macOS centrada en el procesamiento local, con flujos de captura, anotación y OCR.",
+    languageLabel: "Cambiar idioma"
+  },
   ja: {
     home: "ホーム",
     privacy: "プライバシー",
@@ -86,75 +66,61 @@ const uiCopy = {
     footer: "StackShot はキャプチャ、注釈、OCR をひとつにまとめた macOS 向けローカル優先ツールです。",
     languageLabel: "言語を切り替える"
   },
-  fr: {
-    home: "Accueil",
-    privacy: "Confidentialite",
-    support: "Support",
-    footer: "StackShot est un outil macOS local-first pour la capture, l'annotation et les workflows OCR.",
-    languageLabel: "Changer de langue"
-  },
   de: {
-    home: "Start",
+    home: "Startseite",
     privacy: "Datenschutz",
     support: "Support",
-    footer: "StackShot ist ein lokales macOS-Screenshot-Tool fur Aufnahme, Annotation und OCR-Workflows.",
+    footer: "StackShot ist ein lokal orientiertes macOS-Screenshot-Tool für Aufnahme, Annotation und OCR.",
     languageLabel: "Sprache wechseln"
   },
-  "es-ES": {
-    home: "Inicio",
-    privacy: "Privacidad",
-    support: "Soporte",
-    footer: "StackShot es una herramienta de capturas para macOS local-first con flujo de captura, anotacion y OCR.",
-    languageLabel: "Cambiar idioma"
-  },
-  "pt-BR": {
-    home: "Inicio",
-    privacy: "Privacidade",
-    support: "Suporte",
-    footer: "StackShot e uma ferramenta macOS local-first para captura de tela, anotacao e OCR.",
-    languageLabel: "Trocar idioma"
-  },
-  ru: {
-    home: "Glavnaya",
-    privacy: "Konfidentsialnost",
-    support: "Podderzhka",
-    footer: "StackShot - lokalnyi instrument macOS dlya snimkov ekrana, annotatsii i OCR.",
-    languageLabel: "Smenit yazyk"
+  fr: {
+    home: "Accueil",
+    privacy: "Confidentialité",
+    support: "Assistance",
+    footer: "StackShot est un outil de capture d’écran macOS orienté local pour la capture, l’annotation et l’OCR.",
+    languageLabel: "Changer de langue"
   },
   ko: {
-    home: "Home",
-    privacy: "Privacy",
-    support: "Support",
-    footer: "StackShot is a local-first macOS screenshot tool for capture, annotation, and OCR workflows.",
-    languageLabel: "Switch language"
+    home: "홈",
+    privacy: "개인정보 처리방침",
+    support: "지원",
+    footer: "StackShot은 캡처, 주석, OCR 작업을 위한 로컬 우선 macOS 스크린샷 도구입니다.",
+    languageLabel: "언어 전환"
   },
-  ar: {
-    home: "Home",
-    privacy: "Privacy",
-    support: "Support",
-    footer: "StackShot is a local-first macOS screenshot tool for capture, annotation, and OCR workflows.",
-    languageLabel: "Switch language"
+  "pt-BR": {
+    home: "Início",
+    privacy: "Privacidade",
+    support: "Suporte",
+    footer: "StackShot é uma ferramenta de captura de tela para macOS com abordagem local-first para captura, anotação e OCR.",
+    languageLabel: "Mudar idioma"
+  },
+  ru: {
+    home: "Главная",
+    privacy: "Конфиденциальность",
+    support: "Поддержка",
+    footer: "StackShot — локальный инструмент macOS для снимков экрана, аннотаций и OCR.",
+    languageLabel: "Сменить язык"
   }
 };
 
 const htmlLangCodes = {
-  "zh-Hans": "zh-CN",
-  "zh-Hant": "zh-TW",
   en: "en",
   "en-US": "en-US",
   "en-GB": "en-GB",
   "en-AU": "en-AU",
   "en-CA": "en-CA",
-  ja: "ja",
-  ar: "ar",
-  fr: "fr",
-  de: "de",
+  "zh-Hans": "zh-CN",
+  "zh-Hant": "zh-TW",
   "es-ES": "es",
   "es-MX": "es-MX",
+  ja: "ja",
+  de: "de",
+  fr: "fr",
+  "fr-CA": "fr-CA",
+  ko: "ko",
   "pt-BR": "pt-BR",
   "pt-PT": "pt-PT",
-  ru: "ru",
-  ko: "ko"
+  ru: "ru"
 };
 
 function resolvePanelLanguage(language) {
@@ -176,28 +142,32 @@ function normalizeLanguage(rawLanguage) {
     return "zh-Hans";
   }
 
+  if (value.startsWith("es-mx")) {
+    return "es-MX";
+  }
+
+  if (value.startsWith("es")) {
+    return "es-ES";
+  }
+
   if (value.startsWith("ja")) {
     return "ja";
-  }
-
-  if (value.startsWith("ko")) {
-    return "ko";
-  }
-
-  if (value.startsWith("fr")) {
-    return "fr";
   }
 
   if (value.startsWith("de")) {
     return "de";
   }
 
-  if (value.startsWith("ru")) {
-    return "ru";
+  if (value.startsWith("fr-ca")) {
+    return "fr-CA";
   }
 
-  if (value.startsWith("ar")) {
-    return "ar";
+  if (value.startsWith("fr")) {
+    return "fr";
+  }
+
+  if (value.startsWith("ko")) {
+    return "ko";
   }
 
   if (value.startsWith("pt-br")) {
@@ -208,12 +178,8 @@ function normalizeLanguage(rawLanguage) {
     return "pt-PT";
   }
 
-  if (value.startsWith("es-mx")) {
-    return "es-MX";
-  }
-
-  if (value.startsWith("es")) {
-    return "es-ES";
+  if (value.startsWith("ru")) {
+    return "ru";
   }
 
   if (value.startsWith("en-us")) {
