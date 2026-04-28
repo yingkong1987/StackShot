@@ -718,30 +718,6 @@ img { display: block; max-width: 100%; }
   line-height: 1.4;
 }
 
-.stage-flow {
-  position: absolute;
-  left: -10px;
-  bottom: -22px;
-  display: flex;
-  gap: 0;
-}
-
-.stage-flow span {
-  padding: 4px 12px;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  position: relative;
-}
-
-.stage-flow span:first-child  { border-radius: 6px 0 0 6px; }
-.stage-flow span:last-child   { border-radius: 0 6px 6px 0; }
-.stage-flow span:nth-child(2) {
-  color: var(--cyan);
-  background: var(--cyan-dim);
-}
-
 /* ══════════════════════════════════════════════════════════════
    HOME SECTIONS
    ══════════════════════════════════════════════════════════════ */
