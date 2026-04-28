@@ -1,0 +1,211 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - link "StackShot logo StackShot" [ref=e4] [cursor=pointer]:
+      - /url: http://127.0.0.1:8765/?lang=zh-Hans
+      - img "StackShot logo" [ref=e6]
+      - generic [ref=e7]: StackShot
+    - navigation "Primary" [ref=e8]:
+      - link "主页" [ref=e9] [cursor=pointer]:
+        - /url: http://127.0.0.1:8765/?lang=zh-Hans
+      - link "隐私政策" [ref=e10] [cursor=pointer]:
+        - /url: http://127.0.0.1:8765/privacy/?lang=zh-Hans
+      - link "支持" [ref=e11] [cursor=pointer]:
+        - /url: http://127.0.0.1:8765/support/?lang=zh-Hans
+    - generic [ref=e12]:
+      - button "简体中文" [ref=e13] [cursor=pointer]:
+        - img [ref=e14]
+        - generic [ref=e17]: 简体中文
+        - img [ref=e18]
+      - listbox:
+        - option "English English":
+          - generic: English
+          - generic: English
+        - option "简体中文 Simplified Chinese" [selected]:
+          - generic: 简体中文
+          - generic: Simplified Chinese
+        - option "繁體中文 Traditional Chinese":
+          - generic: 繁體中文
+          - generic: Traditional Chinese
+        - option "Español Spanish":
+          - generic: Español
+          - generic: Spanish
+        - option "हिन्दी Hindi":
+          - generic: हिन्दी
+          - generic: Hindi
+        - option "العربية Arabic":
+          - generic: العربية
+          - generic: Arabic
+        - option "Português Portuguese":
+          - generic: Português
+          - generic: Portuguese
+        - option "Français French":
+          - generic: Français
+          - generic: French
+        - option "Русский Russian":
+          - generic: Русский
+          - generic: Russian
+        - option "Deutsch German":
+          - generic: Deutsch
+          - generic: German
+        - option "日本語 Japanese":
+          - generic: 日本語
+          - generic: Japanese
+        - option "한국어 Korean":
+          - generic: 한국어
+          - generic: Korean
+        - option "Bahasa Indonesia Indonesian":
+          - generic: Bahasa Indonesia
+          - generic: Indonesian
+        - option "Italiano Italian":
+          - generic: Italiano
+          - generic: Italian
+        - option "Nederlands Dutch":
+          - generic: Nederlands
+          - generic: Dutch
+  - main [ref=e20]:
+    - generic [ref=e21]:
+      - generic [ref=e22]:
+        - generic [ref=e23]:
+          - generic [ref=e24]: macOS 截图工作台
+          - heading "把截图，从瞬间记录变成可直接交付的成果。" [level=1] [ref=e25]
+          - paragraph [ref=e26]: StackShot 将区域截图、窗口截图、滚动长截图、标注和 OCR 放进一条连贯流程里，让你在捕获、整理和输出信息时不必频繁切换工具。
+          - generic [ref=e27]:
+            - link "在 Mac App Store 下载 StackShot" [ref=e28] [cursor=pointer]:
+              - /url: https://apps.apple.com/app/id6762500028
+              - img "在 Mac App Store 下载" [ref=e29]
+            - link "查看隐私与权限说明" [ref=e30] [cursor=pointer]:
+              - /url: http://127.0.0.1:8765/privacy/?lang=zh-Hans
+          - generic [ref=e31]:
+            - article [ref=e32]:
+              - generic [ref=e33]: Capture
+              - strong [ref=e34]: 滚动长截图
+              - paragraph [ref=e35]: 把网页、文档和聊天记录整理成一张连续画面。
+            - article [ref=e36]:
+              - generic [ref=e37]: OCR
+              - strong [ref=e38]: 本机文字识别
+              - paragraph [ref=e39]: 识别文字后可直接复制，也可在支持的系统版本上继续进行应用内翻译。
+            - article [ref=e40]:
+              - generic [ref=e41]: Markup
+              - strong [ref=e42]: 快速标注
+              - paragraph [ref=e43]: 箭头、马赛克、文字、画笔和图形工具随手可用。
+        - generic [ref=e45]:
+          - generic [ref=e46]:
+            - generic [ref=e52]: 编辑中
+            - generic [ref=e60]:
+              - generic [ref=e61]: 区域
+              - generic [ref=e62]: 窗口
+              - generic [ref=e63]: 长页
+          - generic [ref=e72]:
+            - strong [ref=e73]: 识别就绪
+            - paragraph [ref=e74]: 识别出的文字可以直接复制，或在支持的系统版本上继续进行应用内翻译。
+          - generic [ref=e75]:
+            - generic [ref=e76]: 捕获
+            - generic [ref=e77]: 标注
+            - generic [ref=e78]: 导出
+      - generic [ref=e79]:
+        - generic [ref=e80]:
+          - generic [ref=e81]:
+            - paragraph [ref=e82]: 产品节奏
+            - heading "把后续处理也留在同一条工作流里" [level=2] [ref=e83]
+          - paragraph [ref=e84]: 优秀的截图工具，不只是截到画面，还要把整理、解释和传递这一步做顺。
+        - generic [ref=e85]:
+          - article [ref=e86]:
+            - generic [ref=e87]: Long-form capture
+            - heading "大幅内容一次收齐" [level=3] [ref=e88]
+            - paragraph [ref=e89]: 滚动长截图适合网页、文档和聊天记录，不需要手动拼接，也不必担心关键信息断开。
+            - generic [ref=e90]:
+              - generic [ref=e91]: 网页
+              - generic [ref=e92]: 文档
+              - generic [ref=e93]: 聊天记录
+          - article [ref=e94]:
+            - generic [ref=e95]: Precision
+            - heading "窗口与区域切换足够快" [level=3] [ref=e96]
+            - paragraph [ref=e97]: 无论是框选局部，还是捕获完整窗口，StackShot 都能让你在需要的粒度上快速落点。
+            - generic [ref=e98]:
+              - generic [ref=e99]: 区域截图
+              - generic [ref=e100]: 窗口截图
+              - generic [ref=e101]: 聚焦信息
+          - article [ref=e102]:
+            - generic [ref=e103]: Markup
+            - heading "标注直接围绕重点展开" [level=3] [ref=e104]
+            - paragraph [ref=e105]: 常用形状、箭头、文字、马赛克和表情就在手边，反馈和说明不需要再切到其他软件。
+            - generic [ref=e106]:
+              - generic [ref=e107]: 箭头
+              - generic [ref=e108]: 马赛克
+              - generic [ref=e109]: 文字
+          - article [ref=e110]:
+            - generic [ref=e111]: OCR
+            - heading "识别后的文字继续流动" [level=3] [ref=e112]
+            - paragraph [ref=e113]: OCR 结果可以用来复制、整理或继续翻译，让截图不只是图片，也成为可继续处理的信息入口。
+            - generic [ref=e114]:
+              - generic [ref=e115]: OCR
+              - generic [ref=e116]: 复制
+              - generic [ref=e117]: 内置翻译
+      - generic [ref=e118]:
+        - generic [ref=e119]:
+          - generic [ref=e120]:
+            - paragraph [ref=e121]: 工作流
+            - heading "为高频工作准备的节奏" [level=2] [ref=e122]
+          - paragraph [ref=e123]: 从捕获到分享，每一步都让下一步触手可及。
+        - generic [ref=e124]:
+          - article [ref=e125]:
+            - generic [ref=e126]: "01"
+            - heading "捕获" [level=3] [ref=e127]
+            - paragraph [ref=e128]: 区域、窗口和滚动长截图覆盖最常见的内容形态。
+          - article [ref=e129]:
+            - generic [ref=e130]: "02"
+            - heading "整理" [level=3] [ref=e131]
+            - paragraph [ref=e132]: 用标注工具把重点、说明和敏感信息处理清楚。
+          - article [ref=e133]:
+            - generic [ref=e134]: "03"
+            - heading "提取" [level=3] [ref=e135]
+            - paragraph [ref=e136]: 在设备本机识别文本，保留后续复制与使用的空间。
+          - article [ref=e137]:
+            - generic [ref=e138]: "04"
+            - heading "交付" [level=3] [ref=e139]
+            - paragraph [ref=e140]: 保存、复制、分享，或在支持的系统版本上直接在应用内继续翻译。
+      - generic [ref=e141]:
+        - generic [ref=e142]:
+          - generic [ref=e143]:
+            - paragraph [ref=e144]: 边界与信任
+            - heading "设计选择也服务于信任" [level=2] [ref=e145]
+          - paragraph [ref=e146]: StackShot 的能力建立在明确、克制的产品边界上。
+        - generic [ref=e147]:
+          - article [ref=e148]:
+            - heading "本地优先" [level=3] [ref=e149]
+            - paragraph [ref=e150]: 截图编辑、OCR 与大部分图像处理都尽量在设备本机完成。
+          - article [ref=e151]:
+            - heading "权限克制" [level=3] [ref=e152]
+            - paragraph [ref=e153]: 屏幕录制仅用于截图与滚动截图。
+          - article [ref=e154]:
+            - heading "边界清晰" [level=3] [ref=e155]
+            - paragraph [ref=e156]: “识别并翻译”会先在本机识别文字，再通过 Apple 官方 Translation 框架在应用内完成翻译。
+      - generic [ref=e157]:
+        - generic [ref=e158]:
+          - generic [ref=e159]:
+            - paragraph [ref=e160]: 继续了解
+            - heading "继续了解 StackShot" [level=2] [ref=e161]
+          - paragraph [ref=e162]: 如果你需要具体的权限说明、支持路径或项目进展，可以从这里继续。
+        - generic [ref=e163]:
+          - article [ref=e164]:
+            - heading "隐私政策" [level=3] [ref=e165]
+            - paragraph [ref=e166]: 了解权限、数据处理方式与 OCR 翻译流程。
+            - link "打开隐私政策" [ref=e167] [cursor=pointer]:
+              - /url: http://127.0.0.1:8765/privacy/?lang=zh-Hans
+          - article [ref=e168]:
+            - heading "支持" [level=3] [ref=e169]
+            - paragraph [ref=e170]: 查看常见问题、排查建议与问题反馈入口。
+            - link "打开支持页面" [ref=e171] [cursor=pointer]:
+              - /url: http://127.0.0.1:8765/support/?lang=zh-Hans
+          - article [ref=e172]:
+            - heading "同作者推荐：StackPaste" [level=3] [ref=e173]
+            - paragraph [ref=e174]: 如果你也想把复制、历史记录和快速粘贴整理得更顺手，可以看看这款 macOS 剪贴板工具。
+            - link "了解 StackPaste" [ref=e175] [cursor=pointer]:
+              - /url: https://www.stackpaste.cn/
+  - contentinfo [ref=e176]:
+    - paragraph [ref=e177]: StackShot 是一款面向 macOS 的本地优先截图工具，覆盖捕获、标注与 OCR 工作流。
+    - generic [ref=e178]:
+      - link "隐私政策" [ref=e179] [cursor=pointer]:
+        - /url: http://127.0.0.1:8765/privacy/?lang=zh-Hans
+      - link "支持" [ref=e180] [cursor=pointer]:
+        - /url: http://127.0.0.1:8765/support/?lang=zh-Hans
