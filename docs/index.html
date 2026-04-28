@@ -6,6 +6,39 @@
   <meta name="description" content="StackShot is a local-first macOS screenshot tool for capture, scrolling screenshots, annotation, and OCR.">
   <title>StackShot | Capture, Annotate, and Extract Text</title>
   <link rel="stylesheet" href="./assets/site.css">
+  <script>
+    /* Inline: resolve language before paint to avoid flash of wrong language */
+    (function(){
+      var supported=["en","zh-Hans","zh-Hant","es-ES","hi","ar","pt-BR","fr","ru","de","ja","ko","id","it","nl"];
+      function norm(s){
+        var v=(s||"").toLowerCase();
+        if(v.startsWith("zh-hant")||v.startsWith("zh-tw")||v.startsWith("zh-hk")||v.startsWith("zh-mo"))return"zh-Hant";
+        if(v.startsWith("zh"))return"zh-Hans";
+        if(v.startsWith("es"))return"es-ES";if(v.startsWith("hi"))return"hi";
+        if(v.startsWith("ar"))return"ar";if(v.startsWith("pt"))return"pt-BR";
+        if(v.startsWith("fr"))return"fr";if(v.startsWith("ru"))return"ru";
+        if(v.startsWith("de"))return"de";if(v.startsWith("ja"))return"ja";
+        if(v.startsWith("ko"))return"ko";if(v.startsWith("id"))return"id";
+        if(v.startsWith("it"))return"it";if(v.startsWith("nl"))return"nl";
+        return"en";
+      }
+      var p=new URLSearchParams(location.search).get("lang");
+      var lang=supported.includes(p)?p:null;
+      if(!lang){var m=localStorage.getItem("stackshot-site-language");if(supported.includes(m))lang=m;}
+      if(!lang){var ls=navigator.languages||[navigator.language||"en"];for(var i=0;i<ls.length;i++){var n=norm(ls[i]);if(supported.includes(n)){lang=n;break;}}}
+      if(!lang)lang="en";
+      document.documentElement.setAttribute("data-preload-lang",lang);
+      /* Show the correct panel immediately when DOM is ready (before deferred scripts) */
+      document.addEventListener("DOMContentLoaded",function(){
+        var panels=document.querySelectorAll("[data-lang-panel]");
+        for(var i=0;i<panels.length;i++){
+          var isActive=panels[i].getAttribute("data-lang-panel")===lang;
+          panels[i].classList.toggle("is-active",isActive);
+          panels[i].hidden=!isActive;
+        }
+      },{once:true});
+    })();
+  </script>
   <script defer src="./assets/site.js"></script>
 </head>
 <body data-page="home"

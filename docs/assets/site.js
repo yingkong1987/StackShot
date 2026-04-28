@@ -27,19 +27,20 @@ const SUPPORTED_CODES = LANGUAGES.map(l => l.code);
 /* Maps browser locale → panel code */
 const languagePanelMap = {
   en: "en", "en-US": "en", "en-GB": "en", "en-AU": "en", "en-CA": "en",
-  "zh-Hans": "zh-Hans", "zh-Hant": "zh-Hant",
-  "es-ES": "es-ES", "es-MX": "es-ES",
+  "zh-Hans": "zh-Hans", "zh-CN": "zh-Hans",
+  "zh-Hant": "zh-Hant", "zh-TW": "zh-Hant", "zh-HK": "zh-Hant",
+  "es-ES": "es-ES", "es-MX": "es-ES", "es-AR": "es-ES", "es-CO": "es-ES",
   hi: "hi",
   ar: "ar",
   "pt-BR": "pt-BR", "pt-PT": "pt-BR",
-  fr: "fr", "fr-CA": "fr",
+  fr: "fr", "fr-CA": "fr", "fr-BE": "fr",
   ru: "ru",
-  de: "de",
+  de: "de", "de-AT": "de", "de-CH": "de",
   ja: "ja",
   ko: "ko",
   id: "id",
   it: "it",
-  nl: "nl"
+  nl: "nl", "nl-BE": "nl"
 };
 
 /* html lang attr */
@@ -116,13 +117,10 @@ function normalizeLanguage(raw) {
   if (v.startsWith("zh-hant") || v.startsWith("zh-tw") || v.startsWith("zh-hk") || v.startsWith("zh-mo"))
     return "zh-Hant";
   if (v.startsWith("zh")) return "zh-Hans";
-  if (v.startsWith("es-mx")) return "es-MX";
   if (v.startsWith("es")) return "es-ES";
   if (v.startsWith("hi")) return "hi";
   if (v.startsWith("ar")) return "ar";
-  if (v.startsWith("pt-br")) return "pt-BR";
   if (v.startsWith("pt")) return "pt-BR";
-  if (v.startsWith("fr-ca")) return "fr-CA";
   if (v.startsWith("fr")) return "fr";
   if (v.startsWith("ru")) return "ru";
   if (v.startsWith("de")) return "de";
@@ -215,6 +213,10 @@ function setLanguage(lang, options = {}) {
 
 /* ── Initial language detection ───────────────────────────── */
 function chooseInitialLanguage() {
+  // Prefer the inline-preloaded result (avoids re-parsing)
+  const preloaded = document.documentElement.getAttribute("data-preload-lang");
+  if (SUPPORTED_CODES.includes(preloaded)) return preloaded;
+
   const params = new URLSearchParams(window.location.search);
   const paramLang = params.get("lang");
   if (SUPPORTED_CODES.includes(paramLang)) return paramLang;
