@@ -136,6 +136,7 @@ img {
   display: inline-flex;
   align-items: center;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 8px;
   padding: 6px;
   border-radius: var(--radius-sm);
@@ -151,6 +152,7 @@ img {
   cursor: pointer;
   font: inherit;
   min-width: 40px;
+  white-space: nowrap;
 }
 
 .language-button:hover,
@@ -167,6 +169,11 @@ img {
 
 .lang-panel.is-active {
   display: block;
+}
+
+html[dir="rtl"] .lang-panel.is-active,
+html[dir="rtl"] .footer {
+  direction: rtl;
 }
 
 .hero {

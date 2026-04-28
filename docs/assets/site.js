@@ -7,7 +7,8 @@ const supportedLanguages = [
   "fr", "fr-CA",
   "ko",
   "pt-BR", "pt-PT",
-  "ru"
+  "ru",
+  "ar"
 ];
 
 const languagePanelMap = {
@@ -27,7 +28,8 @@ const languagePanelMap = {
   ko: "ko",
   "pt-BR": "pt-BR",
   "pt-PT": "pt-BR",
-  ru: "ru"
+  ru: "ru",
+  ar: "ar"
 };
 
 const uiCopy = {
@@ -100,6 +102,13 @@ const uiCopy = {
     support: "Поддержка",
     footer: "StackShot — локальный инструмент macOS для снимков экрана, аннотаций и OCR.",
     languageLabel: "Сменить язык"
+  },
+  ar: {
+    home: "الرئيسية",
+    privacy: "الخصوصية",
+    support: "الدعم",
+    footer: "StackShot أداة لقطات شاشة محلية أولًا على macOS لالتقاط الشاشة والشرح وOCR.",
+    languageLabel: "تبديل اللغة"
   }
 };
 
@@ -120,8 +129,11 @@ const htmlLangCodes = {
   ko: "ko",
   "pt-BR": "pt-BR",
   "pt-PT": "pt-PT",
-  ru: "ru"
+  ru: "ru",
+  ar: "ar"
 };
+
+const rtlLanguages = new Set(["ar"]);
 
 function resolvePanelLanguage(language) {
   return languagePanelMap[language] || "en";
@@ -182,6 +194,10 @@ function normalizeLanguage(rawLanguage) {
     return "ru";
   }
 
+  if (value.startsWith("ar")) {
+    return "ar";
+  }
+
   if (value.startsWith("en-us")) {
     return "en-US";
   }
@@ -236,6 +252,8 @@ function applyUiCopy(language) {
   const langCode = htmlLangCodes[language] || htmlLangCodes[panelLanguage] || "en";
 
   document.documentElement.lang = langCode;
+  document.documentElement.dir = rtlLanguages.has(panelLanguage) ? "rtl" : "ltr";
+  document.body.setAttribute("data-current-language", panelLanguage);
 
   const switcher = document.querySelector("[data-language-switcher]");
   if (switcher) {
@@ -243,10 +261,24 @@ function applyUiCopy(language) {
   }
 }
 
-function setLanguage(language) {
+function buildLanguageUrl(language) {
+  const url = new URL(window.location.href);
+  url.searchParams.set("lang", language);
+  return url;
+}
+
+function setLanguage(language, options = {}) {
+  const { shouldReload = false } = options;
   const resolved = supportedLanguages.includes(language) ? language : "en";
   const panelLanguage = resolvePanelLanguage(resolved);
   localStorage.setItem("stackshot-site-language", resolved);
+
+  const url = buildLanguageUrl(resolved);
+
+  if (shouldReload) {
+    window.location.assign(url.toString());
+    return;
+  }
 
   document.querySelectorAll("[data-lang-panel]").forEach((panel) => {
     const isActive = panel.getAttribute("data-lang-panel") === panelLanguage;
@@ -255,7 +287,8 @@ function setLanguage(language) {
   });
 
   document.querySelectorAll("[data-set-lang]").forEach((button) => {
-    const isActive = button.getAttribute("data-set-lang") === resolved;
+    const buttonLanguage = button.getAttribute("data-set-lang");
+    const isActive = buttonLanguage === resolved || buttonLanguage === panelLanguage;
     button.classList.toggle("is-active", isActive);
     button.setAttribute("aria-pressed", isActive ? "true" : "false");
   });
@@ -267,9 +300,6 @@ function setLanguage(language) {
 
   applyUiCopy(resolved);
   updateLanguageLinks(resolved);
-
-  const url = new URL(window.location.href);
-  url.searchParams.set("lang", resolved);
   window.history.replaceState({}, "", url.toString());
 }
 
@@ -291,14 +321,14 @@ function chooseInitialLanguage() {
 document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll("[data-set-lang]").forEach((button) => {
     button.addEventListener("click", () => {
-      setLanguage(button.getAttribute("data-set-lang"));
+      setLanguage(button.getAttribute("data-set-lang"), { shouldReload: true });
     });
   });
 
   const select = document.querySelector("[data-language-select]");
   if (select) {
     select.addEventListener("change", (event) => {
-      setLanguage(event.target.value);
+      setLanguage(event.target.value, { shouldReload: true });
     });
   }
 
