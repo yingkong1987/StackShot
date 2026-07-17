@@ -547,7 +547,7 @@ function buildReleaseShowcase(panel, copy, lang) {
         '<div class="quality-tags" aria-label="HDR, HEIC, PNG, Local Highlight"><span>HDR</span><span>HEIC</span><span>PNG</span><span>LOCAL HIGHLIGHT</span></div>' +
       '</article>' +
     '</div>' +
-    '<p class="release-platform">macOS 13+ <span>·</span> HDR capture &amp; in-app translation require compatible macOS 15 features.</p>';
+    '<p class="release-platform"><strong>macOS 13+</strong><span>·</span>HDR / Translation: macOS 15+</p>';
 
   const hero = panel.querySelector(".hero");
   if (hero) hero.insertAdjacentElement("afterend", section);
