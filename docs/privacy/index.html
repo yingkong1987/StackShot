@@ -3,17 +3,17 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Official StackShot privacy policy and public information.">
-  <title>StackShot | Privacy Policy</title>
+  <meta name="description" content="General developer privacy policy covering StackPaste, StackShot (iStackShot) and ShadowGuessKids by Qin Yao.">
+  <title>Qin Yao | 开发者隐私政策 / Developer Privacy Policy</title>
   <link rel="stylesheet" href="../assets/site.css">
   <script defer src="../assets/site.js"></script>
 </head>
-<body data-page="privacy" data-title-zh-Hans="StackShot | 隐私政策" data-title-zh-Hant="StackShot | 隱私政策" data-title-en="StackShot | Privacy Policy" data-title-ja="StackShot | プライバシーポリシー">
+<body data-page="privacy" data-title-zh-Hans="Qin Yao | 开发者隐私政策" data-title-zh-Hant="Qin Yao | 開發者隱私權政策" data-title-en="Qin Yao | Developer Privacy Policy" data-title-ja="Qin Yao | 開発者プライバシーポリシー">
   <div class="page-shell">
     <header class="topbar">
       <a class="brand" href="../" data-lang-link>
         <span class="brand-logo"><img src="../assets/stackshot-logo.png" alt="StackShot logo"></span>
-        <span class="brand-wordmark">StackShot</span>
+        <span class="brand-wordmark">Qin Yao</span>
       </a>
       <nav class="site-nav" aria-label="Primary">
         <a class="nav-link" href="../" data-lang-link data-copy-key="home">Home</a>
@@ -36,55 +36,59 @@
     </header>
 
     <main>
+      <!-- ===================== zh-Hans ===================== -->
       <section class="lang-panel" data-lang-panel="zh-Hans" hidden>
         <div class="page-heading">
-          <div class="eyebrow">隐私政策 · 更新于 2026-04-23</div>
-          <h1>StackShot 隐私政策</h1>
-          <p>StackShot 是一款面向 macOS 的本地优先截图工具。我们尽量只在你主动触发相关功能时访问系统权限，并优先在设备本机处理截图内容。</p>
+          <div class="eyebrow">隐私政策 · 更新于 2026-07-22</div>
+          <h1>开发者隐私政策</h1>
+          <p>本隐私政策适用于独立开发者 Qin Yao（姚勤）旗下的应用，包括 StackPaste（剪贴板与片段管理）、StackShot / iStackShot（截图工具）与影子猜猜乐 / ShadowGuessKids（儿童猜物游戏）。这些应用遵循同一原则：尽量在你的设备本机处理内容，不内置广告或跟踪，也不会把你的个人内容发送到开发者服务器。</p>
         </div>
         <section class="page-layout">
           <article class="callout">
             <strong>简要结论</strong>
-            <p>StackShot 不要求创建账户，不内置广告 SDK，不自动把你的截图上传到远程服务器，也不提供网络同步截图内容的机制。</p>
+            <p>上述应用均不要求创建账户即可使用核心功能，均不集成广告或统计分析 SDK，且默认不会把你的剪贴板、截图或儿童相关的录音/视频上传到开发者运营的服务器。</p>
           </article>
           <div class="policy-grid">
             <article class="policy-block">
-              <h2>我们访问哪些权限</h2>
+              <h2>我们开发的应用</h2>
               <ul class="policy-list">
-                <li>屏幕录制：用于截图、滚动截图，以及对已捕获内容进行后续编辑和 OCR。</li>
-                <li>辅助功能：可选权限，仅用于更准确识别鼠标下的前台窗口。未授权时，手动框选截图仍可正常使用。</li>
+                <li>StackPaste：macOS 剪贴板与片段管理工具。</li>
+                <li>StackShot / iStackShot：macOS 本地优先的截图与长截图工具。</li>
+                <li>影子猜猜乐 / ShadowGuessKids：iOS 儿童猜物游戏。</li>
               </ul>
             </article>
             <article class="policy-block">
-              <h2>我们如何处理截图内容</h2>
+              <h2>通用原则</h2>
               <ul class="policy-list">
-                <li>截图编辑、窗口识别、OCR 和大部分图像处理默认都在本机完成。</li>
-                <li>只有在你点击复制、分享、保存或 OCR 翻译时，应用才会把图像或文字写入剪贴板或导出到你选择的位置。</li>
-                <li>偏好设置例如语言、Dock 显示和快捷键只保存在当前 Mac 的本地偏好中。</li>
+                <li>数据尽量在你的设备本机处理，不上传开发者服务器。</li>
+                <li>使用核心功能不需要注册账户。</li>
+                <li>不内置广告或用户行为统计分析 SDK。</li>
+                <li>不会把你的个人内容发送到开发者运营的服务器。</li>
               </ul>
             </article>
             <article class="policy-block">
-              <h2>“识别并翻译”如何工作</h2>
+              <h2>各应用的数据与权限</h2>
               <ul class="policy-list">
-                <li>StackShot 会先在设备上识别截图中的文字。</li>
-                <li>在支持的 macOS 版本中，应用会通过 Apple 官方 Translation 框架在应用内完成翻译；首次使用某些语言对时，系统可能提示下载语言资源。</li>
-                <li>根据 Apple 的框架说明，Apple 可能会收集不包含原文内容的使用与性能指标，例如 App Bundle ID 与源/目标语言。</li>
+                <li><strong>StackPaste：</strong>剪贴板历史默认保存在本机加密数据库（SQLCipher）中。若你开启 iCloud 同步，片段会先加密再同步到你自己的 iCloud 账户（CloudKit），密钥仅存在于你的设备，开发者无法读取。OCR 在设备端完成；内购与订阅由 Apple 处理。</li>
+                <li><strong>StackShot / iStackShot：</strong>仅在截图、长截图及后续编辑 / OCR 时使用屏幕录制权限；辅助功能为可选权限。编辑、OCR 与图像处理默认在本机完成；“识别并翻译”通过 Apple 官方 Translation 框架在应用内完成。</li>
+                <li><strong>影子猜猜乐 / ShadowGuessKids：</strong>纯离线单机游戏。只有在你选择“视频语音”模式并授权后，才会使用摄像头与麦克风，且仅用于设备上的实时特效、答题与用户主动开始的录像，不会离开设备；语音识别在设备端完成，不使用网络识别；录像仅暂存本机临时目录，只有你主动“保存到相册”后才离开应用临时区；应用设置仅保存在本机。</li>
               </ul>
             </article>
             <article class="policy-block">
               <h2>我们不会做的事</h2>
               <ul class="policy-list">
-                <li>不会要求你注册账户来使用基本截图功能。</li>
-                <li>不会在后台自动开始录屏。</li>
-                <li>不会内置把截图上传到开发者服务器的自动同步逻辑。</li>
-                <li>不会出售你的截图、OCR 文本或使用习惯数据。</li>
+                <li>不会要求注册账户来使用基本功能。</li>
+                <li>不会内置把你的数据自动上传到开发者服务器的逻辑。</li>
+                <li>不会出售你的剪贴板、截图、录音、视频或使用习惯数据。</li>
+                <li>不会在儿童应用中投放广告或进行个性化跟踪。</li>
               </ul>
             </article>
           </div>
           <article class="page-panel">
             <h2>第三方与外部服务</h2>
-            <p>当你使用内置 OCR 翻译时，翻译流程由 Apple 官方 Translation 框架在应用内执行。根据 Apple 的框架说明，Apple 可能处理不包含原文内容的使用与性能指标，例如 App Bundle ID 与源/目标语言。</p>
-            <p>本公开页面托管在 GitHub Pages 上。访问本页面时，GitHub 可能会依据其自身政策处理基础的网页请求日志。</p>
+            <p>StackPaste 可选的 iCloud 同步使用 Apple CloudKit，相关数据保存在你自己的 iCloud 账户中，由 Apple 依据其隐私政策处理。</p>
+            <p>内置的 OCR / 翻译使用 Apple 官方框架。根据 Apple 的框架说明，Apple 可能处理不包含原文内容的使用与性能指标，例如 App Bundle ID 与源 / 目标语言。</p>
+            <p>本公开页面托管于 GitHub Pages。访问本页面时，GitHub 可能依据其自身政策处理基础的网页请求日志。</p>
           </article>
           <article class="page-panel">
             <h2>联系我们</h2>
@@ -97,59 +101,63 @@
         </section>
       </section>
 
+      <!-- ===================== zh-Hant ===================== -->
       <section class="lang-panel" data-lang-panel="zh-Hant" hidden>
         <div class="page-heading">
-          <div class="eyebrow">隱私政策 · 更新於 2026-04-23</div>
-          <h1>StackShot 隱私政策</h1>
-          <p>StackShot 是一款面向 macOS 的本機優先截圖工具。我們只在你主動使用相關功能時存取系統權限，並優先在裝置本機處理截圖內容。</p>
+          <div class="eyebrow">隱私權政策 · 更新於 2026-07-22</div>
+          <h1>開發者隱私權政策</h1>
+          <p>本隱私權政策適用於獨立開發者 Qin Yao（姚勤）旗下的應用，包括 StackPaste（剪貼簿與片段管理）、StackShot / iStackShot（截圖工具）與影子猜猜樂 / ShadowGuessKids（兒童猜物遊戲）。這些應用遵循同一原則：盡量在你的裝置本機處理內容，不內建廣告或追蹤，也不會把你的個人內容傳送到開發者伺服器。</p>
         </div>
         <section class="page-layout">
           <article class="callout">
             <strong>簡要結論</strong>
-            <p>StackShot 不要求建立帳號，不內建廣告 SDK，不會自動把你的截圖上傳到遠端伺服器，也不提供網路同步截圖內容的機制。</p>
+            <p>上述應用均不要求建立帳號即可使用核心功能，均不整合廣告或統計分析 SDK，且預設不會把你的剪貼簿、截圖或兒童相關的錄音 / 影片上傳到開發者營運的伺服器。</p>
           </article>
           <div class="policy-grid">
             <article class="policy-block">
-              <h2>我們會使用哪些權限</h2>
+              <h2>我們開發的應用</h2>
               <ul class="policy-list">
-                <li>螢幕錄製：用於截圖、捲動截圖，以及對已擷取內容進行後續編輯與 OCR。</li>
-                <li>輔助使用：可選權限，只為了更準確辨識游標下的前景視窗。未授權時，手動框選截圖仍可正常使用。</li>
+                <li>StackPaste：macOS 剪貼簿與片段管理工具。</li>
+                <li>StackShot / iStackShot：macOS 本機優先的截圖與長截圖工具。</li>
+                <li>影子猜猜樂 / ShadowGuessKids：iOS 兒童猜物遊戲。</li>
               </ul>
             </article>
             <article class="policy-block">
-              <h2>我們如何處理截圖內容</h2>
+              <h2>通用原則</h2>
               <ul class="policy-list">
-                <li>截圖編輯、視窗辨識、OCR 與大部分影像處理預設都在本機完成。</li>
-                <li>只有當你點擊複製、分享、儲存或 OCR 翻譯時，App 才會把影像或文字寫入剪貼簿，或匯出到你選擇的位置。</li>
-                <li>偏好設定例如語言、Dock 顯示與快捷鍵只保存在目前這台 Mac 的本地偏好中。</li>
+                <li>資料盡量在你的裝置本機處理，不上傳開發者伺服器。</li>
+                <li>使用核心功能不需要註冊帳號。</li>
+                <li>不內建廣告或用戶行為統計分析 SDK。</li>
+                <li>不會把你的個人內容傳送到開發者營運的伺服器。</li>
               </ul>
             </article>
             <article class="policy-block">
-              <h2>「辨識並翻譯」如何運作</h2>
+              <h2>各應用的資料與權限</h2>
               <ul class="policy-list">
-                <li>StackShot 會先在裝置上辨識截圖中的文字。</li>
-                <li>在支援的 macOS 版本中，App 會透過 Apple 官方 Translation 框架在 App 內完成翻譯；首次使用某些語言配對時，系統可能提示下載語言資源。</li>
-                <li>依 Apple 的框架說明，Apple 可能收集不包含原文內容的使用與效能指標，例如 App Bundle ID 與來源／目標語言。</li>
+                <li><strong>StackPaste：</strong>剪貼簿歷史預設保存在本機加密資料庫（SQLCipher）中。若你開啟 iCloud 同步，片段會先加密再同步到你自己的 iCloud 帳戶（CloudKit），金鑰僅存在於你的裝置，開發者無法讀取。OCR 在裝置端完成；內購與訂閱由 Apple 處理。</li>
+                <li><strong>StackShot / iStackShot：</strong>僅在截圖、長截圖及後續編輯 / OCR 時使用螢幕錄製權限；輔助功能為可選權限。編輯、OCR 與影像處理預設在本機完成；「辨識並翻譯」透過 Apple 官方 Translation 框架在應用內完成。</li>
+                <li><strong>影子猜猜樂 / ShadowGuessKids：</strong>純離線單機遊戲。只有當你選擇「影片語音」模式並授權後，才會使用鏡頭與麥克風，且僅用於裝置上的即時特效、答題與用戶主動開始的錄影，不會離開裝置；語音辨識在裝置端完成，不使用網路辨識；錄影僅暫存本機臨時目錄，只有你主動「儲存到相簿」後才離開應用臨時區；應用設定僅保存在本機。</li>
               </ul>
             </article>
             <article class="policy-block">
               <h2>我們不會做的事</h2>
               <ul class="policy-list">
-                <li>不會要求你建立帳號才能使用基本截圖功能。</li>
-                <li>不會在背景自動開始錄屏。</li>
-                <li>不會內建把截圖上傳到開發者伺服器的自動同步邏輯。</li>
-                <li>不會出售你的截圖、OCR 文字或使用習慣資料。</li>
+                <li>不會要求註冊帳號來使用基本功能。</li>
+                <li>不會內建把你的資料自動上傳到開發者伺服器的邏輯。</li>
+                <li>不會出售你的剪貼簿、截圖、錄音、影片或使用習慣資料。</li>
+                <li>不會在兒童應用中投放廣告或進行個人化追蹤。</li>
               </ul>
             </article>
           </div>
           <article class="page-panel">
             <h2>第三方與外部服務</h2>
-            <p>當你使用內建 OCR 翻譯時，翻譯流程會由 Apple 官方 Translation 框架在 App 內執行。依 Apple 的框架說明，Apple 可能處理不包含原文內容的使用與效能指標，例如 App Bundle ID 與來源／目標語言。</p>
-            <p>本公開頁面託管於 GitHub Pages。造訪本頁面時，GitHub 可能會依其政策處理基礎的網頁請求日誌。</p>
+            <p>StackPaste 選用的 iCloud 同步使用 Apple CloudKit，相關資料保存在你自己的 iCloud 帳戶中，由 Apple 依其隱私權政策處理。</p>
+            <p>內建的 OCR / 翻譯使用 Apple 官方框架。依 Apple 說明，Apple 可能處理不包含原文內容的使用與效能指標，例如 App Bundle ID 與來源 / 目標語言。</p>
+            <p>本公開頁面託管於 GitHub Pages。造訪本頁面時，GitHub 可能依其政策處理基礎的網頁請求日誌。</p>
           </article>
           <article class="page-panel">
             <h2>聯絡我們</h2>
-            <p>如果你對這份隱私政策有疑問，或需要提交與使用體驗相關的問題，請造訪支援頁，或透過 GitHub Issues 聯絡。</p>
+            <p>如果你對這份隱私權政策有疑問，或需要提交與使用體驗相關的問題，請造訪支援頁，或透過 GitHub Issues 聯絡。</p>
             <div class="quick-links">
               <div class="link-card"><strong>支援頁</strong><a href="https://yingkong1987.github.io/StackShot/support/">https://yingkong1987.github.io/StackShot/support/</a></div>
               <div class="link-card"><strong>GitHub Issues</strong><a href="https://github.com/yingkong1987/StackShot/issues">https://github.com/yingkong1987/StackShot/issues</a></div>
@@ -158,54 +166,58 @@
         </section>
       </section>
 
+      <!-- ===================== en ===================== -->
       <section class="lang-panel" data-lang-panel="en" hidden>
         <div class="page-heading">
-          <div class="eyebrow">Privacy policy · Updated 2026-04-23</div>
-          <h1>StackShot Privacy Policy</h1>
-          <p>StackShot is a local-first screenshot tool for macOS. We access system permissions only when you intentionally use related features, and we process captured content on-device whenever possible.</p>
+          <div class="eyebrow">Privacy policy · Updated 2026-07-22</div>
+          <h1>Developer Privacy Policy</h1>
+          <p>This privacy policy covers the apps published by the independent developer Qin Yao (姚勤), including StackPaste (clipboard &amp; snippet manager), StackShot / iStackShot (screenshot tool), and ShadowGuessKids (影子猜猜乐, a kids' guessing game). These apps follow the same principle: process your content on your device whenever possible, include no advertising or tracking, and never send your personal content to a developer-operated server.</p>
         </div>
         <section class="page-layout">
           <article class="callout">
             <strong>Short version</strong>
-            <p>StackShot does not require an account, does not embed ad SDKs, does not automatically upload your screenshots to a remote server, and does not provide a cloud sync path for captured content.</p>
+            <p>None of these apps require an account for core features, none embed advertising or analytics SDKs, and by default they do not upload your clipboard, screenshots, or children's audio/video to a developer-operated server.</p>
           </article>
           <div class="policy-grid">
             <article class="policy-block">
-              <h2>Permissions we use</h2>
+              <h2>Our apps</h2>
               <ul class="policy-list">
-                <li>Screen Recording: used for screenshots, scrolling screenshots, and editing or OCR on captured content.</li>
-                <li>Accessibility: optional, used only to improve hovered-window detection under the pointer. Manual region capture still works without it.</li>
+                <li>StackPaste: a clipboard and snippet manager for macOS.</li>
+                <li>StackShot / iStackShot: a local-first screenshot and scrolling-capture tool for macOS.</li>
+                <li>ShadowGuessKids (影子猜猜乐): a kids' guessing game for iOS.</li>
               </ul>
             </article>
             <article class="policy-block">
-              <h2>How captured content is handled</h2>
+              <h2>Common principles</h2>
               <ul class="policy-list">
-                <li>Editing, window detection, OCR, and most image processing are done locally on your Mac.</li>
-                <li>Images or text are written to the clipboard or exported to disk only when you choose Copy, Share, Save, or OCR Translate.</li>
-                <li>Preferences such as language, Dock visibility, and shortcuts are stored locally on the current Mac.</li>
+                <li>Your data is processed on your device and is not uploaded to a developer server.</li>
+                <li>Core features work without creating an account.</li>
+                <li>We do not embed advertising or user-behavior analytics SDKs.</li>
+                <li>We do not send your personal content to a developer-operated server.</li>
               </ul>
             </article>
             <article class="policy-block">
-              <h2>How Recognize &amp; Translate works</h2>
+              <h2>Data &amp; permissions per app</h2>
               <ul class="policy-list">
-                <li>StackShot recognizes text from captured content on-device.</li>
-                <li>On supported macOS versions, the app translates the recognized text in-app with Apple's public Translation framework. The system may prompt to download language resources the first time you use some language pairs.</li>
-                <li>According to Apple's framework documentation, Apple may collect usage and performance metrics that do not include the original content, such as the app bundle ID and source or target language.</li>
+                <li><strong>StackPaste:</strong> Clipboard history is stored in an encrypted local database (SQLCipher). If you enable iCloud sync, snippets are encrypted before syncing to your own iCloud account (CloudKit); the key exists only on your devices, so the developer cannot read them. OCR runs on-device. In-app purchases and subscriptions are handled by Apple.</li>
+                <li><strong>StackShot / iStackShot:</strong> Screen Recording is used only for screenshots, scrolling capture, and later editing or OCR; Accessibility is an optional permission. Editing, OCR, and image processing run locally. "Recognize &amp; Translate" uses Apple's built-in Translation framework in-app.</li>
+                <li><strong>ShadowGuessKids (影子猜猜乐):</strong> A fully offline single-player game. The camera and microphone are used only when you choose the "video voice" mode and grant permission, and only for on-device real-time effects, answering, and user-initiated recording; nothing leaves the device. Speech recognition runs on-device with no network fallback. Recordings stay in a local temporary directory and leave the app's temp area only when you choose "Save to Photos". App settings are stored locally.</li>
               </ul>
             </article>
             <article class="policy-block">
               <h2>What we do not do</h2>
               <ul class="policy-list">
-                <li>We do not require an account for core screenshot workflows.</li>
-                <li>We do not start recording automatically in the background.</li>
-                <li>We do not ship automatic sync logic that uploads captures to a developer-operated server.</li>
-                <li>We do not sell your screenshots, OCR text, or usage habits.</li>
+                <li>We do not require an account for basic features.</li>
+                <li>We do not ship logic that auto-uploads your data to a developer server.</li>
+                <li>We do not sell your clipboard data, screenshots, recordings, video, or usage habits.</li>
+                <li>We do not show ads or personalized tracking in kids' apps.</li>
               </ul>
             </article>
           </div>
           <article class="page-panel">
             <h2>Third-party and external services</h2>
-            <p>When you use built-in OCR translation, the translation flow runs inside StackShot through Apple's public Translation framework. According to Apple's framework documentation, Apple may process limited usage and performance metrics that do not include the original content, such as the app bundle ID and source or target language.</p>
+            <p>StackPaste's optional iCloud sync uses Apple CloudKit; the synced data lives in your own iCloud account and is handled by Apple under its privacy policy.</p>
+            <p>Built-in OCR / translation uses Apple's official frameworks. According to Apple's documentation, Apple may process limited usage and performance metrics that do not include the original content, such as the app bundle ID and source or target language.</p>
             <p>This public site is hosted on GitHub Pages. GitHub may process basic web request logs for the page under its own policies.</p>
           </article>
           <article class="page-panel">
@@ -219,54 +231,58 @@
         </section>
       </section>
 
+      <!-- ===================== ja ===================== -->
       <section class="lang-panel" data-lang-panel="ja" hidden>
         <div class="page-heading">
-          <div class="eyebrow">プライバシーポリシー · 更新日 2026-04-23</div>
-          <h1>StackShot プライバシーポリシー</h1>
-          <p>StackShot は macOS 向けのローカル優先スクリーンショットツールです。関連機能をあなたが使うときだけシステム権限にアクセスし、可能な限り取得した内容をデバイス上で処理します。</p>
+          <div class="eyebrow">プライバシーポリシー · 更新日 2026-07-22</div>
+          <h1>開発者プライバシーポリシー</h1>
+          <p>本ポリシーは、独立開発者 Qin Yao（姚勤）が公開するアプリ、StackPaste（クリップボード・スニペット管理）、StackShot / iStackShot（スクリーンショットツール）、ShadowGuessKids（影子猜猜乐、子ども向けクイズゲーム）に適用されます。これらのアプリは同じ方針に従います。お客様のコンテンツは可能な限りデバイス上で処理され、広告や追跡は組み込まず、個人データを開発者サーバーへ送信することはありません。</p>
         </div>
         <section class="page-layout">
           <article class="callout">
             <strong>要点</strong>
-            <p>StackShot はアカウント登録を要求せず、広告 SDK を組み込まず、取得したスクリーンショットを自動的に遠隔サーバーへ送信せず、クラウド同期機能も提供しません。</p>
+            <p>いずれのアプリも基本機能にアカウントは不要で、広告や分析 SDK を組み込まず、クリップボード・スクリーンショット・子どもの音声 / 動画を開発者サーバーへアップロードすることはありません。</p>
           </article>
           <div class="policy-grid">
             <article class="policy-block">
-              <h2>使用する権限</h2>
+              <h2>開発しているアプリ</h2>
               <ul class="policy-list">
-                <li>画面収録: スクリーンショット、スクロールキャプチャ、取得済み画像の編集や OCR に使用します。</li>
-                <li>アクセシビリティ: 任意権限で、ポインタ下の最前面ウインドウ判定の精度向上だけに使います。未許可でも手動範囲選択は利用できます。</li>
+                <li>StackPaste：macOS 用クリップボード・スニペット管理ツール。</li>
+                <li>StackShot / iStackShot：macOS 向けローカル優先のスクリーンショット・スクロールキャプチャツール。</li>
+                <li>ShadowGuessKids（影子猜猜乐）：iOS 向け子ども用クイズゲーム。</li>
               </ul>
             </article>
             <article class="policy-block">
-              <h2>取得した内容の扱い</h2>
+              <h2>共通の方針</h2>
               <ul class="policy-list">
-                <li>編集、ウインドウ判定、OCR、ほとんどの画像処理はこの Mac 上で完結します。</li>
-                <li>画像や文字をクリップボードへ書き込んだり、保存先へ書き出したりするのは、コピー、共有、保存、OCR 翻訳をあなたが選んだときだけです。</li>
-                <li>言語設定、Dock 表示、ショートカットなどの設定は現在の Mac のローカル設定として保存されます。</li>
+                <li>データは可能な限りデバイス上で処理し、開発者サーバーへはアップロードしません。</li>
+                <li>基本機能はアカウント登録なしで利用できます。</li>
+                <li>広告やユーザー行動分析 SDK は組み込みません。</li>
+                <li>個人コンテンツを開発者サーバーへ送信することはありません。</li>
               </ul>
             </article>
             <article class="policy-block">
-              <h2>「認識して翻訳」の動作</h2>
+              <h2>アプリごとのデータと権限</h2>
               <ul class="policy-list">
-                <li>StackShot は取得した内容の文字をデバイス上で認識します。</li>
-                <li>対応する macOS バージョンでは、Apple の公開 Translation フレームワークを使ってアプリ内で翻訳します。言語の組み合わせによっては、初回に言語リソースのダウンロードを求められる場合があります。</li>
-                <li>Apple の説明によると、Apple は元の内容を含まない利用状況や性能指標（アプリの Bundle ID、元言語／対象言語など）を収集する場合があります。</li>
+                <li><strong>StackPaste：</strong>クリップボード履歴は本機の暗号化データベース（SQLCipher）に保存されます。iCloud 同期を有効にした場合、スニペットは暗号化されてからお客様自身の iCloud アカウント（CloudKit）に同期され、鍵はデバイスのみに存在するため開発者は読み取れません。OCR はデバイス上で実行され、インアプリ購入は Apple が処理します。</li>
+                <li><strong>StackShot / iStackShot：</strong>画面収録権限はスクリーンショット・スクロールキャプチャとその後の編集 / OCR 時のみ使用し、アクセシビリティは任意の権限です。編集・OCR・画像処理は原則として本機で完了し、「認識して翻訳」は Apple の翻訳フレームワークをアプリ内で使用します。</li>
+                <li><strong>ShadowGuessKids（影子猜猜乐）：</strong>完全オフラインの単体ゲームです。「ビデオ音声」モードを選択して許可した場合のみカメラとマイクを使用し、デバイス上のリアルタイム効果・回答・ユーザーが開始した録画に限定され、デバイス外へ出ることはありません。音声認識はデバイス上で行い、ネットワーク認識は使用しません。録画は本機の一時フォルダにのみ保存され、「写真に保存」を選んだときだけ退避されます。設定は本機にのみ保存されます。</li>
               </ul>
             </article>
             <article class="policy-block">
               <h2>行わないこと</h2>
               <ul class="policy-list">
-                <li>基本的なスクリーンショット機能のためにアカウント作成を求めません。</li>
-                <li>バックグラウンドで自動的に録画を始めません。</li>
-                <li>取得内容を開発者運営サーバーへ自動アップロードする同期ロジックを組み込みません。</li>
-                <li>スクリーンショット、OCR テキスト、利用傾向を販売しません。</li>
+                <li>基本機能にアカウント作成を求めることはありません。</li>
+                <li>データを開発者サーバーへ自動アップロードするロジックは組み込みません。</li>
+                <li>クリップボード・スクリーンショット・録音・動画・利用履歴を販売することはありません。</li>
+                <li>子ども向けアプリで広告やパーソナライズされた追跡を行うことはありません。</li>
               </ul>
             </article>
           </div>
           <article class="page-panel">
             <h2>外部サービスについて</h2>
-            <p>内蔵 OCR 翻訳を使う場合、翻訳処理は Apple の公開 Translation フレームワークを通じてアプリ内で行われます。Apple の説明によると、Apple は元の内容を含まない利用状況や性能指標（アプリの Bundle ID、元言語／対象言語など）を処理する場合があります。</p>
+            <p>StackPaste の任意の iCloud 同期は Apple CloudKit を使用し、データはお客様自身の iCloud アカウントに保存され、Apple のプライバシーポリシーに従って処理されます。</p>
+            <p>内蔵の OCR / 翻訳は Apple の公式フレームワークを使用します。Apple の説明によれば、Apple は元の内容を含まない利用状況や性能指標（アプリの Bundle ID、元言語 / 対象言語など）を処理する場合があります。</p>
             <p>この公開サイトは GitHub Pages でホストされています。ページ閲覧時には、GitHub が自社ポリシーに従って基本的な Web リクエストログを処理する場合があります。</p>
           </article>
           <article class="page-panel">
@@ -282,7 +298,7 @@
     </main>
 
     <footer class="footer">
-      <p class="footer-note" data-copy-key="footer">StackShot is a local-first macOS screenshot tool. This site is hosted on GitHub Pages.</p>
+      <p class="footer-note" data-copy-key="footer">Apps by Qin Yao (姚勤). This site is hosted on GitHub Pages.</p>
       <div class="footer-links">
         <a href="../" data-lang-link data-copy-key="home">Home</a>
         <a href="../support/" data-lang-link data-copy-key="support">Support</a>
