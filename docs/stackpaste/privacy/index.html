@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="StackPaste privacy policy: local encrypted clipboard history, optional end-to-end iCloud sync, on-device OCR, and no ads or tracking.">
+  <meta name="theme-color" content="#090a11">
+  <meta name="author" content="Qin Yao">
+  <title>StackPaste | Privacy Policy</title>
+  <link rel="icon" href="../../assets/stackpaste-icon.png">
+  <link rel="stylesheet" href="../../assets/site.css">
+  <style>
+    .lang-toggle { display: inline-flex; gap: 6px; }
+    .lang-toggle button {
+      padding: 6px 14px; border-radius: 999px; cursor: pointer;
+      border: 1px solid rgba(213,219,255,0.2);
+      background: rgba(21,23,34,0.76); color: rgba(224,226,240,0.68);
+      font-size: 0.78rem; font-weight: 600; font-family: inherit;
+    }
+    .lang-toggle button[aria-pressed="true"] {
+      border-color: rgba(117,231,255,0.45);
+      background: rgba(117,231,255,0.13); color: #75e7ff;
+    }
+  </style>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="brand" href="../">
+          <span class="brand-logo"><img src="../../assets/stackpaste-icon.png" alt="StackPaste icon"></span>
+          <span class="brand-wordmark">StackPaste</span>
+        </a>
+        <nav class="site-nav" aria-label="Primary">
+          <a class="nav-link" href="../">Home</a>
+          <a class="nav-link" href="./" aria-current="page">Privacy</a>
+          <a class="nav-link" href="../support/">Support</a>
+        </nav>
+        <div class="lang-toggle" role="group" aria-label="Language">
+          <button type="button" data-lang-btn="en" aria-pressed="true">EN</button>
+          <button type="button" data-lang-btn="zh-Hans" aria-pressed="false">中文</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="page-inner">
+
+      <!-- ══════════ English（默认可见，不依赖 JS） ══════════ -->
+      <section class="lang-panel is-active" data-lang-panel="en">
+        <div class="page-heading">
+          <div class="eyebrow">Privacy policy · Last updated 2026-07-22</div>
+          <h1>StackPaste Privacy Policy</h1>
+          <p>This policy explains how StackPaste handles your clipboard data. The short version: your history is stored locally in an encrypted database, iCloud sync is optional and encrypted, and we do not run a server that holds your clips.</p>
+        </div>
+
+        <section class="page-layout">
+          <div class="support-grid">
+            <article class="support-card">
+              <h3>Where your data is stored</h3>
+              <p>Clipboard history is saved by default in a local encrypted database (SQLCipher) on your Mac. It does not leave your device unless you turn on sync.</p>
+            </article>
+            <article class="support-card">
+              <h3>Optional iCloud sync</h3>
+              <p>If you enable iCloud sync, clips are encrypted before being synced to your own iCloud account (CloudKit). The keys exist only on your devices — the developer cannot read your content.</p>
+            </article>
+            <article class="support-card">
+              <h3>On-device OCR</h3>
+              <p>Text recognition runs on your device. Image content is not uploaded for processing.</p>
+            </article>
+            <article class="support-card">
+              <h3>Purchases</h3>
+              <p>In-app purchases and subscriptions are handled entirely by Apple. We do not collect or store your payment details.</p>
+            </article>
+          </div>
+
+          <article class="page-panel">
+            <h2>What we don't do</h2>
+            <ul class="support-list">
+              <li>No account is required to use the core features.</li>
+              <li>No advertising SDKs and no behavioral analytics.</li>
+              <li>No automatic upload of your clipboard content to a developer-operated server.</li>
+              <li>We never sell your clipboard history or usage habits.</li>
+            </ul>
+          </article>
+
+          <article class="page-panel">
+            <h2>Third-party services</h2>
+            <ul class="support-list">
+              <li><strong>Apple CloudKit</strong> — used only for optional iCloud sync; data lives in your own iCloud account and is handled by Apple under its privacy policy.</li>
+              <li><strong>Apple frameworks</strong> — on-device OCR and translation. Per Apple's framework documentation, Apple may process usage and performance metrics that do not include your original text, such as the app bundle identifier and source/target languages.</li>
+              <li><strong>GitHub Pages</strong> — this public page is hosted on GitHub Pages. GitHub may process basic web request logs under its own policies.</li>
+            </ul>
+          </article>
+
+          <section class="contact-hero">
+            <div class="contact-hero-inner">
+              <span class="contact-eyebrow">QUESTIONS?</span>
+              <h2>Contact us</h2>
+              <p class="contact-desc">If you have questions about this policy or how your data is handled, email us directly.</p>
+              <div class="button-row">
+                <a class="primary-link contact-email" href="mailto:support@stackpaste.cn?subject=StackPaste%20Privacy">support@stackpaste.cn</a>
+              </div>
+              <p class="contact-note">We usually reply within 1–2 business days.</p>
+            </div>
+          </section>
+        </section>
+      </section>
+
+      <!-- ══════════ 中文 ══════════ -->
+      <section class="lang-panel" data-lang-panel="zh-Hans" hidden>
+        <div class="page-heading">
+          <div class="eyebrow">隐私政策 · 更新于 2026-07-22</div>
+          <h1>StackPaste 隐私政策</h1>
+          <p>本政策说明 StackPaste 如何处理你的剪贴板数据。简要结论：历史记录默认保存在本机加密数据库中，iCloud 同步为可选项且经过加密，我们不运营存储你剪贴内容的服务器。</p>
+        </div>
+
+        <section class="page-layout">
+          <div class="support-grid">
+            <article class="support-card">
+              <h3>数据保存在哪里</h3>
+              <p>剪贴板历史默认保存在本机加密数据库（SQLCipher）中。除非你主动开启同步，数据不会离开你的设备。</p>
+            </article>
+            <article class="support-card">
+              <h3>可选的 iCloud 同步</h3>
+              <p>若你开启 iCloud 同步，片段会先加密再同步到你自己的 iCloud 账户（CloudKit），密钥仅存在于你的设备，开发者无法读取。</p>
+            </article>
+            <article class="support-card">
+              <h3>设备端 OCR</h3>
+              <p>文字识别在设备端完成，图像内容不会为了识别而上传。</p>
+            </article>
+            <article class="support-card">
+              <h3>购买与订阅</h3>
+              <p>内购与订阅完全由 Apple 处理，我们不收集或保存你的支付信息。</p>
+            </article>
+          </div>
+
+          <article class="page-panel">
+            <h2>我们不会做的事</h2>
+            <ul class="support-list">
+              <li>不会要求注册账户来使用核心功能。</li>
+              <li>不内置广告 SDK，也不做用户行为统计分析。</li>
+              <li>不会把你的剪贴板内容自动上传到开发者运营的服务器。</li>
+              <li>绝不会出售你的剪贴板历史或使用习惯数据。</li>
+            </ul>
+          </article>
+
+          <article class="page-panel">
+            <h2>第三方与外部服务</h2>
+            <ul class="support-list">
+              <li><strong>Apple CloudKit</strong>：仅用于可选的 iCloud 同步，相关数据保存在你自己的 iCloud 账户中，由 Apple 依据其隐私政策处理。</li>
+              <li><strong>Apple 官方框架</strong>：设备端 OCR 与翻译。根据 Apple 的框架说明，Apple 可能处理不包含原文内容的使用与性能指标，例如 App Bundle ID 与源 / 目标语言。</li>
+              <li><strong>GitHub Pages</strong>：本公开页面托管于 GitHub Pages。访问本页面时，GitHub 可能依据其自身政策处理基础的网页请求日志。</li>
+            </ul>
+          </article>
+
+          <section class="contact-hero">
+            <div class="contact-hero-inner">
+              <span class="contact-eyebrow">有疑问？</span>
+              <h2>联系我们</h2>
+              <p class="contact-desc">如果你对本政策或数据处理方式有疑问，请直接给我们发邮件。</p>
+              <div class="button-row">
+                <a class="primary-link contact-email" href="mailto:support@stackpaste.cn?subject=StackPaste%20Privacy">support@stackpaste.cn</a>
+              </div>
+              <p class="contact-note">我们通常在 1–2 个工作日内回复。</p>
+            </div>
+          </section>
+        </section>
+      </section>
+
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        <p class="footer-note">StackPaste is a clipboard manager for macOS. Clipboard data stays on your device and syncs only through your own iCloud account.</p>
+        <nav class="footer-links" aria-label="Footer">
+          <a href="../">Home</a>
+          <a href="../support/">Support</a>
+          <a href="https://apps.apple.com/cn/app/id6761370954?mt=12" rel="noopener">StackPaste on the Mac App Store</a>
+        </nav>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    (function () {
+      var btns = document.querySelectorAll('[data-lang-btn]');
+      var panels = document.querySelectorAll('[data-lang-panel]');
+      function apply(lang) {
+        panels.forEach(function (p) {
+          var on = p.getAttribute('data-lang-panel') === lang;
+          p.classList.toggle('is-active', on);
+          p.hidden = !on;
+        });
+        btns.forEach(function (b) {
+          b.setAttribute('aria-pressed', String(b.getAttribute('data-lang-btn') === lang));
+        });
+        try { localStorage.setItem('stackpaste-site-language', lang); } catch (e) {}
+      }
+      btns.forEach(function (b) {
+        b.addEventListener('click', function () { apply(b.getAttribute('data-lang-btn')); });
+      });
+      try {
+        var saved = localStorage.getItem('stackpaste-site-language');
+        if (saved === 'zh-Hans') apply('zh-Hans');
+      } catch (e) {}
+    })();
+  </script>
+</body>
+</html>

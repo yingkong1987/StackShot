@@ -1,0 +1,9 @@
+# 本地工具 / 调试残留 —— 不随站点发布
+docs/.playwright-cli/
+docs/.workbuddy/
+.playwright-cli/
+.workbuddy/
+
+# 系统文件
+.DS_Store
+Thumbs.db

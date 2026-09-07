@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="StackPaste — a clipboard manager for macOS. Searchable history, Stacks, sequential paste, keyboard-first workflow, and private iCloud sync.">
+  <meta name="theme-color" content="#090a11">
+  <meta name="author" content="Qin Yao">
+  <title>StackPaste · Clipboard manager for macOS</title>
+  <link rel="icon" href="../assets/stackpaste-icon.png">
+  <link rel="stylesheet" href="../assets/site.css">
+  <style>
+    .lang-toggle { display: inline-flex; gap: 6px; }
+    .lang-toggle button {
+      padding: 6px 14px; border-radius: 999px; cursor: pointer;
+      border: 1px solid rgba(213,219,255,0.2);
+      background: rgba(21,23,34,0.76); color: rgba(224,226,240,0.68);
+      font-size: 0.78rem; font-weight: 600; font-family: inherit;
+    }
+    .lang-toggle button[aria-pressed="true"] {
+      border-color: rgba(117,231,255,0.45);
+      background: rgba(117,231,255,0.13); color: #75e7ff;
+    }
+  </style>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="brand" href="../">
+          <span class="brand-logo"><img src="../assets/stackpaste-icon.png" alt="StackPaste icon"></span>
+          <span class="brand-wordmark">StackPaste</span>
+        </a>
+        <nav class="site-nav" aria-label="Primary">
+          <a class="nav-link" href="../" aria-current="page">Home</a>
+          <a class="nav-link" href="./privacy/">Privacy</a>
+          <a class="nav-link" href="./support/">Support</a>
+        </nav>
+        <div class="lang-toggle" role="group" aria-label="Language">
+          <button type="button" data-lang-btn="en" aria-pressed="true">EN</button>
+          <button type="button" data-lang-btn="zh-Hans" aria-pressed="false">中文</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="page-inner">
+
+      <section class="lang-panel is-active" data-lang-panel="en">
+        <div class="page-heading">
+          <div class="eyebrow">macOS · Clipboard manager</div>
+          <h1>StackPaste</h1>
+          <p>A clipboard manager built for creators, developers, and power users. It quietly records everything you copy — text, links, images, files, and colors — into a searchable history, so you can find it again in seconds.</p>
+        </div>
+
+        <section class="page-layout">
+          <div class="support-grid">
+            <article class="support-card">
+              <h3>Searchable history</h3>
+              <p>Text, links, images, files, and colors are captured in the background and kept in a searchable history on your Mac.</p>
+            </article>
+            <article class="support-card">
+              <h3>Stacks &amp; sequential paste</h3>
+              <p>Group related clips into a Stack, copy several items at once, then paste them one after another in order — without switching between apps.</p>
+            </article>
+            <article class="support-card">
+              <h3>Keyboard first</h3>
+              <p>Quick filters, a keyboard-first workflow, and custom shortcuts help you find and paste what you need fast.</p>
+            </article>
+            <article class="support-card">
+              <h3>Private by design</h3>
+              <p>Your clipboard data stays on your Mac and syncs only through your own personal iCloud account.</p>
+            </article>
+          </div>
+
+          <section class="contact-hero">
+            <div class="contact-hero-inner">
+              <span class="contact-eyebrow">GET STARTED</span>
+              <h2>Get StackPaste</h2>
+              <p class="contact-desc">Available on the Mac App Store. Need a hand? Our support page has answers and a direct email route.</p>
+              <div class="button-row">
+                <a class="primary-link" href="https://apps.apple.com/cn/app/id6761370954?mt=12" rel="noopener">View on the Mac App Store</a>
+                <a class="ghost-link" href="./support/">Support</a>
+              </div>
+              <p class="contact-note">Questions? Email <a href="mailto:support@stackpaste.cn?subject=StackPaste%20Support">support@stackpaste.cn</a> — we usually reply within 1–2 business days.</p>
+            </div>
+          </section>
+        </section>
+      </section>
+
+      <section class="lang-panel" data-lang-panel="zh-Hans" hidden>
+        <div class="page-heading">
+          <div class="eyebrow">macOS · 剪贴板管理</div>
+          <h1>StackPaste</h1>
+          <p>为创作者、开发者和高阶用户打造的剪贴板管理工具。它会在后台自动记录你复制的所有内容，并把文本、链接、图片、文件和颜色保存在可搜索的历史记录中，让你几秒内重新找到它们。</p>
+        </div>
+
+        <section class="page-layout">
+          <div class="support-grid">
+            <article class="support-card">
+              <h3>可搜索的历史记录</h3>
+              <p>文本、链接、图片、文件和颜色会在后台被记录，并保存在 Mac 上可搜索的历史记录中。</p>
+            </article>
+            <article class="support-card">
+              <h3>Stacks 与顺序粘贴</h3>
+              <p>把相关内容整理到 Stacks，一次复制多个项目，再按顺序逐个粘贴，不必在应用之间来回切换。</p>
+            </article>
+            <article class="support-card">
+              <h3>键盘优先</h3>
+              <p>借助快速筛选、键盘优先的操作方式与自定义快捷键，你可以迅速找到并粘贴所需内容。</p>
+            </article>
+            <article class="support-card">
+              <h3>隐私优先的设计</h3>
+              <p>剪贴板数据会私密保存在你的 Mac 上，只会通过你个人的 iCloud 进行同步。</p>
+            </article>
+          </div>
+
+          <section class="contact-hero">
+            <div class="contact-hero-inner">
+              <span class="contact-eyebrow">开始使用</span>
+              <h2>获取 StackPaste</h2>
+              <p class="contact-desc">已在 Mac App Store 上架。需要帮助？支持页提供常见问题与直接邮件联系方式。</p>
+              <div class="button-row">
+                <a class="primary-link" href="https://apps.apple.com/cn/app/id6761370954?mt=12" rel="noopener">在 Mac App Store 查看</a>
+                <a class="ghost-link" href="./support/">支持</a>
+              </div>
+              <p class="contact-note">有疑问？发邮件到 <a href="mailto:support@stackpaste.cn?subject=StackPaste%20Support">support@stackpaste.cn</a>，我们通常在 1–2 个工作日内回复。</p>
+            </div>
+          </section>
+        </section>
+      </section>
+
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        <p class="footer-note">StackPaste is a clipboard manager for macOS. Clipboard data stays on your device and syncs only through your own iCloud account.</p>
+        <nav class="footer-links" aria-label="Footer">
+          <a href="./privacy/">Privacy Policy</a>
+          <a href="./support/">Support</a>
+          <a href="https://apps.apple.com/cn/app/id6761370954?mt=12" rel="noopener">Mac App Store</a>
+        </nav>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    (function () {
+      var btns = document.querySelectorAll('[data-lang-btn]');
+      var panels = document.querySelectorAll('[data-lang-panel]');
+      function apply(lang) {
+        panels.forEach(function (p) {
+          var on = p.getAttribute('data-lang-panel') === lang;
+          p.classList.toggle('is-active', on);
+          p.hidden = !on;
+        });
+        btns.forEach(function (b) {
+          b.setAttribute('aria-pressed', String(b.getAttribute('data-lang-btn') === lang));
+        });
+        try { localStorage.setItem('stackpaste-site-language', lang); } catch (e) {}
+      }
+      btns.forEach(function (b) {
+        b.addEventListener('click', function () { apply(b.getAttribute('data-lang-btn')); });
+      });
+      try {
+        var saved = localStorage.getItem('stackpaste-site-language');
+        if (saved === 'zh-Hans') apply('zh-Hans');
+      } catch (e) {}
+    })();
+  </script>
+</body>
+</html>

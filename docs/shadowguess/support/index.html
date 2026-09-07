@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="ShadowGuessKids support: a no-internet, no-ads guessing game for young children. Camera, microphone, voice recognition permissions, video playback, and privacy questions.">
+  <meta name="theme-color" content="#090a11">
+  <meta name="author" content="Qin Yao">
+  <title>ShadowGuessKids | Support</title>
+  <link rel="icon" href="../../assets/shadowguess-icon.png">
+  <link rel="stylesheet" href="../../assets/site.css">
+  <style>
+    .lang-toggle { display: inline-flex; gap: 6px; }
+    .lang-toggle button {
+      padding: 6px 14px; border-radius: 999px; cursor: pointer;
+      border: 1px solid rgba(213,219,255,0.2);
+      background: rgba(21,23,34,0.76); color: rgba(224,226,240,0.68);
+      font-size: 0.78rem; font-weight: 600; font-family: inherit;
+    }
+    .lang-toggle button[aria-pressed="true"] {
+      border-color: rgba(117,231,255,0.45);
+      background: rgba(117,231,255,0.13); color: #75e7ff;
+    }
+  </style>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="brand" href="../">
+          <span class="brand-logo"><img src="../../assets/shadowguess-icon.png" alt="ShadowGuessKids icon"></span>
+          <span class="brand-wordmark">ShadowGuessKids</span>
+        </a>
+        <nav class="site-nav" aria-label="Primary">
+          <a class="nav-link" href="../">Home</a>
+          <a class="nav-link" href="../privacy/">Privacy</a>
+          <a class="nav-link" href="./" aria-current="page">Support</a>
+        </nav>
+        <div class="lang-toggle" role="group" aria-label="Language">
+          <button type="button" data-lang-btn="en" aria-pressed="true">EN</button>
+          <button type="button" data-lang-btn="zh-Hans" aria-pressed="false">中文</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="page-inner">
+
+      <!-- ══════════ English（默认可见，不依赖 JS） ══════════ -->
+      <section class="lang-panel is-active" data-lang-panel="en">
+        <div class="page-heading">
+          <div class="eyebrow">Support center</div>
+          <h1>ShadowGuessKids Support</h1>
+          <p>ShadowGuessKids is a no-internet, no-ads guessing game for young children — they look at a silhouette and guess the object. If something is not working — the voice mode, the video playback, or a permission prompt — this page explains how to reach us and what to try first.</p>
+        </div>
+
+        <section class="contact-hero">
+          <div class="contact-hero-inner">
+            <span class="contact-eyebrow">NEED HELP?</span>
+            <h2>Contact Support</h2>
+            <p class="contact-desc">Email us directly — this is the fastest way to get help with ShadowGuessKids.</p>
+            <div class="button-row">
+              <a class="primary-link contact-email" href="mailto:support@stackpaste.cn?subject=ShadowGuessKids%20Support">support@stackpaste.cn</a>
+            </div>
+            <p class="contact-note">We usually reply within 1–2 business days.</p>
+          </div>
+        </section>
+
+        <section class="page-layout">
+          <div class="support-grid">
+            <article class="support-card">
+              <h3>Does the app need an internet connection?</h3>
+              <p>No. ShadowGuessKids has no networking features at all. Everything runs on the device, no account is needed, and no data is sent to any server.</p>
+            </article>
+            <article class="support-card">
+              <h3>"Video Voice" mode is not working</h3>
+              <p>This mode uses the front camera, microphone, and speech recognition. Please open iOS Settings → ShadowGuessKids and grant Camera, Microphone, and Speech Recognition. If your device does not have the on-device speech model installed for the chosen language, this mode is unavailable.</p>
+            </article>
+            <article class="support-card">
+              <h3>How do I save the playback video?</h3>
+              <p>After a 10-question round, the in-app player can replay the run. The temporary recording is only written to your Photo Library if you tap the explicit "Save" button. If you leave the playback page, the temporary file is automatically deleted.</p>
+            </article>
+            <article class="support-card">
+              <h3>No ads, no in-app purchases</h3>
+              <p>ShadowGuessKids contains no ads, no pop-ups, and no in-app purchases. There is no ad tracking and no data upload — everything stays on the device.</p>
+            </article>
+          </div>
+
+          <article class="page-panel">
+            <h2>Helpful details to include in a report</h2>
+            <ul class="support-list">
+              <li>Your iOS version and device model, such as iPhone 15 / iOS 17.</li>
+              <li>The ShadowGuessKids version and build number.</li>
+              <li>The mode you were using — tap-to-answer or Video Voice — and the language selected.</li>
+              <li>Whether Camera, Microphone, and Speech Recognition are enabled in Settings → ShadowGuessKids.</li>
+              <li>Steps to reproduce, ideally with a screenshot or screen recording.</li>
+            </ul>
+          </article>
+        </section>
+      </section>
+
+      <!-- ══════════ 中文 ══════════ -->
+      <section class="lang-panel" data-lang-panel="zh-Hans" hidden>
+        <div class="page-heading">
+          <div class="eyebrow">支持中心</div>
+          <h1>影子猜猜乐 支持</h1>
+          <p>影子猜猜乐是一款专为幼儿与学龄前儿童设计、无任何联网功能的影子识物小游戏。如果「视频语音」模式不能用、回放视频保存有问题，或遇到权限提示，可以先看下面的排查建议，或直接给我们发邮件。</p>
+        </div>
+
+        <section class="contact-hero">
+          <div class="contact-hero-inner">
+            <span class="contact-eyebrow">需要帮助？</span>
+            <h2>联系支持</h2>
+            <p class="contact-desc">直接给我们发邮件，这是获得帮助最快的方式。</p>
+            <div class="button-row">
+              <a class="primary-link contact-email" href="mailto:support@stackpaste.cn?subject=ShadowGuessKids%20Support">support@stackpaste.cn</a>
+            </div>
+            <p class="contact-note">我们通常在 1–2 个工作日内回复。</p>
+          </div>
+        </section>
+
+        <section class="page-layout">
+          <div class="support-grid">
+            <article class="support-card">
+              <h3>应用需要联网吗？</h3>
+              <p>不需要。影子猜猜乐完全不包含任何联网功能，所有内容都在设备本机处理，无需注册账户，也不会与任何服务器通信。</p>
+            </article>
+            <article class="support-card">
+              <h3>「视频语音」模式用不了？</h3>
+              <p>该模式需要前置摄像头、麦克风与语音识别权限。请到系统「设置 › 影子猜猜乐」中允许相机、麦克风与语音识别。设备未安装对应语言的本地识别模型时，该模式不可用。</p>
+            </article>
+            <article class="support-card">
+              <h3>如何保存回放视频？</h3>
+              <p>完成 10 题后用内置播放器回看，只有主动点击「保存」才会写入本机相册；离开回看页后临时录像会自动删除。</p>
+            </article>
+            <article class="support-card">
+              <h3>没有广告、没有内购</h3>
+              <p>影子猜猜乐不包含任何广告、弹窗或内购，不做广告追踪，也不上传任何数据，孩子隐私全部留在设备本地。</p>
+            </article>
+          </div>
+
+          <article class="page-panel">
+            <h2>提交问题时建议附带的信息</h2>
+            <ul class="support-list">
+              <li>设备型号与 iOS 版本，例如 iPhone 15 / iOS 17。</li>
+              <li>影子猜猜乐的版本号与构建号。</li>
+              <li>你使用的玩法（点击答题 / 视频语音）以及选择的语言。</li>
+              <li>是否已在系统「设置 › 影子猜猜乐」中允许相机、麦克风、语音识别。</li>
+              <li>能稳定复现问题的步骤，最好附带截图或录屏。</li>
+            </ul>
+          </article>
+        </section>
+      </section>
+
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        <p class="footer-note">ShadowGuessKids is an offline, no-ads guessing game for young children. No account is required and no data leaves the device.</p>
+        <nav class="footer-links" aria-label="Footer">
+          <a href="../">Home</a>
+          <a href="../privacy/">Privacy Policy</a>
+          <a href="https://apps.apple.com/cn/app/id6793174404?mt=8" rel="noopener">ShadowGuessKids on the App Store</a>
+        </nav>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    (function () {
+      var btns = document.querySelectorAll('[data-lang-btn]');
+      var panels = document.querySelectorAll('[data-lang-panel]');
+      function apply(lang) {
+        panels.forEach(function (p) {
+          var on = p.getAttribute('data-lang-panel') === lang;
+          p.classList.toggle('is-active', on);
+          p.hidden = !on;
+        });
+        btns.forEach(function (b) {
+          b.setAttribute('aria-pressed', String(b.getAttribute('data-lang-btn') === lang));
+        });
+        try { localStorage.setItem('sgk-site-language', lang); } catch (e) {}
+      }
+      btns.forEach(function (b) {
+        b.addEventListener('click', function () { apply(b.getAttribute('data-lang-btn')); });
+      });
+      try {
+        var saved = localStorage.getItem('sgk-site-language');
+        if (saved === 'zh-Hans') apply('zh-Hans');
+      } catch (e) {}
+    })();
+  </script>
+</body>
+</html>

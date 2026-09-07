@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="StackPaste support: clipboard history, Stacks, sequential paste, keyboard workflows, iCloud sync, and troubleshooting.">
+  <meta name="theme-color" content="#090a11">
+  <meta name="author" content="Qin Yao">
+  <title>StackPaste | Support</title>
+  <link rel="icon" href="../../assets/stackpaste-icon.png">
+  <link rel="stylesheet" href="../../assets/site.css">
+  <style>
+    /* 语言切换按钮（本页自包含，不依赖外部脚本） */
+    .lang-toggle { display: inline-flex; gap: 6px; }
+    .lang-toggle button {
+      padding: 6px 14px; border-radius: 999px; cursor: pointer;
+      border: 1px solid rgba(213,219,255,0.2);
+      background: rgba(21,23,34,0.76); color: rgba(224,226,240,0.68);
+      font-size: 0.78rem; font-weight: 600; font-family: inherit;
+    }
+    .lang-toggle button[aria-pressed="true"] {
+      border-color: rgba(117,231,255,0.45);
+      background: rgba(117,231,255,0.13); color: #75e7ff;
+    }
+  </style>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="brand" href="../">
+          <span class="brand-logo"><img src="../../assets/stackpaste-icon.png" alt="StackPaste icon"></span>
+          <span class="brand-wordmark">StackPaste</span>
+        </a>
+        <nav class="site-nav" aria-label="Primary">
+          <a class="nav-link" href="../">Home</a>
+          <a class="nav-link" href="../privacy/">Privacy</a>
+          <a class="nav-link" href="./" aria-current="page">Support</a>
+        </nav>
+        <div class="lang-toggle" role="group" aria-label="Language">
+          <button type="button" data-lang-btn="en" aria-pressed="true">EN</button>
+          <button type="button" data-lang-btn="zh-Hans" aria-pressed="false">中文</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="page-inner">
+
+      <!-- ══════════ English（默认可见，不依赖 JS） ══════════ -->
+      <section class="lang-panel is-active" data-lang-panel="en">
+        <div class="page-heading">
+          <div class="eyebrow">Support center</div>
+          <h1>StackPaste Support</h1>
+          <p>StackPaste is a clipboard manager for creators, developers, and power users. If something is not working — history not recording, Stacks behaving oddly, iCloud sync, or purchase questions — this page explains how to reach us and what to try first.</p>
+        </div>
+
+        <section class="contact-hero">
+          <div class="contact-hero-inner">
+            <span class="contact-eyebrow">NEED HELP?</span>
+            <h2>Contact Support</h2>
+            <p class="contact-desc">Email us directly — this is the fastest way to get help with StackPaste.</p>
+            <div class="button-row">
+              <a class="primary-link contact-email" href="mailto:support@stackpaste.cn?subject=StackPaste%20Support">support@stackpaste.cn</a>
+            </div>
+            <p class="contact-note">We usually reply within 1–2 business days. For purchase or subscription questions, please include the email address used for the purchase.</p>
+          </div>
+        </section>
+
+        <section class="page-layout">
+          <div class="support-grid">
+            <article class="support-card">
+              <h3>Clipboard history not recording</h3>
+              <p>StackPaste records text, links, images, files, and colors in the background. Make sure StackPaste is running (check for its icon in the menu bar) and that it is allowed to run in the background on your Mac.</p>
+            </article>
+            <article class="support-card">
+              <h3>How Stacks and sequential paste work</h3>
+              <p>Group related clips into a Stack, copy several items at once, then paste them one after another in order — without switching back and forth between apps.</p>
+            </article>
+            <article class="support-card">
+              <h3>Finding clips faster</h3>
+              <p>Use quick filters, the keyboard-first workflow, and custom shortcuts to locate and paste what you need. Shortcuts can be redefined if they conflict with another app.</p>
+            </article>
+            <article class="support-card">
+              <h3>Where your data lives</h3>
+              <p>Your clipboard data stays private on your Mac and is only synced through your own personal iCloud account. We do not operate a server that stores your clips.</p>
+            </article>
+          </div>
+
+          <article class="page-panel">
+            <h2>Helpful details to include in a report</h2>
+            <ul class="support-list">
+              <li>Your macOS version and machine architecture, such as Apple Silicon or Intel.</li>
+              <li>The StackPaste version and build number.</li>
+              <li>The workflow you were using, such as history search, Stacks, or sequential paste.</li>
+              <li>Whether iCloud sync is enabled, and whether the issue happens on more than one Mac.</li>
+              <li>Steps to reproduce, ideally with a screenshot or screen recording.</li>
+            </ul>
+          </article>
+        </section>
+      </section>
+
+      <!-- ══════════ 中文 ══════════ -->
+      <section class="lang-panel" data-lang-panel="zh-Hans" hidden>
+        <div class="page-heading">
+          <div class="eyebrow">支持中心</div>
+          <h1>StackPaste 支持</h1>
+          <p>StackPaste 是为创作者、开发者和高阶用户打造的剪贴板管理工具。如果历史记录没有写入、Stacks 行为异常、iCloud 同步异常，或你有购买相关的问题，可以先看下面的排查建议，或直接给我们发邮件。</p>
+        </div>
+
+        <section class="contact-hero">
+          <div class="contact-hero-inner">
+            <span class="contact-eyebrow">需要帮助？</span>
+            <h2>联系支持</h2>
+            <p class="contact-desc">直接给我们发邮件，这是获得 StackPaste 帮助最快的方式。</p>
+            <div class="button-row">
+              <a class="primary-link contact-email" href="mailto:support@stackpaste.cn?subject=StackPaste%20Support">support@stackpaste.cn</a>
+            </div>
+            <p class="contact-note">我们通常在 1–2 个工作日内回复。涉及购买或订阅问题时，请一并提供购买所使用的邮箱。</p>
+          </div>
+        </section>
+
+        <section class="page-layout">
+          <div class="support-grid">
+            <article class="support-card">
+              <h3>复制内容没有被记录</h3>
+              <p>StackPaste 会在后台记录文本、链接、图片、文件和颜色。请确认 StackPaste 正在运行（菜单栏中可见图标），并已在 Mac 上允许其后台运行。</p>
+            </article>
+            <article class="support-card">
+              <h3>Stacks 与顺序粘贴怎么用</h3>
+              <p>把相关内容整理到 Stacks，一次复制多个项目，再按顺序逐个粘贴，不必在应用之间来回切换。</p>
+            </article>
+            <article class="support-card">
+              <h3>更快找到历史记录</h3>
+              <p>可使用快速筛选、键盘优先的操作方式与自定义快捷键来定位并粘贴内容；如与别的应用冲突，可自行修改快捷键。</p>
+            </article>
+            <article class="support-card">
+              <h3>我的数据存在哪里</h3>
+              <p>剪贴板数据会私密保存在你的 Mac 上，只会通过你个人的 iCloud 进行同步。我们不运营存储你剪贴内容的服务器。</p>
+            </article>
+          </div>
+
+          <article class="page-panel">
+            <h2>提交问题时建议附带的信息</h2>
+            <ul class="support-list">
+              <li>macOS 版本和设备架构，例如 Apple Silicon 或 Intel。</li>
+              <li>StackPaste 版本号与构建号。</li>
+              <li>你执行的功能路径，例如历史搜索、Stacks 或顺序粘贴。</li>
+              <li>是否开启 iCloud 同步，以及问题是否在多台 Mac 上出现。</li>
+              <li>能稳定复现问题的步骤，最好附带截图或录屏。</li>
+            </ul>
+          </article>
+        </section>
+      </section>
+
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        <p class="footer-note">StackPaste is a clipboard manager for macOS. Clipboard data stays on your device and syncs only through your own iCloud account.</p>
+        <nav class="footer-links" aria-label="Footer">
+          <a href="../">Home</a>
+          <a href="../privacy/">Privacy Policy</a>
+          <a href="https://apps.apple.com/cn/app/id6761370954?mt=12" rel="noopener">StackPaste on the Mac App Store</a>
+        </nav>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    (function () {
+      var btns = document.querySelectorAll('[data-lang-btn]');
+      var panels = document.querySelectorAll('[data-lang-panel]');
+      function apply(lang) {
+        panels.forEach(function (p) {
+          var on = p.getAttribute('data-lang-panel') === lang;
+          p.classList.toggle('is-active', on);
+          p.hidden = !on;
+        });
+        btns.forEach(function (b) {
+          b.setAttribute('aria-pressed', String(b.getAttribute('data-lang-btn') === lang));
+        });
+        try { localStorage.setItem('stackpaste-site-language', lang); } catch (e) {}
+      }
+      btns.forEach(function (b) {
+        b.addEventListener('click', function () { apply(b.getAttribute('data-lang-btn')); });
+      });
+      // 记忆上次选择；未选择时保持英文（服务端默认），无需 JS 也能正常阅读
+      try {
+        var saved = localStorage.getItem('stackpaste-site-language');
+        if (saved === 'zh-Hans') apply('zh-Hans');
+      } catch (e) {}
+    })();
+  </script>
+</body>
+</html>
